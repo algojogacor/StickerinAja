@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const QR = require('qrcode-terminal');
 const fs = require('fs');
@@ -11,7 +11,18 @@ function startBot({ authDir, logger, onMessage }) {
 
     async function connect() {
         const { state, saveCreds } = await useMultiFileAuthState(authDir);
+        
+        let version = [2, 3000, 1035194821]; // Fallback to current verified working version
+        try {
+            const latest = await fetchLatestBaileysVersion();
+            version = latest.version;
+            logger.info(`ℹ️ Using WA version: ${version.join('.')}`);
+        } catch (err) {
+            logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
+        }
+
         const sock = makeWASocket({
+            version,
             auth: state,
             browser: Browsers.windows('StickerinBot'),
             syncFullHistory: false,
