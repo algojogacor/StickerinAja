@@ -35,6 +35,21 @@ const logger = pino({
     level: process.env.LOG_LEVEL || 'info'
 });
 
+// Start a lightweight HTTP server for Koyeb health check and uptime pinging (no Express to save RAM)
+const http = require('http');
+const PORT = process.env.PORT || 8000;
+http.createServer((req, res) => {
+    if (req.url === '/' || req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()) }));
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+}).listen(PORT, () => {
+    logger.info(`🌐 Health check server listening on port ${PORT}`);
+});
+
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
