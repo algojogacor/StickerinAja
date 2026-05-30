@@ -35,14 +35,22 @@ function startBot({ authDir, logger, onMessage }) {
         sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
             if (qr) {
+                global.botState.status = 'qr';
+                global.botState.qr = qr;
                 QR.generate(qr, { small: true });
                 logger.info('📱 Scan QR code above to login');
             }
             if (connection === 'open') {
+                global.botState.status = 'connected';
+                global.botState.qr = null;
+                global.botState.user = sock.user;
                 logger.info('✅ Bot connected!');
                 logger.info(`📱 Logged in as: ${sock.user?.name || sock.user?.id}`);
             }
             if (connection === 'close') {
+                global.botState.status = 'connecting';
+                global.botState.qr = null;
+                global.botState.user = null;
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 const shouldReconnect = reason !== DisconnectReason.loggedOut;
                 logger.info(`🔌 Disconnected: ${reason || 'unknown'} | Reconnect: ${shouldReconnect}`);
