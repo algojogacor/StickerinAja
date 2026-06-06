@@ -12,6 +12,7 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 const TEMP_DIR = path.join(__dirname, '../../temp');
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760');
+const ANIMATED_STICKER_TARGET_BYTES = parseInt(process.env.ANIMATED_STICKER_TARGET_BYTES || '950000');
 
 module.exports = {
     names: ['s', 'sticker', 'stiker', 'sgif', 'stickergif', 'stikergif',
@@ -502,6 +503,66 @@ module.exports = {
         });
     },
 
+    clampNumber(value, min, max, fallback) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return fallback;
+        return Math.min(Math.max(number, min), max);
+    },
+
+    getAnimatedEncodeAttempts(parsedArgs, session) {
+        const baseFps = this.clampNumber(parsedArgs.fps, 6, 24, 15);
+        const baseQuality = this.clampNumber(parsedArgs.quality || session.quality, 1, 100, 80);
+        const baseDuration = this.clampNumber(parsedArgs.duration, 1, 10, 10);
+        const profiles = [
+            { fps: baseFps, quality: baseQuality, duration: baseDuration },
+            { fps: Math.min(baseFps, 12), quality: Math.min(baseQuality, 70), duration: Math.min(baseDuration, 8) },
+            { fps: Math.min(baseFps, 10), quality: Math.min(baseQuality, 60), duration: Math.min(baseDuration, 6) },
+            { fps: Math.min(baseFps, 8), quality: Math.min(baseQuality, 50), duration: Math.min(baseDuration, 5) },
+            { fps: Math.min(baseFps, 6), quality: Math.min(baseQuality, 42), duration: Math.min(baseDuration, 4) }
+        ];
+
+        const seen = new Set();
+        return profiles.filter((profile) => {
+            const key = `${profile.fps}-${profile.quality}-${profile.duration}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    },
+
+    async encodeAnimatedSticker({ inputPath, outputPath, overlayPath, parsedArgs, attempt }) {
+        const baseFilter = `fps=${attempt.fps},scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p`;
+        const hasOverlay = !!parsedArgs.overlayText;
+        const outputOptions = [
+            `-t ${attempt.duration}`,
+            '-vcodec libwebp_anim',
+            '-loop 0',
+            '-preset default',
+            '-an',
+            '-vsync 0',
+            '-compression_level 6',
+            `-q:v ${attempt.quality}`
+        ];
+
+        await new Promise((resolve, reject) => {
+            const command = ffmpeg(inputPath);
+            if (parsedArgs.start) command.inputOptions([`-ss ${parsedArgs.start}`]);
+            if (hasOverlay) {
+                command
+                    .input(overlayPath)
+                    .complexFilter(`[0:v]${baseFilter}[base];[base][1:v]overlay=0:0:format=auto,format=yuva420p[out]`, 'out');
+            } else {
+                outputOptions.unshift(`-vf ${baseFilter}`);
+            }
+            command
+                .outputOptions(outputOptions)
+                .toFormat('webp')
+                .on('end', resolve)
+                .on('error', reject)
+                .save(outputPath);
+        });
+    },
+
     async preprocessImage(buffer, options) {
         let working = buffer;
         if (options.removeBg) {
@@ -595,61 +656,76 @@ module.exports = {
         await ffmpegQueue.add(async () => {
             const time = Date.now();
             const tempInput = path.join(TEMP_DIR, `vid_${time}.bin`);
-            const tempOutput = path.join(TEMP_DIR, `sticker_${time}.webp`);
             const tempOverlay = path.join(TEMP_DIR, `overlay_${time}.png`);
+            const tempOutputs = [];
             // ⚡ Async I/O — avoids blocking event loop on large video buffers
             await fs.promises.writeFile(tempInput, buffer);
             // ⚡ Release source buffer (~up to 10MB) before heavy FFmpeg processing
             buffer = null;
 
             try {
-                const quality = Math.max(1, Math.min(100, parsedArgs.quality || session.quality || 80));
-                const fps = parsedArgs.fps || 15;
-                const duration = parsedArgs.duration || 10;
-                const baseFilter = `fps=${fps},scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p`;
-                const hasOverlay = !!parsedArgs.overlayText;
-                if (hasOverlay) {
+                if (parsedArgs.overlayText) {
                     await fs.promises.writeFile(tempOverlay, this.renderTextOverlayPng(parsedArgs.overlayText, parsedArgs));
                 }
-                const outputOptions = [
-                    `-t ${duration}`,
-                    '-vcodec libwebp_anim',
-                    '-loop 0',
-                    '-preset default',
-                    '-an',
-                    '-vsync 0',
-                    '-compression_level 6',
-                    `-q:v ${quality}`
-                ];
-                await new Promise((resolve, reject) => {
-                    const command = ffmpeg(tempInput);
-                    if (parsedArgs.start) command.inputOptions([`-ss ${parsedArgs.start}`]);
-                    if (hasOverlay) {
-                        command
-                            .input(tempOverlay)
-                            .complexFilter(`[0:v]${baseFilter}[base];[base][1:v]overlay=0:0:format=auto,format=yuva420p[out]`, 'out');
-                    } else {
-                        outputOptions.unshift(`-vf ${baseFilter}`);
+
+                const attempts = this.getAnimatedEncodeAttempts(parsedArgs, session);
+                let bestResult = null;
+
+                for (let i = 0; i < attempts.length; i++) {
+                    const attempt = attempts[i];
+                    const tempOutput = path.join(TEMP_DIR, `sticker_${time}_${i}.webp`);
+                    tempOutputs.push(tempOutput);
+
+                    await this.encodeAnimatedSticker({
+                        inputPath: tempInput,
+                        outputPath: tempOutput,
+                        overlayPath: tempOverlay,
+                        parsedArgs,
+                        attempt
+                    });
+
+                    const stat = await fs.promises.stat(tempOutput);
+                    const result = { path: tempOutput, size: stat.size, attempt, index: i + 1 };
+                    logger.info({
+                        attempt: result.index,
+                        size: result.size,
+                        target: ANIMATED_STICKER_TARGET_BYTES,
+                        fps: attempt.fps,
+                        quality: attempt.quality,
+                        duration: attempt.duration
+                    }, 'Animated sticker encode attempt');
+
+                    if (!bestResult || result.size < bestResult.size) {
+                        bestResult = result;
                     }
-                    command
-                        .outputOptions(outputOptions)
-                        .toFormat('webp')
-                        .on('end', resolve)
-                        .on('error', reject)
-                        .save(tempOutput);
-                });
+
+                    if (result.size <= ANIMATED_STICKER_TARGET_BYTES) {
+                        bestResult = result;
+                        break;
+                    }
+                }
+
+                if (!bestResult) throw new Error('No animated sticker output was generated');
 
                 // ⚡ Async read — keeps event loop free while reading output
-                const stickerBuffer = await fs.promises.readFile(tempOutput);
+                const stickerBuffer = await fs.promises.readFile(bestResult.path);
                 await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-                logger.info(`✅ Animated sticker sent to ${remoteJid}`);
+                logger.info({
+                    size: bestResult.size,
+                    attempt: bestResult.index,
+                    fps: bestResult.attempt.fps,
+                    quality: bestResult.attempt.quality,
+                    duration: bestResult.attempt.duration
+                }, `✅ Animated sticker sent to ${remoteJid}`);
             } catch (err) {
                 logger.error({ err }, 'FFmpeg error');
                 await sock.sendMessage(remoteJid, { text: '❌ Gagal proses video. Mungkin terlalu panjang atau corrupt.' }, { quoted: msg });
             } finally {
                 try { fs.unlinkSync(tempInput); } catch {}
-                try { fs.unlinkSync(tempOutput); } catch {}
                 try { fs.unlinkSync(tempOverlay); } catch {}
+                for (const tempOutput of tempOutputs) {
+                    try { fs.unlinkSync(tempOutput); } catch {}
+                }
             }
         });
     },

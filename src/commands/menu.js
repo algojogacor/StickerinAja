@@ -90,13 +90,14 @@ module.exports = {
             gif: `╭──「 *STIKER ANIMASI* 」──
 │ Reply video/GIF lalu pakai:
 │ ${p}sgif
-│   Jadi stiker animasi.
+│   Jadi stiker animasi, auto-compress aktif.
 │ ${p}sgif --start 2 --dur 4
 │   Mulai detik 2, durasi 4 detik.
 │ ${p}sgif --fps 12
 │   FPS 6-24. Rekomendasi 10-15.
 │ ${p}sgif --q 80
 │   Kualitas 1-100.
+│ Jika hasil terlalu berat, bot otomatis coba fps/kualitas/durasi lebih ringan.
 │
 │ *Teks di animasi*
 │ ${p}sgif --text halo --bottom

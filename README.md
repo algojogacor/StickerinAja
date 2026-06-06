@@ -12,6 +12,7 @@
 
 *   🖼️ **Foto ke Stiker**: Mengubah gambar langsung atau membalas (reply) gambar menjadi stiker.
 *   🎬 **Video ke Stiker Animasi**: Mengonversi video pendek / GIF menjadi stiker animasi (`.webp`).
+*   🧩 **Auto-Compress Animasi**: GIF/video berat otomatis dicoba ulang dengan FPS, kualitas, dan durasi lebih ringan agar lebih aman dikirim.
 *   ✏️ **Teks ke Stiker**: Membuat stiker berisi tulisan secara instan dengan dukungan penggantian warna latar belakang (`--bg #warna`).
 *   🎯 **Transformasi Bentuk**: Mendukung pembuatan stiker berbentuk bulat (*circle*), kotak (*crop*), maupun sudut membulat (*rounded*).
 *   🎨 **Efek Stiker**: Grayscale, invert, sepia, blur, sharpen, rotate, mirror, background transparan sederhana, dan teks overlay.
@@ -93,6 +94,7 @@ Berikut adalah daftar variabel lingkungan yang dapat Anda gunakan di file `.env`
 | `TEMP_DIR` | Folder penyimpanan file media sementara. | `./temp` |
 | `KEEP_TEMP_MINUTES` | Jeda waktu penghapusan file temp lama (dalam menit). | `5` |
 | `MAX_FILE_SIZE` | Ukuran file media maksimal yang diizinkan (dalam byte). | `10485760` (10MB) |
+| `ANIMATED_STICKER_TARGET_BYTES` | Target ukuran hasil stiker animasi sebelum auto-compress mencoba profil lebih ringan. | `950000` |
 
 ---
 
@@ -118,7 +120,7 @@ Kirim pesan ke bot menggunakan awalan yang telah diatur (default: `!`).
 | `!s --rmbg` | Membuat background sederhana menjadi transparan. | Cocok untuk background polos/kontras |
 | `!s --text <teks>` | Menambahkan teks overlay ke gambar. | `!s --text halo --top --color #ffff00 --stroke #000000 --size 42` |
 | `!svintage` / `!smono` / `!sdeepfried` / `!sglow` | Preset efek cepat untuk foto. | Reply foto dengan `!svintage --text nostalgia` |
-| `!sgif` | Mengonversi video pendek/GIF menjadi stiker animasi. | Balas video dengan caption `!sgif` |
+| `!sgif` | Mengonversi video pendek/GIF menjadi stiker animasi dengan auto-compress. | Balas video dengan caption `!sgif` |
 | `!sgif --start <detik> --dur <detik> --fps <angka>` | Mengambil potongan video/GIF tertentu untuk stiker animasi. | `!sgif --start 2 --dur 4 --fps 12 --text halo` |
 | `!meme <atas> \| <bawah>` | Membuat meme sticker dari teks atau gambar yang dibalas. | Reply gambar dengan `!meme atas \| bawah` |
 | `!sticker <teks>` | Membuat stiker dari tulisan/teks. | `!sticker Halo Dunia` |
