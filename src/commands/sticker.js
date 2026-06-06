@@ -5,6 +5,8 @@ const { stickerCache, textStickerCache, ffmpegQueue, imageQueue } = require('../
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
+const { createCanvas, loadImage } = require('canvas');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -14,7 +16,8 @@ const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760');
 module.exports = {
     names: ['s', 'sticker', 'stiker', 'sgif', 'stickergif', 'stikergif',
             'scircle', 'scrop', 'srounded',
-            'toimg'],
+            'meme', 'smeme', 'stext',
+            'toimg', 'togif'],
 
     async execute({ sock, msg, args, cmdName, remoteJid, quotedMsg, quotedStanza, session, logger, PREFIX }) {
         // ─────────────────────────────────────────────
@@ -22,6 +25,14 @@ module.exports = {
         // ─────────────────────────────────────────────
         if (cmdName === 'toimg') {
             return await this.toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger });
+        }
+
+        if (cmdName === 'togif') {
+            return await this.toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger });
+        }
+
+        if (['meme', 'smeme'].includes(cmdName)) {
+            return await this.createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger });
         }
 
         // ─────────────────────────────────────────────
@@ -83,6 +94,41 @@ module.exports = {
             else if (['--circle', '-o'].includes(a)) result.type = 'circle';
             else if (['--rounded', '-r'].includes(a)) result.type = 'rounded';
             else if (['--full', '-f'].includes(a)) result.type = 'full';
+            else if (['--gray', '--grayscale', '--bw'].includes(a)) result.gray = true;
+            else if (['--invert', '--negative'].includes(a)) result.invert = true;
+            else if (['--sharpen', '--sharp'].includes(a)) result.sharpen = true;
+            else if (['--sepia'].includes(a)) result.sepia = true;
+            else if (['--flip'].includes(a)) result.flip = true;
+            else if (['--flop', '--mirror'].includes(a)) result.flop = true;
+            else if (['--rmbg', '--removebg', '--transparent'].includes(a)) result.removeBg = true;
+            else if (['--blur'].includes(a)) {
+                const next = parseFloat(args[i + 1]);
+                result.blur = Number.isFinite(next) ? Math.min(Math.max(next, 1), 20) : 4;
+                if (Number.isFinite(next)) i++;
+            }
+            else if (['--rotate'].includes(a) && args[i + 1]) {
+                const rotate = parseInt(args[++i]);
+                if (!isNaN(rotate)) result.rotate = rotate;
+            }
+            else if (['--start', '-ss'].includes(a) && args[i + 1]) {
+                const start = parseFloat(args[++i]);
+                if (!isNaN(start)) result.start = Math.max(0, start);
+            }
+            else if (['--dur', '--duration', '-d'].includes(a) && args[i + 1]) {
+                const duration = parseFloat(args[++i]);
+                if (!isNaN(duration)) result.duration = Math.min(Math.max(duration, 1), 10);
+            }
+            else if (['--fps'].includes(a) && args[i + 1]) {
+                const fps = parseInt(args[++i]);
+                if (!isNaN(fps)) result.fps = Math.min(Math.max(fps, 6), 24);
+            }
+            else if (['--text', '-t'].includes(a)) {
+                const words = [];
+                while (args[i + 1] && !args[i + 1].startsWith('--')) {
+                    words.push(args[++i]);
+                }
+                result.overlayText = words.join(' ').trim();
+            }
             else if (['--quality', '-q'].includes(a) && args[i + 1]) {
                 result.quality = parseInt(args[++i]);
                 if (isNaN(result.quality)) result.quality = 80;
@@ -116,16 +162,170 @@ module.exports = {
         }
     },
 
+    hasImageTransforms(options) {
+        return !!(options.gray || options.invert || options.blur || options.sharpen ||
+            options.sepia || options.flip || options.flop || options.rotate ||
+            options.removeBg || options.overlayText);
+    },
+
+    normalizeMemeParts(text) {
+        const parts = text.split('|').map(v => v.trim()).filter(Boolean);
+        return {
+            top: parts[0] || '',
+            bottom: parts.slice(1).join(' ') || ''
+        };
+    },
+
+    async removeSimpleBackground(buffer, tolerance = 34) {
+        const image = sharp(buffer).resize(512, 512, {
+            fit: 'contain',
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }).ensureAlpha();
+        const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+        const idx = (x, y) => (y * info.width + x) * info.channels;
+        const samples = [
+            idx(0, 0),
+            idx(info.width - 1, 0),
+            idx(0, info.height - 1),
+            idx(info.width - 1, info.height - 1)
+        ];
+        const bg = samples.reduce((acc, i) => {
+            acc.r += data[i];
+            acc.g += data[i + 1];
+            acc.b += data[i + 2];
+            return acc;
+        }, { r: 0, g: 0, b: 0 });
+        bg.r /= samples.length;
+        bg.g /= samples.length;
+        bg.b /= samples.length;
+
+        for (let i = 0; i < data.length; i += info.channels) {
+            const dist = Math.abs(data[i] - bg.r) + Math.abs(data[i + 1] - bg.g) + Math.abs(data[i + 2] - bg.b);
+            if (dist <= tolerance) data[i + 3] = 0;
+        }
+
+        return sharp(data, { raw: info }).png().toBuffer();
+    },
+
+    wrapCanvasText(ctx, text, maxWidth) {
+        const words = text.split(/\s+/).filter(Boolean);
+        const lines = [];
+        let line = '';
+        for (const word of words) {
+            const test = line ? `${line} ${word}` : word;
+            if (ctx.measureText(test).width > maxWidth && line) {
+                lines.push(line);
+                line = word;
+            } else {
+                line = test;
+            }
+        }
+        if (line) lines.push(line);
+        return lines;
+    },
+
+    drawStickerText(ctx, text, y, options = {}) {
+        if (!text) return;
+        const W = 512;
+        let fontSize = options.fontSize || 42;
+        let lines = [];
+        do {
+            ctx.font = `bold ${fontSize}px Arial, Helvetica, sans-serif`;
+            lines = this.wrapCanvasText(ctx, text.toUpperCase(), W - 42);
+            fontSize -= 2;
+        } while (lines.length > 3 && fontSize > 24);
+
+        const lineHeight = (fontSize + 2) * 1.1;
+        const totalHeight = lines.length * lineHeight;
+        const startY = options.align === 'bottom' ? y - totalHeight + lineHeight : y;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(5, Math.floor(fontSize / 6));
+        ctx.strokeStyle = '#111111';
+        ctx.fillStyle = '#ffffff';
+
+        for (let i = 0; i < lines.length; i++) {
+            const lineY = startY + i * lineHeight;
+            ctx.strokeText(lines[i], W / 2, lineY);
+            ctx.fillText(lines[i], W / 2, lineY);
+        }
+    },
+
+    async applyTextOverlay(buffer, text) {
+        const base = await sharp(buffer)
+            .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .png()
+            .toBuffer();
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        const img = await loadImage(base);
+        ctx.drawImage(img, 0, 0, 512, 512);
+        this.drawStickerText(ctx, text, 448, { align: 'bottom', fontSize: 36 });
+        return canvas.toBuffer('image/png');
+    },
+
+    async renderMemeSticker(buffer, top, bottom, quality = 90) {
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 512, 512);
+
+        if (buffer) {
+            const base = await sharp(buffer).resize(512, 512, { fit: 'cover' }).png().toBuffer();
+            const img = await loadImage(base);
+            ctx.drawImage(img, 0, 0, 512, 512);
+        }
+
+        this.drawStickerText(ctx, top, 50, { align: 'top', fontSize: 44 });
+        this.drawStickerText(ctx, bottom, 472, { align: 'bottom', fontSize: 44 });
+
+        const rawBuffer = canvas.toBuffer('raw');
+        return sharp(rawBuffer, { raw: { width: 512, height: 512, channels: 4 } })
+            .webp({ quality })
+            .toBuffer();
+    },
+
+    async preprocessImage(buffer, options) {
+        let working = buffer;
+        if (options.removeBg) {
+            working = await this.removeSimpleBackground(working);
+        }
+
+        let image = sharp(working, { animated: false }).rotate();
+        if (options.rotate) image = image.rotate(options.rotate);
+        if (options.flip) image = image.flip();
+        if (options.flop) image = image.flop();
+        if (options.gray) image = image.grayscale();
+        if (options.invert) image = image.negate({ alpha: false });
+        if (options.blur) image = image.blur(options.blur);
+        if (options.sharpen) image = image.sharpen();
+        if (options.sepia) {
+            image = image.recomb([
+                [0.3588, 0.5889, 0.0913],
+                [0.2990, 0.5870, 0.1140],
+                [0.2392, 0.4696, 0.0913]
+            ]);
+        }
+
+        const transformed = await image.png().toBuffer();
+        return options.overlayText ? this.applyTextOverlay(transformed, options.overlayText) : transformed;
+    },
+
     async createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {
-        const buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+        let buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
         if (!buffer) return sock.sendMessage(remoteJid, { text: '📸 Balas/kirim foto dengan caption *!s*' }, { quoted: msg });
         if (buffer.length > MAX_FILE_SIZE) {
             return sock.sendMessage(remoteJid, { text: '⚠️ File terlalu besar! Maks 10MB' }, { quoted: msg });
         }
 
+        const parsedArgs = this.parseArgs(args);
+        const stickerType = parsedArgs.type || session.type;
+        const quality = parsedArgs.quality || session.quality;
+
         // Hash-based cache key (content-aware, file-size collision safe)
         const hash = crypto.createHash('md5').update(buffer).digest('hex');
-        const cacheKey = `${session.type}-${session.quality}-${hash}`;
+        const cacheKey = `${stickerType}-${quality}-${JSON.stringify(parsedArgs)}-${hash}`;
         const cached = stickerCache.get(cacheKey);
         if (cached) {
             await sock.sendMessage(remoteJid, { sticker: cached }, { quoted: msg });
@@ -136,11 +336,15 @@ module.exports = {
 
         // Queue to limit concurrent processing
         await imageQueue.add(async () => {
+            if (this.hasImageTransforms(parsedArgs)) {
+                buffer = await this.preprocessImage(buffer, parsedArgs);
+            }
+
             const sticker = new Sticker(buffer, {
                 pack: session.pack,
                 author: session.author,
-                type: this.getType(session.type),
-                quality: session.quality,
+                type: this.getType(stickerType),
+                quality,
                 background: { r: 0, g: 0, b: 0, alpha: 0 }
             });
 
@@ -154,6 +358,7 @@ module.exports = {
 
     async createAnimated({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {
         let buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+        const parsedArgs = this.parseArgs(args);
         if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video dengan *!sgif*' }, { quoted: msg });
         if (buffer.length > MAX_FILE_SIZE) {
             return sock.sendMessage(remoteJid, { text: '⚠️ Video terlalu besar! Maks 10MB' }, { quoted: msg });
@@ -172,20 +377,25 @@ module.exports = {
             buffer = null;
 
             try {
-                const quality = Math.max(1, Math.min(100, session.quality || 80));
+                const quality = Math.max(1, Math.min(100, parsedArgs.quality || session.quality || 80));
+                const fps = parsedArgs.fps || 15;
+                const duration = parsedArgs.duration || 10;
+                const outputOptions = [
+                    `-t ${duration}`,
+                    '-vcodec libwebp_anim',
+                    `-vf fps=${fps},scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p`,
+                    '-loop 0',
+                    '-preset default',
+                    '-an',
+                    '-vsync 0',
+                    '-compression_level 6',
+                    `-q:v ${quality}`
+                ];
                 await new Promise((resolve, reject) => {
-                    ffmpeg(tempInput)
-                        .outputOptions([
-                            '-t 00:00:10',
-                            '-vcodec libwebp_anim',
-                            '-vf fps=15,scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p',
-                            '-loop 0',
-                            '-preset default',
-                            '-an',
-                            '-vsync 0',
-                            '-compression_level 6',
-                            `-q:v ${quality}`
-                        ])
+                    const command = ffmpeg(tempInput);
+                    if (parsedArgs.start) command.inputOptions([`-ss ${parsedArgs.start}`]);
+                    command
+                        .outputOptions(outputOptions)
                         .toFormat('webp')
                         .on('end', resolve)
                         .on('error', reject)
@@ -243,6 +453,28 @@ module.exports = {
         logger.info(`✅ Text sticker sent: "${displayText.slice(0, 30)}..."`);
     },
 
+    async createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {
+        const text = args.join(' ');
+        const { top, bottom } = this.normalizeMemeParts(text);
+        if (!top && !bottom) {
+            return sock.sendMessage(remoteJid, {
+                text: 'Gunakan: *!meme teks atas | teks bawah* sambil reply gambar, atau tanpa gambar untuk meme teks.'
+            }, { quoted: msg });
+        }
+
+        await sock.sendMessage(remoteJid, { text: '⏳ Membuat meme sticker...' }, { quoted: msg });
+
+        await imageQueue.add(async () => {
+            let buffer = null;
+            if (this.hasMedia(msg, quotedMsg)) {
+                buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+            }
+            const stickerBuffer = await this.renderMemeSticker(buffer, top, bottom, session.quality || 90);
+            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
+            logger.info(`✅ Meme sticker sent to ${remoteJid}`);
+        });
+    },
+
     async toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger }) {
         if (!quotedMsg?.stickerMessage) {
             return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker dengan *!toimg*' }, { quoted: msg });
@@ -278,5 +510,50 @@ module.exports = {
             try { fs.unlinkSync(tempInput); } catch {}
             try { fs.unlinkSync(tempOutput); } catch {}
         }
+    },
+
+    async toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger }) {
+        if (!quotedMsg?.stickerMessage) {
+            return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker animasi dengan *!togif*' }, { quoted: msg });
+        }
+
+        await sock.sendMessage(remoteJid, { text: '⏳ Mengubah stiker animasi ke GIF...' }, { quoted: msg });
+
+        let buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
+
+        await ffmpegQueue.add(async () => {
+            const time = Date.now();
+            const tempInput = path.join(TEMP_DIR, `stk_${time}.webp`);
+            const tempOutput = path.join(TEMP_DIR, `gif_${time}.gif`);
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
+            try {
+                await new Promise((resolve, reject) => {
+                    ffmpeg(tempInput)
+                        .outputOptions([
+                            '-vf fps=15,scale=512:512:force_original_aspect_ratio=decrease',
+                            '-loop 0'
+                        ])
+                        .on('end', resolve)
+                        .on('error', reject)
+                        .save(tempOutput);
+                });
+                const gifBuffer = await fs.promises.readFile(tempOutput);
+                await sock.sendMessage(remoteJid, {
+                    document: gifBuffer,
+                    mimetype: 'image/gif',
+                    fileName: 'sticker.gif'
+                }, { quoted: msg });
+                logger.info(`✅ Animated sticker converted to GIF for ${remoteJid}`);
+            } catch (err) {
+                logger.error({ err }, 'ToGif error');
+                await sock.sendMessage(remoteJid, { text: '❌ Gagal mengubah stiker animasi ke GIF.' }, { quoted: msg });
+            } finally {
+                try { fs.unlinkSync(tempInput); } catch {}
+                try { fs.unlinkSync(tempOutput); } catch {}
+            }
+        });
     }
 };

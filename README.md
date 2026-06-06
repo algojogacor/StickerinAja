@@ -14,9 +14,12 @@
 *   🎬 **Video ke Stiker Animasi**: Mengonversi video pendek / GIF menjadi stiker animasi (`.webp`).
 *   ✏️ **Teks ke Stiker**: Membuat stiker berisi tulisan secara instan dengan dukungan penggantian warna latar belakang (`--bg #warna`).
 *   🎯 **Transformasi Bentuk**: Mendukung pembuatan stiker berbentuk bulat (*circle*), kotak (*crop*), maupun sudut membulat (*rounded*).
+*   🎨 **Efek Stiker**: Grayscale, invert, sepia, blur, sharpen, rotate, mirror, background transparan sederhana, dan teks overlay.
+*   😂 **Meme Sticker**: Membuat meme sticker dari gambar atau teks dengan format caption atas/bawah.
 *   🎨 **Konfigurasi Kualitas**: Menyesuaikan tingkat kompresi kualitas stiker secara langsung saat mengirim perintah.
 *   ⚙️ **Pengaturan Dinamis per Chat**: Mengubah nama paket (*pack name*) dan pembuat (*author*) stiker langsung melalui ruang obrolan.
 *   🖼️ **Stiker ke Gambar**: Mengonversi stiker statis kembali menjadi gambar biasa (`!toimg`).
+*   🎞️ **Stiker Animasi ke GIF**: Mengonversi animated sticker kembali menjadi file GIF (`!togif`).
 *   🛡️ **Optimasi Performa Ekstrim**:
     *   **Byte-Aware LRU Cache**: Caching pintar berbasis hash untuk stiker teks & gambar agar tidak memproses ulang file yang sama, dengan batas memori ketat (20MB untuk gambar, 10MB untuk teks).
     *   **Memory Queues**: Antrean eksekusi ffmpeg (max 1 proses concurrent) dan sharp/canvas (max 2 proses concurrent) untuk mencegah lonjakan CPU/RAM.
@@ -103,10 +106,23 @@ Kirim pesan ke bot menggunakan awalan yang telah diatur (default: `!`).
 | `!s --crop` | Memotong gambar secara persegi pas di tengah. | `!s --crop` (atau singkat `-c`) |
 | `!s --rounded` | Membuat stiker dengan sudut membulat. | `!s --rounded` (atau singkat `-r`) |
 | `!s --q <angka>` | Menentukan kualitas kompresi stiker (1-100). | `!s --q 70` (kualitas lebih rendah = proses lebih cepat) |
+| `!s --gray` | Membuat stiker grayscale/hitam putih. | Balas gambar dengan `!s --gray` |
+| `!s --invert` | Membuat efek negative/invert. | Balas gambar dengan `!s --invert` |
+| `!s --sepia` | Membuat efek sepia. | Balas gambar dengan `!s --sepia` |
+| `!s --blur <angka>` | Membuat efek blur. | Balas gambar dengan `!s --blur 4` |
+| `!s --sharpen` | Mempertajam gambar sebelum jadi stiker. | Balas gambar dengan `!s --sharpen` |
+| `!s --flip` / `!s --mirror` | Membalik gambar vertikal/horizontal. | Balas gambar dengan `!s --mirror` |
+| `!s --rotate <derajat>` | Memutar gambar. | Balas gambar dengan `!s --rotate 90` |
+| `!s --rmbg` | Membuat background sederhana menjadi transparan. | Cocok untuk background polos/kontras |
+| `!s --text <teks>` | Menambahkan teks overlay ke gambar. | Balas gambar dengan `!s --text halo` |
 | `!sgif` | Mengonversi video pendek/GIF menjadi stiker animasi. | Balas video dengan caption `!sgif` |
+| `!sgif --start <detik> --dur <detik> --fps <angka>` | Mengambil potongan video/GIF tertentu untuk stiker animasi. | `!sgif --start 2 --dur 4 --fps 12` |
+| `!meme <atas> \| <bawah>` | Membuat meme sticker dari teks atau gambar yang dibalas. | Reply gambar dengan `!meme atas \| bawah` |
 | `!sticker <teks>` | Membuat stiker dari tulisan/teks. | `!sticker Halo Dunia` |
+| `!stext <teks>` | Alias untuk stiker teks. | `!stext Halo Dunia` |
 | `!sticker <teks> --bg <hex>` | Membuat stiker teks dengan warna background kustom. | `!sticker Halo --bg #ff0000` |
 | `!toimg` | Mengubah stiker statis kembali menjadi gambar biasa. | Balas stiker dengan `!toimg` |
+| `!togif` | Mengubah stiker animasi menjadi GIF. | Balas animated sticker dengan `!togif` |
 | `!pack <nama>` | Mengubah nama paket stiker untuk ruang obrolan Anda saat ini. | `!pack Nama Baru` |
 | `!author <nama>` | Mengubah nama pembuat stiker untuk ruang obrolan Anda saat ini. | `!author Arya` |
 
