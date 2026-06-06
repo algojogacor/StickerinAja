@@ -164,7 +164,7 @@ module.exports = {
         // Queue FFmpeg — max 1 at a time (memory saver)
         await ffmpegQueue.add(async () => {
             const time = Date.now();
-            const tempInput = path.join(TEMP_DIR, `vid_${time}.mp4`);
+            const tempInput = path.join(TEMP_DIR, `vid_${time}.bin`);
             const tempOutput = path.join(TEMP_DIR, `sticker_${time}.webp`);
             // ⚡ Async I/O — avoids blocking event loop on large video buffers
             await fs.promises.writeFile(tempInput, buffer);
@@ -172,16 +172,19 @@ module.exports = {
             buffer = null;
 
             try {
+                const quality = Math.max(1, Math.min(100, session.quality || 80));
                 await new Promise((resolve, reject) => {
                     ffmpeg(tempInput)
-                        .inputOptions(['-ss', '00:00:00', '-t', '00:00:10'])
                         .outputOptions([
-                            '-vcodec libwebp',
-                            '-vf scale=512:512:force_original_aspect_ratio=decrease',
+                            '-t 00:00:10',
+                            '-vcodec libwebp_anim',
+                            '-vf fps=15,scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p',
                             '-loop 0',
                             '-preset default',
-                            '-an', '-vsync 0',
-                            '-q:v 60'
+                            '-an',
+                            '-vsync 0',
+                            '-compression_level 6',
+                            `-q:v ${quality}`
                         ])
                         .toFormat('webp')
                         .on('end', resolve)
@@ -191,13 +194,7 @@ module.exports = {
 
                 // ⚡ Async read — keeps event loop free while reading output
                 const stickerBuffer = await fs.promises.readFile(tempOutput);
-                const sticker = new Sticker(stickerBuffer, {
-                    pack: session.pack,
-                    author: session.author,
-                    quality: 60
-                });
-
-                await sock.sendMessage(remoteJid, await sticker.toMessage(), { quoted: msg });
+                await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
                 logger.info(`✅ Animated sticker sent to ${remoteJid}`);
             } catch (err) {
                 logger.error({ err }, 'FFmpeg error');
