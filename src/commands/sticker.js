@@ -16,8 +16,12 @@ const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760');
 module.exports = {
     names: ['s', 'sticker', 'stiker', 'sgif', 'stickergif', 'stikergif',
             'scircle', 'scrop', 'srounded',
+            'svintage', 'smono', 'sdeepfried', 'sglow',
             'meme', 'smeme', 'stext',
-            'toimg', 'togif'],
+            'quote', 'squote', 'emoji', 'semoji',
+            'label', 'warning', 'bubble', 'poster',
+            'sinfo', 'stickerinfo',
+            'toimg', 'togif', 'tomp4'],
 
     async execute({ sock, msg, args, cmdName, remoteJid, quotedMsg, quotedStanza, session, logger, PREFIX }) {
         // ─────────────────────────────────────────────
@@ -31,8 +35,35 @@ module.exports = {
             return await this.toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger });
         }
 
+        if (cmdName === 'tomp4') {
+            return await this.toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger });
+        }
+
+        if (['sinfo', 'stickerinfo'].includes(cmdName)) {
+            return await this.stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger });
+        }
+
         if (['meme', 'smeme'].includes(cmdName)) {
             return await this.createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger });
+        }
+
+        if (['quote', 'squote'].includes(cmdName)) {
+            return await this.createQuote({ sock, msg, args, remoteJid, quotedMsg, session, logger });
+        }
+
+        if (['emoji', 'semoji'].includes(cmdName)) {
+            return await this.createEmoji({ sock, msg, args, remoteJid, session, logger });
+        }
+
+        if (['label', 'warning', 'bubble', 'poster'].includes(cmdName)) {
+            return await this.createTemplateText({ sock, msg, args, cmdName, remoteJid, session, logger });
+        }
+
+        const presetArgs = this.getPresetArgs(cmdName);
+        if (presetArgs) {
+            return await this.createFromMedia({
+                sock, msg, args: [...presetArgs, ...args], remoteJid, quotedMsg, quotedStanza, session, logger
+            });
         }
 
         // ─────────────────────────────────────────────
@@ -98,8 +129,14 @@ module.exports = {
             else if (['--invert', '--negative'].includes(a)) result.invert = true;
             else if (['--sharpen', '--sharp'].includes(a)) result.sharpen = true;
             else if (['--sepia'].includes(a)) result.sepia = true;
+            else if (['--deepfried'].includes(a)) result.deepfried = true;
+            else if (['--glow'].includes(a)) result.glow = true;
+            else if (['--vintage'].includes(a)) result.vintage = true;
             else if (['--flip'].includes(a)) result.flip = true;
             else if (['--flop', '--mirror'].includes(a)) result.flop = true;
+            else if (['--top'].includes(a)) result.textPosition = 'top';
+            else if (['--center', '--middle'].includes(a)) result.textPosition = 'center';
+            else if (['--bottom'].includes(a)) result.textPosition = 'bottom';
             else if (['--rmbg', '--removebg', '--transparent'].includes(a)) result.removeBg = true;
             else if (['--blur'].includes(a)) {
                 const next = parseFloat(args[i + 1]);
@@ -121,6 +158,18 @@ module.exports = {
             else if (['--fps'].includes(a) && args[i + 1]) {
                 const fps = parseInt(args[++i]);
                 if (!isNaN(fps)) result.fps = Math.min(Math.max(fps, 6), 24);
+            }
+            else if (['--color', '--textcolor'].includes(a) && args[i + 1]) {
+                const color = args[++i];
+                if (/^#[0-9a-fA-F]{6,8}$/.test(color)) result.textColor = color;
+            }
+            else if (['--stroke', '--outline'].includes(a) && args[i + 1]) {
+                const color = args[++i];
+                if (/^#[0-9a-fA-F]{6,8}$/.test(color)) result.strokeColor = color;
+            }
+            else if (['--size', '--fontsize'].includes(a) && args[i + 1]) {
+                const size = parseInt(args[++i]);
+                if (!isNaN(size)) result.fontSize = Math.min(Math.max(size, 20), 92);
             }
             else if (['--text', '-t'].includes(a)) {
                 const words = [];
@@ -164,8 +213,19 @@ module.exports = {
 
     hasImageTransforms(options) {
         return !!(options.gray || options.invert || options.blur || options.sharpen ||
-            options.sepia || options.flip || options.flop || options.rotate ||
+            options.sepia || options.deepfried || options.glow || options.vintage ||
+            options.flip || options.flop || options.rotate ||
             options.removeBg || options.overlayText);
+    },
+
+    getPresetArgs(cmdName) {
+        const presets = {
+            svintage: ['--vintage'],
+            smono: ['--gray', '--sharpen'],
+            sdeepfried: ['--deepfried'],
+            sglow: ['--glow']
+        };
+        return presets[cmdName] || null;
     },
 
     normalizeMemeParts(text) {
@@ -237,13 +297,18 @@ module.exports = {
 
         const lineHeight = (fontSize + 2) * 1.1;
         const totalHeight = lines.length * lineHeight;
-        const startY = options.align === 'bottom' ? y - totalHeight + lineHeight : y;
+        let startY = y;
+        if (options.align === 'bottom') {
+            startY = y - totalHeight + lineHeight;
+        } else if (options.align === 'center') {
+            startY = y - totalHeight / 2 + lineHeight / 2;
+        }
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';
         ctx.lineWidth = Math.max(5, Math.floor(fontSize / 6));
-        ctx.strokeStyle = '#111111';
-        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = options.strokeColor || '#111111';
+        ctx.fillStyle = options.textColor || '#ffffff';
 
         for (let i = 0; i < lines.length; i++) {
             const lineY = startY + i * lineHeight;
@@ -252,7 +317,27 @@ module.exports = {
         }
     },
 
-    async applyTextOverlay(buffer, text) {
+    getTextOverlayPlacement(options = {}) {
+        const position = options.textPosition || 'bottom';
+        if (position === 'top') return { y: 58, align: 'top' };
+        if (position === 'center') return { y: 256, align: 'center' };
+        return { y: 448, align: 'bottom' };
+    },
+
+    renderTextOverlayPng(text, options = {}) {
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        const placement = this.getTextOverlayPlacement(options);
+        this.drawStickerText(ctx, text, placement.y, {
+            align: placement.align,
+            fontSize: options.fontSize || 36,
+            textColor: options.textColor,
+            strokeColor: options.strokeColor
+        });
+        return canvas.toBuffer('image/png');
+    },
+
+    async applyTextOverlay(buffer, text, options = {}) {
         const base = await sharp(buffer)
             .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .png()
@@ -261,7 +346,8 @@ module.exports = {
         const ctx = canvas.getContext('2d');
         const img = await loadImage(base);
         ctx.drawImage(img, 0, 0, 512, 512);
-        this.drawStickerText(ctx, text, 448, { align: 'bottom', fontSize: 36 });
+        const overlay = await loadImage(this.renderTextOverlayPng(text, options));
+        ctx.drawImage(overlay, 0, 0, 512, 512);
         return canvas.toBuffer('image/png');
     },
 
@@ -286,6 +372,136 @@ module.exports = {
             .toBuffer();
     },
 
+    extractTextFromMessage(message) {
+        return message?.conversation ||
+            message?.extendedTextMessage?.text ||
+            message?.imageMessage?.caption ||
+            message?.videoMessage?.caption ||
+            message?.documentMessage?.caption ||
+            '';
+    },
+
+    fillWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 8) {
+        const lines = this.wrapCanvasText(ctx, text, maxWidth).slice(0, maxLines);
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], x, y + i * lineHeight);
+        }
+        return lines.length * lineHeight;
+    },
+
+    roundedRect(ctx, x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+    },
+
+    canvasToWebp(canvas, quality = 90) {
+        const rawBuffer = canvas.toBuffer('raw');
+        return sharp(rawBuffer, { raw: { width: 512, height: 512, channels: 4 } })
+            .webp({ quality })
+            .toBuffer();
+    },
+
+    async renderQuoteSticker(text, author = '', quality = 90) {
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#22c55e';
+        this.roundedRect(ctx, 34, 56, 444, 360, 26);
+        ctx.fill();
+        ctx.fillStyle = '#111827';
+        this.roundedRect(ctx, 46, 68, 420, 336, 20);
+        ctx.fill();
+
+        ctx.fillStyle = '#e5e7eb';
+        ctx.font = 'bold 34px Arial, Helvetica, sans-serif';
+        ctx.textBaseline = 'top';
+        this.fillWrappedText(ctx, text, 72, 116, 368, 42, 6);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '24px Arial, Helvetica, sans-serif';
+        const footer = author ? `- ${author}` : '- quoted sticker';
+        ctx.fillText(footer.slice(0, 34), 72, 358);
+        return this.canvasToWebp(canvas, quality);
+    },
+
+    async renderEmojiSticker(emoji, quality = 90) {
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '300px "Segoe UI Emoji", "Noto Color Emoji", Arial, sans-serif';
+        ctx.fillText(emoji, 256, 260);
+        return this.canvasToWebp(canvas, quality);
+    },
+
+    async renderTemplateSticker(text, template, quality = 90) {
+        const canvas = createCanvas(512, 512);
+        const ctx = canvas.getContext('2d');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const styles = {
+            label: { bg: '#111827', fg: '#f9fafb', accent: '#38bdf8', size: 48 },
+            warning: { bg: '#facc15', fg: '#111827', accent: '#111827', size: 44 },
+            bubble: { bg: '#dcfce7', fg: '#14532d', accent: '#22c55e', size: 40 },
+            poster: { bg: '#1d4ed8', fg: '#ffffff', accent: '#f97316', size: 54 }
+        };
+        const style = styles[template] || styles.label;
+
+        ctx.fillStyle = style.bg;
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = style.accent;
+        this.roundedRect(ctx, 38, 54, 436, 404, template === 'poster' ? 8 : 28);
+        ctx.fill();
+        ctx.fillStyle = template === 'warning' ? '#fef3c7' : '#0f172a';
+        this.roundedRect(ctx, 52, 68, 408, 376, template === 'poster' ? 4 : 22);
+        ctx.fill();
+
+        if (template === 'warning') {
+            ctx.fillStyle = style.accent;
+            ctx.font = 'bold 58px Arial, Helvetica, sans-serif';
+            ctx.fillText('!', 256, 122);
+        }
+
+        ctx.fillStyle = template === 'warning' ? style.fg : style.fg;
+        ctx.font = `bold ${style.size}px Arial, Helvetica, sans-serif`;
+        const lines = this.wrapCanvasText(ctx, text, 350).slice(0, 6);
+        const lineHeight = style.size * 1.12;
+        const startY = 256 - ((lines.length - 1) * lineHeight) / 2;
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], 256, startY + i * lineHeight);
+        }
+
+        return this.canvasToWebp(canvas, quality);
+    },
+
+    getMediaKind(message) {
+        if (message?.stickerMessage) return 'sticker';
+        if (message?.imageMessage) return 'image';
+        if (message?.videoMessage) return message.videoMessage.gifPlayback ? 'gif/video' : 'video';
+        return 'unknown';
+    },
+
+    formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) return '-';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    },
+
+    async ffprobeFile(filePath) {
+        return new Promise((resolve) => {
+            ffmpeg.ffprobe(filePath, (err, data) => resolve(err ? null : data));
+        });
+    },
+
     async preprocessImage(buffer, options) {
         let working = buffer;
         if (options.removeBg) {
@@ -300,6 +516,15 @@ module.exports = {
         if (options.invert) image = image.negate({ alpha: false });
         if (options.blur) image = image.blur(options.blur);
         if (options.sharpen) image = image.sharpen();
+        if (options.vintage) {
+            image = image.modulate({ saturation: 0.82, brightness: 1.04 }).tint('#f0c27b').sharpen();
+        }
+        if (options.deepfried) {
+            image = image.modulate({ saturation: 3, brightness: 1.18 }).linear(1.35, -25).sharpen({ sigma: 2 });
+        }
+        if (options.glow) {
+            image = image.modulate({ saturation: 1.35, brightness: 1.12 }).sharpen();
+        }
         if (options.sepia) {
             image = image.recomb([
                 [0.3588, 0.5889, 0.0913],
@@ -309,7 +534,7 @@ module.exports = {
         }
 
         const transformed = await image.png().toBuffer();
-        return options.overlayText ? this.applyTextOverlay(transformed, options.overlayText) : transformed;
+        return options.overlayText ? this.applyTextOverlay(transformed, options.overlayText, options) : transformed;
     },
 
     async createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {
@@ -371,6 +596,7 @@ module.exports = {
             const time = Date.now();
             const tempInput = path.join(TEMP_DIR, `vid_${time}.bin`);
             const tempOutput = path.join(TEMP_DIR, `sticker_${time}.webp`);
+            const tempOverlay = path.join(TEMP_DIR, `overlay_${time}.png`);
             // ⚡ Async I/O — avoids blocking event loop on large video buffers
             await fs.promises.writeFile(tempInput, buffer);
             // ⚡ Release source buffer (~up to 10MB) before heavy FFmpeg processing
@@ -380,10 +606,14 @@ module.exports = {
                 const quality = Math.max(1, Math.min(100, parsedArgs.quality || session.quality || 80));
                 const fps = parsedArgs.fps || 15;
                 const duration = parsedArgs.duration || 10;
+                const baseFilter = `fps=${fps},scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p`;
+                const hasOverlay = !!parsedArgs.overlayText;
+                if (hasOverlay) {
+                    await fs.promises.writeFile(tempOverlay, this.renderTextOverlayPng(parsedArgs.overlayText, parsedArgs));
+                }
                 const outputOptions = [
                     `-t ${duration}`,
                     '-vcodec libwebp_anim',
-                    `-vf fps=${fps},scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p`,
                     '-loop 0',
                     '-preset default',
                     '-an',
@@ -394,6 +624,13 @@ module.exports = {
                 await new Promise((resolve, reject) => {
                     const command = ffmpeg(tempInput);
                     if (parsedArgs.start) command.inputOptions([`-ss ${parsedArgs.start}`]);
+                    if (hasOverlay) {
+                        command
+                            .input(tempOverlay)
+                            .complexFilter(`[0:v]${baseFilter}[base];[base][1:v]overlay=0:0:format=auto,format=yuva420p[out]`, 'out');
+                    } else {
+                        outputOptions.unshift(`-vf ${baseFilter}`);
+                    }
                     command
                         .outputOptions(outputOptions)
                         .toFormat('webp')
@@ -412,6 +649,7 @@ module.exports = {
             } finally {
                 try { fs.unlinkSync(tempInput); } catch {}
                 try { fs.unlinkSync(tempOutput); } catch {}
+                try { fs.unlinkSync(tempOverlay); } catch {}
             }
         });
     },
@@ -473,6 +711,93 @@ module.exports = {
             await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
             logger.info(`✅ Meme sticker sent to ${remoteJid}`);
         });
+    },
+
+    async createQuote({ sock, msg, args, remoteJid, quotedMsg, session, logger }) {
+        const text = args.join(' ').trim() || this.extractTextFromMessage(quotedMsg);
+        if (!text) {
+            return sock.sendMessage(remoteJid, {
+                text: 'Gunakan: *!quote <teks>* atau reply pesan teks lalu ketik *!quote*.'
+            }, { quoted: msg });
+        }
+
+        await imageQueue.add(async () => {
+            const stickerBuffer = await this.renderQuoteSticker(text, session.author, session.quality || 90);
+            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
+            logger.info(`✅ Quote sticker sent to ${remoteJid}`);
+        });
+    },
+
+    async createEmoji({ sock, msg, args, remoteJid, session, logger }) {
+        const emoji = args.join(' ').trim();
+        if (!emoji) {
+            return sock.sendMessage(remoteJid, { text: 'Gunakan: *!emoji 😂*' }, { quoted: msg });
+        }
+
+        await imageQueue.add(async () => {
+            const stickerBuffer = await this.renderEmojiSticker(Array.from(emoji).slice(0, 4).join(''), session.quality || 90);
+            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
+            logger.info(`✅ Emoji sticker sent to ${remoteJid}`);
+        });
+    },
+
+    async createTemplateText({ sock, msg, args, cmdName, remoteJid, session, logger }) {
+        const text = args.join(' ').trim();
+        if (!text) {
+            return sock.sendMessage(remoteJid, {
+                text: `Gunakan: *!${cmdName} <teks>*`
+            }, { quoted: msg });
+        }
+
+        await imageQueue.add(async () => {
+            const stickerBuffer = await this.renderTemplateSticker(text, cmdName, session.quality || 90);
+            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
+            logger.info(`✅ ${cmdName} sticker sent to ${remoteJid}`);
+        });
+    },
+
+    async stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger }) {
+        const target = quotedMsg || msg.message;
+        const kind = this.getMediaKind(target);
+        if (kind === 'unknown') {
+            return sock.sendMessage(remoteJid, { text: 'Reply gambar/video/GIF/stiker lalu ketik *!sinfo*.' }, { quoted: msg });
+        }
+
+        let buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download media.' }, { quoted: msg });
+
+        const lines = [
+            '*Info Media/Stiker*',
+            `Jenis: ${kind}`,
+            `Ukuran file: ${this.formatBytes(buffer.length)}`
+        ];
+
+        try {
+            const metadata = await sharp(buffer, { animated: true }).metadata();
+            if (metadata.format) lines.push(`Format: ${metadata.format}`);
+            if (metadata.width && metadata.height) lines.push(`Dimensi: ${metadata.width}x${metadata.height}`);
+            if (metadata.pages) lines.push(`Frame/pages: ${metadata.pages}`);
+        } catch {}
+
+        if (kind.includes('video') || kind === 'sticker') {
+            const time = Date.now();
+            const tempInput = path.join(TEMP_DIR, `info_${time}.bin`);
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+            try {
+                const probe = await this.ffprobeFile(tempInput);
+                const stream = probe?.streams?.find(s => s.codec_type === 'video');
+                if (stream?.codec_name) lines.push(`Codec: ${stream.codec_name}`);
+                if (stream?.duration) lines.push(`Durasi: ${Number(stream.duration).toFixed(2)}s`);
+                if (stream?.avg_frame_rate && stream.avg_frame_rate !== '0/0') lines.push(`FPS: ${stream.avg_frame_rate}`);
+            } finally {
+                try { fs.unlinkSync(tempInput); } catch {}
+            }
+        }
+
+        if (target?.stickerMessage?.isAnimated) lines.push('Animated: ya');
+        await sock.sendMessage(remoteJid, { text: lines.join('\n') }, { quoted: msg });
+        logger.info(`✅ Sticker info sent to ${remoteJid}`);
     },
 
     async toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger }) {
@@ -550,6 +875,52 @@ module.exports = {
             } catch (err) {
                 logger.error({ err }, 'ToGif error');
                 await sock.sendMessage(remoteJid, { text: '❌ Gagal mengubah stiker animasi ke GIF.' }, { quoted: msg });
+            } finally {
+                try { fs.unlinkSync(tempInput); } catch {}
+                try { fs.unlinkSync(tempOutput); } catch {}
+            }
+        });
+    },
+
+    async toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger }) {
+        if (!quotedMsg?.stickerMessage) {
+            return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker animasi dengan *!tomp4*' }, { quoted: msg });
+        }
+
+        await sock.sendMessage(remoteJid, { text: '⏳ Mengubah stiker animasi ke MP4...' }, { quoted: msg });
+
+        let buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
+
+        await ffmpegQueue.add(async () => {
+            const time = Date.now();
+            const tempInput = path.join(TEMP_DIR, `stk_${time}.webp`);
+            const tempOutput = path.join(TEMP_DIR, `mp4_${time}.mp4`);
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
+            try {
+                await new Promise((resolve, reject) => {
+                    ffmpeg(tempInput)
+                        .outputOptions([
+                            '-vf fps=15,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white,format=yuv420p',
+                            '-vcodec libx264',
+                            '-movflags +faststart',
+                            '-an'
+                        ])
+                        .on('end', resolve)
+                        .on('error', reject)
+                        .save(tempOutput);
+                });
+                const mp4Buffer = await fs.promises.readFile(tempOutput);
+                await sock.sendMessage(remoteJid, {
+                    video: mp4Buffer,
+                    caption: '🎞️ Hasil konversi stiker animasi'
+                }, { quoted: msg });
+                logger.info(`✅ Animated sticker converted to MP4 for ${remoteJid}`);
+            } catch (err) {
+                logger.error({ err }, 'ToMp4 error');
+                await sock.sendMessage(remoteJid, { text: '❌ Gagal mengubah stiker animasi ke MP4.' }, { quoted: msg });
             } finally {
                 try { fs.unlinkSync(tempInput); } catch {}
                 try { fs.unlinkSync(tempOutput); } catch {}

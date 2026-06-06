@@ -16,10 +16,12 @@
 *   🎯 **Transformasi Bentuk**: Mendukung pembuatan stiker berbentuk bulat (*circle*), kotak (*crop*), maupun sudut membulat (*rounded*).
 *   🎨 **Efek Stiker**: Grayscale, invert, sepia, blur, sharpen, rotate, mirror, background transparan sederhana, dan teks overlay.
 *   😂 **Meme Sticker**: Membuat meme sticker dari gambar atau teks dengan format caption atas/bawah.
+*   💬 **Quote, Emoji, dan Template**: Membuat stiker quote, emoji besar, label, warning, bubble, dan poster teks.
+*   ⚡ **Preset Efek Cepat**: Shortcut efek seperti vintage, mono, deepfried, dan glow.
 *   🎨 **Konfigurasi Kualitas**: Menyesuaikan tingkat kompresi kualitas stiker secara langsung saat mengirim perintah.
 *   ⚙️ **Pengaturan Dinamis per Chat**: Mengubah nama paket (*pack name*) dan pembuat (*author*) stiker langsung melalui ruang obrolan.
 *   🖼️ **Stiker ke Gambar**: Mengonversi stiker statis kembali menjadi gambar biasa (`!toimg`).
-*   🎞️ **Stiker Animasi ke GIF**: Mengonversi animated sticker kembali menjadi file GIF (`!togif`).
+*   🎞️ **Stiker Animasi ke GIF/MP4**: Mengonversi animated sticker kembali menjadi file GIF (`!togif`) atau MP4 (`!tomp4`).
 *   🛡️ **Optimasi Performa Ekstrim**:
     *   **Byte-Aware LRU Cache**: Caching pintar berbasis hash untuk stiker teks & gambar agar tidak memproses ulang file yang sama, dengan batas memori ketat (20MB untuk gambar, 10MB untuk teks).
     *   **Memory Queues**: Antrean eksekusi ffmpeg (max 1 proses concurrent) dan sharp/canvas (max 2 proses concurrent) untuk mencegah lonjakan CPU/RAM.
@@ -100,7 +102,7 @@ Kirim pesan ke bot menggunakan awalan yang telah diatur (default: `!`).
 
 | Perintah | Deskripsi | Cara Penggunaan / Contoh |
 | :--- | :--- | :--- |
-| `!menu` | Menampilkan daftar semua perintah yang tersedia beserta status pengaturan saat ini. | `!menu` atau `!help` |
+| `!menu` | Menampilkan menu utama dan daftar submenu. | `!menu`, `!menu efek`, `!menu gif`, `!menu all` |
 | `!s` | Mengubah gambar (atau balas/reply gambar) menjadi stiker. | `!s` (sebagai caption gambar) atau balas gambar dengan `!s` |
 | `!s --circle` | Membuat stiker bulat instan dari gambar. | `!s --circle` (atau singkat `-o`) |
 | `!s --crop` | Memotong gambar secara persegi pas di tengah. | `!s --crop` (atau singkat `-c`) |
@@ -114,17 +116,24 @@ Kirim pesan ke bot menggunakan awalan yang telah diatur (default: `!`).
 | `!s --flip` / `!s --mirror` | Membalik gambar vertikal/horizontal. | Balas gambar dengan `!s --mirror` |
 | `!s --rotate <derajat>` | Memutar gambar. | Balas gambar dengan `!s --rotate 90` |
 | `!s --rmbg` | Membuat background sederhana menjadi transparan. | Cocok untuk background polos/kontras |
-| `!s --text <teks>` | Menambahkan teks overlay ke gambar. | Balas gambar dengan `!s --text halo` |
+| `!s --text <teks>` | Menambahkan teks overlay ke gambar. | `!s --text halo --top --color #ffff00 --stroke #000000 --size 42` |
+| `!svintage` / `!smono` / `!sdeepfried` / `!sglow` | Preset efek cepat untuk foto. | Reply foto dengan `!svintage --text nostalgia` |
 | `!sgif` | Mengonversi video pendek/GIF menjadi stiker animasi. | Balas video dengan caption `!sgif` |
-| `!sgif --start <detik> --dur <detik> --fps <angka>` | Mengambil potongan video/GIF tertentu untuk stiker animasi. | `!sgif --start 2 --dur 4 --fps 12` |
+| `!sgif --start <detik> --dur <detik> --fps <angka>` | Mengambil potongan video/GIF tertentu untuk stiker animasi. | `!sgif --start 2 --dur 4 --fps 12 --text halo` |
 | `!meme <atas> \| <bawah>` | Membuat meme sticker dari teks atau gambar yang dibalas. | Reply gambar dengan `!meme atas \| bawah` |
 | `!sticker <teks>` | Membuat stiker dari tulisan/teks. | `!sticker Halo Dunia` |
 | `!stext <teks>` | Alias untuk stiker teks. | `!stext Halo Dunia` |
 | `!sticker <teks> --bg <hex>` | Membuat stiker teks dengan warna background kustom. | `!sticker Halo --bg #ff0000` |
+| `!quote <teks>` | Membuat stiker quote, atau reply pesan teks lalu `!quote`. | `!quote hidup adalah sticker` |
+| `!emoji <emoji>` | Membuat emoji besar menjadi stiker. | `!emoji 😂` |
+| `!label` / `!warning` / `!bubble` / `!poster` | Template stiker teks cepat. | `!warning jangan spam` |
+| `!sinfo` | Melihat info media/stiker. | Reply media/stiker dengan `!sinfo` |
 | `!toimg` | Mengubah stiker statis kembali menjadi gambar biasa. | Balas stiker dengan `!toimg` |
 | `!togif` | Mengubah stiker animasi menjadi GIF. | Balas animated sticker dengan `!togif` |
+| `!tomp4` | Mengubah stiker animasi menjadi MP4. | Balas animated sticker dengan `!tomp4` |
 | `!pack <nama>` | Mengubah nama paket stiker untuk ruang obrolan Anda saat ini. | `!pack Nama Baru` |
 | `!author <nama>` | Mengubah nama pembuat stiker untuk ruang obrolan Anda saat ini. | `!author Arya` |
+| `!packpreset <preset>` | Mengaktifkan preset pack/author. | `!packpreset meme`, `!packpreset anime`, `!packpreset personal`, `!packpreset clean` |
 
 ---
 
