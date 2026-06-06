@@ -3,6 +3,7 @@ const { Boom } = require('@hapi/boom');
 const QR = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const { useTursoAuthState } = require('./utils/tursoAuthState');
 
 function startBot({ authDir, logger, onMessage }) {
     if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
@@ -10,7 +11,11 @@ function startBot({ authDir, logger, onMessage }) {
     let reconnectTimer;
 
     async function connect() {
-        const { state, saveCreds } = await useMultiFileAuthState(authDir);
+        const authState = await useTursoAuthState({ logger });
+        const { state, saveCreds } = authState || (await useMultiFileAuthState(authDir));
+        if (!authState) {
+            logger.info(`Using file auth state: ${authDir}`);
+        }
         
         let version = [2, 3000, 1035194821]; // Fallback to current verified working version
         try {

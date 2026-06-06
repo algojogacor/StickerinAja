@@ -82,6 +82,9 @@ Berikut adalah daftar variabel lingkungan yang dapat Anda gunakan di file `.env`
 | `NODE_ENV` | Mode aplikasi (`development` atau `production`). | `development` |
 | `LOG_LEVEL` | Tingkat detail pencatatan log pino (`info`, `debug`, `error`, dll). | `info` |
 | `AUTH_DIR` | Folder penyimpanan sesi WhatsApp agar tidak perlu scan ulang. | `./auth` |
+| `TURSO_DATABASE_URL` | URL database Turso/libSQL untuk menyimpan sesi WhatsApp secara persisten. Jika kosong, bot memakai `AUTH_DIR`. | kosong |
+| `TURSO_AUTH_TOKEN` | Token akses Turso untuk database di atas. | kosong |
+| `TURSO_AUTH_SESSION_ID` | ID session auth di Turso, berguna jika satu database dipakai untuk beberapa bot. | `default` |
 | `TEMP_DIR` | Folder penyimpanan file media sementara. | `./temp` |
 | `KEEP_TEMP_MINUTES` | Jeda waktu penghapusan file temp lama (dalam menit). | `5` |
 | `MAX_FILE_SIZE` | Ukuran file media maksimal yang diizinkan (dalam byte). | `10485760` (10MB) |
@@ -125,7 +128,7 @@ Karena bot ini telah dioptimalkan secara ketat untuk penggunaan RAM di bawah 500
     *   `TEMP_DIR=/tmp/stickerin-temp` (Direkomendasikan agar file temp disimpan di `/tmp` Koyeb).
 5.  Klik **Deploy**.
 
-> 💡 **Penting untuk Scan QR**: Baileys membutuhkan pemindaian QR sekali saat bot pertama kali dijalankan. Anda dapat melihat log kontainer di dashboard Koyeb untuk memindai QR melalui terminal log yang disediakan. Setelah terhubung, folder `/auth` (atau volume jika digunakan) akan menyimpan kredensial. Jika dideploy di server stateless (tanpa volume persistensi), sesi akan hilang saat kontainer direstart. Disarankan menggunakan persistent volume atau menyalin folder `/auth` Anda.
+> 💡 **Penting untuk Scan QR**: Baileys membutuhkan pemindaian QR sekali saat bot pertama kali dijalankan. Untuk hosting stateless seperti Koyeb, isi `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` agar sesi WhatsApp tersimpan di Turso. Setelah scan pertama, redeploy/restart berikutnya akan membaca sesi dari Turso tanpa perlu scan ulang. Jika variabel Turso dikosongkan, bot kembali memakai folder `/auth` atau volume persistensi.
 
 ### 2. Menjalankan Menggunakan Docker Lokal
 
