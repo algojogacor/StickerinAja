@@ -5,7 +5,7 @@ global.botState = {
     qr: null,
     user: null
 };
-const { startBot } = require('./src/baileys');
+const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
 const { handler } = require('./src/handler');
 const pino = require('pino');
 const fs = require('fs');
@@ -41,7 +41,41 @@ const logger = pino({
     level: process.env.LOG_LEVEL || 'info'
 });
 
-// Start a lightweight HTTP server for health checking, QR code serving, and status monitoring
+// ─── Shared secret for Hermes relay auth ───
+const HERMES_SECRET = process.env.HERMES_RELAY_SECRET || '';
+
+function checkHermesAuth(req, res) {
+    if (!HERMES_SECRET) return true; // No secret configured = open
+    const auth = req.headers['authorization'] || '';
+    if (auth === `Bearer ${HERMES_SECRET}`) return true;
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return false;
+}
+
+// ─── Hermes message wrapper for handler ───
+// Non-sticker-command messages → push to Hermes queue
+const { handler: originalHandler } = { handler };
+const PREFIX = process.env.PREFIX || '!';
+
+async function hermesAwareHandler(sock, msg, logger) {
+    const messageText =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption ||
+        '';
+
+    // If it looks like a sticker command, process normally
+    if (messageText.startsWith(PREFIX)) {
+        return handler(sock, msg, logger);
+    }
+
+    // Non-command message → queue for Hermes
+    pushToHermesQueue(msg);
+}
+
+// Start a lightweight HTTP server for health checking, QR code serving, status, and Hermes relay
 const http = require('http');
 const PORT = process.env.PORT || 8000;
 
@@ -54,17 +88,86 @@ try {
     console.error('Failed to load login.html:', err);
 }
 
-http.createServer((req, res) => {
-    if (req.url === '/health') {
+http.createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const method = req.method;
+
+    // ─── Hermes Relay Endpoints ───
+    if (url.pathname === '/hermes/send' && method === 'POST') {
+        if (!checkHermesAuth(req, res)) return;
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { chatId, message, replyTo } = JSON.parse(body);
+                if (!chatId || !message) throw new Error('chatId and message required');
+                const result = await hermesSendMessage(chatId, message, replyTo);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, key: result?.key }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
+
+    if (url.pathname === '/hermes/typing' && method === 'POST') {
+        if (!checkHermesAuth(req, res)) return;
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { chatId } = JSON.parse(body);
+                await hermesSendTyping(chatId);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
+
+    if (url.pathname === '/hermes/messages' && method === 'GET') {
+        if (!checkHermesAuth(req, res)) return;
+        const since = url.searchParams.get('since');
+        const longPoll = url.searchParams.get('poll') === '1';
+
+        if (longPoll) {
+            const msgs = await hermesLongPoll(25000);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ messages: msgs }));
+        } else {
+            const msgs = hermesGetMessages(since || undefined);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ messages: msgs }));
+        }
+        return;
+    }
+
+    if (url.pathname === '/hermes/health' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: global.botState.status,
+            connected: global.botState.status === 'connected',
+            user: global.botState.user?.name || null,
+        }));
+        return;
+    }
+
+    // ─── Existing endpoints ───
+    if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()) }));
-    } else if (req.url === '/api/status') {
+    } else if (url.pathname === '/api/status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(global.botState));
-    } else if (req.url === '/qr-string') {
+    } else if (url.pathname === '/qr-string') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end(global.botState.qr || 'No QR code available. Already connected or connecting...');
-    } else if (req.url === '/') {
+    } else if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(loginHtml);
     } else {
@@ -72,12 +175,12 @@ http.createServer((req, res) => {
         res.end();
     }
 }).listen(PORT, () => {
-    logger.info(`🌐 Health check server listening on port ${PORT}`);
+    logger.info(`🌐 Server on port ${PORT} | Hermes relay: ${HERMES_SECRET ? '🔒 auth' : '⚠️ open'}`);
 });
 
 
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
-    onMessage: (sock, msg) => handler(sock, msg, logger)
+    onMessage: (sock, msg) => hermesAwareHandler(sock, msg, logger)
 });
