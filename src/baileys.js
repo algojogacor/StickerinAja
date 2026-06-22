@@ -152,13 +152,23 @@ function hermesLongPoll(timeoutMs = 25000) {
     });
 }
 
+function normalizeJid(jid) {
+    // Auto-append WA domain suffix if missing
+    if (jid.includes('@')) return jid;
+    // Group IDs are typically long (10+ digits with hyphens) → @g.us
+    // Phone numbers (shorter, may have country code) → @s.whatsapp.net
+    if (jid.match(/^\d{10,}[-@]/) || jid.length >= 15) return jid + '@g.us';
+    return jid + '@s.whatsapp.net';
+}
+
 async function hermesSendMessage(chatId, message, replyTo) {
     const sock = global.hermesSock;
     if (!sock) throw new Error('WhatsApp not connected');
 
+    const jid = normalizeJid(chatId);
     const payload = { text: String(message || '') };
-    const opts = replyTo ? { quoted: { id: replyTo, remoteJid: chatId, fromMe: true } } : {};
-    return sock.sendMessage(chatId, payload, opts);
+    const opts = replyTo ? { quoted: { id: replyTo, remoteJid: jid, fromMe: true } } : {};
+    return sock.sendMessage(jid, payload, opts);
 }
 
 async function hermesSendTyping(chatId) {
