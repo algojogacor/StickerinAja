@@ -16,7 +16,7 @@ const ANIMATED_STICKER_TARGET_BYTES = parseInt(process.env.ANIMATED_STICKER_TARG
 
 module.exports = {
     names: ['s', 'sticker', 'stiker', 'sgif', 'stickergif', 'stikergif',
-            'scircle', 'scrop', 'srounded',
+            'scircle', 'scrop', 'srounded', 'spenyet',
             'svintage', 'smono', 'sdeepfried', 'sglow',
             'meme', 'smeme', 'stext',
             'quote', 'squote', 'emoji', 'semoji',
@@ -68,11 +68,17 @@ module.exports = {
         }
 
         // ─────────────────────────────────────────────
-        // SCIRCLE / SCROP / SROUNDED — Shortcut stickers
+        // SCIRCLE / SCROP / SROUNDED / SPENYET — Shortcut stickers
         // ─────────────────────────────────────────────
-        const shortcutCmds = ['scircle', 'scrop', 'srounded'];
+        const shortcutCmds = ['scircle', 'scrop', 'srounded', 'spenyet'];
         if (shortcutCmds.includes(cmdName)) {
             const typeMap = { scircle: 'circle', scrop: 'crop', srounded: 'rounded' };
+            if (cmdName === 'spenyet') {
+                // 🗜 Penyet mode: skip normalization, stretch directly — intentionally squashed stickers
+                return await this.createFromMedia({
+                    sock, msg, args: ['--penyet', ...args], remoteJid, quotedMsg, quotedStanza, session, logger
+                });
+            }
             session.type = typeMap[cmdName];
             return await this.createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger });
         }
@@ -134,6 +140,7 @@ module.exports = {
             else if (['--glow'].includes(a)) result.glow = true;
             else if (['--vintage'].includes(a)) result.vintage = true;
             else if (['--flip'].includes(a)) result.flip = true;
+            else if (['--penyet', '--squash', '--stretch'].includes(a)) result.penyet = true;
             else if (['--flop', '--mirror'].includes(a)) result.flop = true;
             else if (['--top'].includes(a)) result.textPosition = 'top';
             else if (['--center', '--middle'].includes(a)) result.textPosition = 'center';
@@ -642,7 +649,10 @@ module.exports = {
 
             // 🔲 Normalize to square — prevents squashed/stretched stickers
             //    when input images have extreme aspect ratios (e.g. 16:9 panorama)
-            buffer = await this.normalizeToSquare(buffer);
+            //    Skip if --penyet flag is set (intentionally squashed for comedic effect)
+            if (!parsedArgs.penyet) {
+                buffer = await this.normalizeToSquare(buffer);
+            }
 
             const sticker = new Sticker(buffer, {
                 pack: session.pack,
