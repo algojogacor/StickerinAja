@@ -1,0 +1,10 @@
+node_modules/
+auth/
+temp/
+.env
+*.log
+.git/
+.jules/
+check-turso.js
+image_ss/
+docs/
