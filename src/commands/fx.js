@@ -30,6 +30,8 @@ function isPrivileged(remoteJid, msg) {
 
 const manualRefreshCooldown = new Map(); // remoteJid → lastRefreshMs
 const MANUAL_REFRESH_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const backfillCooldown = new Map(); // remoteJid → lastBackfillMs
+const BACKFILL_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 
 function checkCooldown(remoteJid) {
   const last = manualRefreshCooldown.get(remoteJid);
@@ -430,6 +432,17 @@ async function handleManualRefresh(sock, msg, remoteJid, logger) {
 }
 
 async function handleBackfill(sock, msg, remoteJid, logger) {
+  // Cooldown check
+  const lastBackfill = backfillCooldown.get(remoteJid);
+  if (lastBackfill && (Date.now() - lastBackfill) < BACKFILL_COOLDOWN_MS) {
+    const remaining = Math.ceil((BACKFILL_COOLDOWN_MS - (Date.now() - lastBackfill)) / 60000);
+    await sock.sendMessage(remoteJid, {
+      text: `⏳ Backfill masih dalam cooldown. Silakan tunggu ${remaining} menit.`,
+    }, { quoted: msg });
+    return;
+  }
+  backfillCooldown.set(remoteJid, Date.now());
+
   await sock.sendMessage(remoteJid, {
     text: "⏳ *Historical Backfill*\n\nMemeriksa data historis yang belum tersedia...",
   }, { quoted: msg });
