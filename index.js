@@ -185,6 +185,38 @@ const { init: initRedditStickerRepo } = require('./src/repositories/redditSticke
 const redditCron = require('./src/scheduler/redditStickerCron');
 initRedditStickerRepo(logger);
 
+// ── FX Market Intelligence init ──
+const fxRepository = require('./src/repositories/fxRepository');
+const fxCron = require('./src/scheduler/fxCron');
+
+// Update global state with FX fields
+global.botState.database = "initializing";
+global.botState.fxScheduler = "stopped";
+
+async function initializeFx() {
+  try {
+    await fxRepository.init(logger);
+    if (!fxRepository.isPersistent()) {
+      logger.error("[FX] Persistent storage unavailable — automatic FX jobs disabled");
+      global.botState.database = "unavailable";
+      return;
+    }
+    global.botState.database = "connected";
+
+    const targetJid = process.env.FX_USD_IDR_TARGET_JID || process.env.GROUP_JID;
+    if (!targetJid) {
+      logger.warn("[FX] No target JID configured — delivery disabled");
+    }
+
+    fxCron.start({ logger, targetJid });
+    global.botState.fxScheduler = "running";
+    logger.info("[FX] Market intelligence started");
+  } catch (err) {
+    logger.error({ err }, "[FX] Initialization failed");
+    global.botState.database = "error";
+  }
+}
+
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
@@ -194,7 +226,10 @@ startBot({
     }
 });
 
-// Start Reddit sticker cron after a short delay (let connection stabilize)
-setTimeout(() => {
+// Start schedulers after a short delay (let connection stabilize)
+setTimeout(async () => {
     redditCron.start({ logger });
+    if (process.env.FX_USD_IDR_ENABLED !== "false") {
+        await initializeFx();
+    }
 }, 10_000);
