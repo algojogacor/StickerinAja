@@ -7,14 +7,9 @@ module.exports = {
 
         const menus = {
             main: `╭──「 *STICKERIN BOT* 」──
-│ Bot khusus bikin, edit, dan konversi stiker WhatsApp.
+│ Bot WhatsApp multifungsi: stiker, berita, hiburan, kuis, meme.
 │
-│ *Cara dasar*
-│ 1. Reply foto/video/GIF/stiker.
-│ 2. Ketik command.
-│ 3. Opsi bisa digabung.
-│
-│ *Menu detail*
+│ *Stiker*
 │ ${p}menu basic     - foto ke stiker
 │ ${p}menu efek      - efek gambar
 │ ${p}menu gif       - video/GIF animasi
@@ -24,7 +19,15 @@ module.exports = {
 │ ${p}menu convert   - toimg/togif/tomp4/sinfo
 │ ${p}menu preset    - preset efek cepat
 │ ${p}menu pack      - pack/author preset
-│ ${p}menu all       - semua ringkasan
+│
+│ *Otomatis & Hiburan*
+│ ${p}menu news      - berita otomatis & manual
+│ ${p}menu fun       - joke, quote, dog, cat, meme
+│ ${p}menu quiz      - trivia & kuis
+│ ${p}menu football  - ⚽ jadwal & skor sepak bola
+│ ${p}menu decide    - 🎯 pilih, acak, koin, dadu
+│ ${p}menu ultah      - 🎂 birthday manager
+│ ${p}menu gid       - ⚙️ utilitas chat
 │
 │ *Status chat ini*
 │ Pack: *${session.pack}*
@@ -205,9 +208,173 @@ module.exports = {
 │ Pack: *${session.pack}*
 │ Author: *${session.author}*
 │ Kualitas: *${session.quality}%*
+╰──────────────────`,
+
+            // ── NEW SECTIONS ──
+
+            news: `╭──「 *BERITA OTOMATIS* 」──
+│ *Jadwal otomatis (WIB)*
+│ ☀️ 07:00 — Morning News
+│ 🍽️ 12:00 — Midday Brief
+│ 🌆 17:00 — Evening Brief
+│ 🌙 21:00 — Nightcap
+│
+│ *Manual*
+│ ${p}news
+│   Morning news manual.
+│ ${p}news midday
+│   Midday brief manual.
+│ ${p}news evening
+│   Evening brief manual.
+│ ${p}news nightcap
+│   Nightcap manual.
+│
+│ Sumber: You.com Research API
+│ Berita global: tech, science, trending, culture.
+╰──────────────────`,
+
+            fun: `╭──「 *HIBURAN & KONTEN* 」──
+│ *Otomatis:* 8x/hari acak (08:00–22:00 WIB)
+│
+│ *Manual*
+│ ${p}joke
+│   Random joke atau fakta.
+│ ${p}fact
+│   Alias joke.
+│ ${p}quote
+│   Quote inspiratif dari tokoh dunia.
+│ ${p}dog
+│   Foto anjing random 🐕
+│ ${p}cat
+│   Foto kucing random 🐱
+│ ${p}memegen <tpl> | <atas> | <bawah>
+│   Generate meme dari template.
+│ ${p}memegen
+│   Lihat daftar template.
+│
+│ *Contoh memegen*
+│ ${p}memegen doge | much wow | very code
+│ ${p}memegen buzz | deployment | on friday
+│
+│ *Otomatis lainnya*
+│ 🎭 Auto-meme: 2x/hari (~10:30 & ~18:30)
+╰──────────────────`,
+
+            quiz: `╭──「 *TRIVIA & KUIS* 」──
+│ *Otomatis:* 1x/hari (14:00 WIB)
+│
+│ *Manual*
+│ ${p}quiz
+│   Mulai soal trivia.
+│   Jawab langsung dengan A, B, C, atau D.
+│   Jawaban otomatis muncul dalam 30 detik.
+│ ${p}leaderboard
+│   Lihat peringkat skor kuis.
+│   Alias: ${p}lb
+│
+│ *Skor*
+│ ✅ Jawaban benar: +10 pts
+│ 🔥 Streak 3+: indikator api
+│
+│ Sumber: Open Trivia DB & Jeopardy!
+╰──────────────────`,
+
+            football: `╭──「 *⚽ SEPAK BOLA* 」──
+│ *Jadwal otomatis*
+│ ⚽ 00:00 WIB — Sync jadwal
+│ 📢 07:00 WIB — Broadcast pagi
+│ 🔄 10:00 WIB — Refresh jadwal
+│ 📡 Pemantauan full-time otomatis
+│
+│ *Jadwal*
+│ ${p}jadwal
+│   Jadwal hari ini (semua liga).
+│ ${p}jadwal epl
+│   Jadwal Premier League.
+│ ${p}jadwal ucl
+│   Jadwal Champions League.
+│ ${p}jadwal besok
+│   Jadwal besok.
+│ ${p}jadwal 15-07-2026
+│   Jadwal tanggal spesifik.
+│ ${p}jadwal [tim]
+│   Cari jadwal tim.
+│
+│ *Skor*
+│ ${p}skor
+│   Skor hari ini (semua liga).
+│ ${p}skor epl
+│   Skor Premier League.
+│ ${p}skor [tim]
+│   Cari skor tim.
+│
+│ *Liga tersedia*
+│ EPL, La Liga, Serie A, Bundesliga,
+│ Ligue 1, UCL, UEL, UECL, World Cup
+│
+│ Notifikasi full-time & penundaan
+│ otomatis dikirim ke grup.
+╰──────────────────`,
+
+            decide: `╭──「 *🎯 DECISION HELPER* 」──
+│ ${p}pilih bakso | mi ayam | seblak
+│   Pilih satu dari beberapa opsi.
+│ ${p}acak @orang1 @orang2
+│   Acak urutan orang.
+│ ${p}bagitim 2 @orang1 @orang2 @orang3
+│   Bagi orang ke dalam tim acak.
+│ ${p}urutkan item A | item B | item C
+│   Urutkan item secara acak.
+│ ${p}koin
+│   Lempar koin (Kepala/Ekor).
+│ ${p}dadu
+│   Lempar dadu 6 sisi.
+│ ${p}dadu 20
+│   Lempar dadu N sisi.
+│ ${p}angka 1 100
+│   Angka acak dalam rentang.
+│ ${p}pasangan @a @b @c @d
+│   Pasangkan orang secara acak.
+│
+│ Semua hasil menggunakan crypto.randomInt()
+│ agar benar-benar acak & adil.
+╰──────────────────`,
+
+            ultah: `╭──「 *🎂 BIRTHDAY MANAGER* 」──
+│ *CRUD Data*
+│ ${p}ultah tambah @orang DD-MM
+│ ${p}ultah ubah @orang DD-MM
+│ ${p}ultah hapus @orang
+│ ${p}ultah list
+│
+│ *Cek*
+│ ${p}ultah hariini
+│ ${p}ultah berikutnya
+│
+│ *Admin only*
+│ ${p}ultah test @orang
+│   Simulasi singkat [TEST MODE].
+│ ${p}ultah mode on
+│   Aktifkan Birthday Takeover.
+│ ${p}ultah mode off
+│   Nonaktifkan.
+│
+│ *Birthday Takeover*
+│ 07:00 Lagu wajib 🎸
+│ 09:00 Birthday Card 🎁
+│ 12:00 Sesi ucapan 📢
+│ 15:00 Spotlight 🌟
+│ 18:00 Pengingat 🎊
+│ 21:00 Recap 💌
+│ 23:30 Closing 🌙
+│
+│ Semua cron non-ultah ditunda
+│ otomatis di hari ulang tahun.
 ╰──────────────────`
+
         };
 
+        // Aliases
         menus.shape = menus.basic;
         menus.effect = menus.efek;
         menus.effects = menus.efek;
@@ -222,6 +389,15 @@ module.exports = {
         menus.presets = menus.preset;
         menus.setting = menus.pack;
         menus.settings = menus.pack;
+        menus.berita = menus.news;
+        menus.hiburan = menus.fun;
+        menus.entertainment = menus.fun;
+        menus.trivia = menus.quiz;
+        menus.sepakbola = menus.football;
+        menus.decision = menus.decide;
+        menus.birthday = menus.ultah;
+        menus.ulangtahun = menus.ultah;
+        menus.gid = 'builtin';
 
         menus.all = `${menus.main}
 
@@ -241,7 +417,19 @@ ${menus.convert}
 
 ${menus.preset}
 
-${menus.pack}`;
+${menus.pack}
+
+${menus.news}
+
+${menus.fun}
+
+${menus.quiz}
+
+${menus.football}
+
+${menus.decide}
+
+${menus.ultah}`;
 
         const text = menus[topic] || `Topik menu tidak dikenal: *${topic}*\n\nGunakan *${p}menu* untuk melihat daftar submenu.`;
 

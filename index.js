@@ -14,6 +14,10 @@ const { startBot } = require('./src/core/connection');
 const { startServer } = require('./src/core/server');
 const { registerSchedulers } = require('./src/schedulers');
 const { handler } = require('./src/handler');
+const { init: initLeaderboard } = require('./src/services/quizLeaderboard');
+const { init: initFootballRepo } = require('./src/repositories/footballMatchRepository');
+const { init: initBirthdayRepo } = require('./src/repositories/birthdayRepository');
+const { init: initRedditStickerRepo } = require('./src/repositories/redditStickerRepository');
 
 // Pastikan temp dir ada
 const TEMP_DIR = process.env.TEMP_DIR || './temp';
@@ -46,9 +50,14 @@ const logger = pino({
 });
 
 startServer({ logger });
-registerSchedulers({ logger });
+initLeaderboard(logger);
+initFootballRepo(logger);
+initBirthdayRepo(logger);
+initRedditStickerRepo(logger);
+const { onConnectionChange } = registerSchedulers({ logger });
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
-    onMessage: (sock, msg) => handler(sock, msg, logger)
+    onMessage: (sock, msg) => handler(sock, msg, logger),
+    onConnectionChange
 });

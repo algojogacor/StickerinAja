@@ -5,7 +5,7 @@ const fs = require('fs');
 const { useTursoAuthState } = require('../utils/tursoAuthState');
 const { setSock } = require('./socket');
 
-function startBot({ authDir, logger, onMessage }) {
+function startBot({ authDir, logger, onMessage, onConnectionChange }) {
     if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
 
     let reconnectTimer;
@@ -53,12 +53,18 @@ function startBot({ authDir, logger, onMessage }) {
                 setSock(sock);
                 logger.info('✅ Bot connected!');
                 logger.info(`📱 Logged in as: ${sock.user?.name || sock.user?.id}`);
+                if (onConnectionChange) {
+                    try { onConnectionChange({ status: 'connected', sock }); } catch (err) { logger.error({ err }, 'onConnectionChange error'); }
+                }
             }
             if (connection === 'close') {
                 global.botState.status = 'connecting';
                 global.botState.qr = null;
                 global.botState.user = null;
                 setSock(null);
+                if (onConnectionChange) {
+                    try { onConnectionChange({ status: 'disconnected' }); } catch (err) { logger.error({ err }, 'onConnectionChange error'); }
+                }
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 const shouldReconnect = reason !== DisconnectReason.loggedOut;
                 logger.info(`🔌 Disconnected: ${reason || 'unknown'} | Reconnect: ${shouldReconnect}`);
