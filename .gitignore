@@ -5,3 +5,7 @@ data/
 .env
 *.log
 .jules/
+AGENTS.md
+CLAUDE.md
+PROJECT_STATE.md
+WORKLOG.md
