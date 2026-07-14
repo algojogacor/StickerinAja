@@ -1,15 +1,15 @@
 // Reddit Sticker Bank commands.
 // Prefix is read from the existing router — no hardcoded prefix.
 //
-// Commands:
-//   reddit         — Send one sticker from the bank
-//   reddit <kw>    — Search Reddit for keyword, convert, and send
-//   reddit <url>   — Import media from a Reddit post URL
-//   rbank          — Show sticker bank stats
-//   rrefresh       — Admin: run generator manually
-//   rmode on/off   — Admin: toggle cron sender
-//   rsource        — Show source (permalink) of last sticker
-//   rtest          — Admin: diagnostic test (1 static + 1 animated)
+// Commands (both naming conventions supported):
+//   reddit / meme           — Send one sticker from the bank
+//   reddit <kw> / meme <kw> — Search Reddit for keyword, convert, send
+//   reddit <url> / meme <url> — Import media from a Reddit post URL
+//   rbank / memebank        — Show sticker bank stats
+//   rrefresh / memerefresh  — Admin: run generator manually
+//   rmode / mememode on/off — Admin: toggle cron sender
+//   rsource / memesource    — Show source (permalink) of last sticker
+//   rtest / memetest        — Admin: diagnostic test
 
 const {
   sendReadyFromBank,
@@ -19,6 +19,7 @@ const {
   getStickerSource,
   generateStickers,
 } = require("../services/redditStickerService");
+const { parseRedditPostUrl } = require("../utils/redditUrlParser");
 
 // Cron mode toggle — in-memory, resets on restart
 let cronSenderEnabled = process.env.REDDIT_STICKER_CRON_ENABLED !== "false";
@@ -31,14 +32,24 @@ function toggleCronSender(enable) {
   cronSenderEnabled = !!enable;
 }
 
+// All command names are normalized to canonical names for routing
+const CANONICAL_MAP = {
+  reddit: "reddit", meme: "reddit",
+  rbank: "rbank", memebank: "rbank",
+  rrefresh: "rrefresh", memerefresh: "rrefresh",
+  rmode: "rmode", mememode: "rmode",
+  rsource: "rsource", memesource: "rsource",
+  rtest: "rtest", memetest: "rtest",
+};
+
 module.exports = {
   names: [
-    "reddit",
-    "rbank",
-    "rrefresh",
-    "rmode",
-    "rsource",
-    "rtest",
+    "reddit", "meme",
+    "rbank", "memebank",
+    "rrefresh", "memerefresh",
+    "rmode", "mememode",
+    "rsource", "memesource",
+    "rtest", "memetest",
   ],
 
   isCronSenderEnabled,
@@ -53,6 +64,9 @@ module.exports = {
     logger,
     PREFIX,
   }) {
+    // Map to canonical command name
+    const canonical = CANONICAL_MAP[cmdName] || cmdName;
+
     const OWNER_JID = process.env.OWNER_JID || "";
     const isOwner =
       OWNER_JID &&
@@ -61,14 +75,14 @@ module.exports = {
     const isAdmin = isGroup && msg.key.fromMe;
     const isPrivileged = isOwner || isAdmin;
 
-    // ── rbank ──────────────────────────────────────────
-    if (cmdName === "rbank") {
+    // ── rbank / memebank ──────────────────────────────
+    if (canonical === "rbank") {
       await handleBank(sock, msg, remoteJid, logger);
       return;
     }
 
-    // ── rrefresh ───────────────────────────────────────
-    if (cmdName === "rrefresh") {
+    // ── rrefresh / memerefresh ─────────────────────────
+    if (canonical === "rrefresh") {
       if (!isPrivileged) {
         await sock.sendMessage(remoteJid, {
           text: "⚠️ Command ini hanya untuk admin/owner.",
@@ -79,8 +93,8 @@ module.exports = {
       return;
     }
 
-    // ── rmode ──────────────────────────────────────────
-    if (cmdName === "rmode") {
+    // ── rmode / mememode ───────────────────────────────
+    if (canonical === "rmode") {
       if (!isPrivileged) {
         await sock.sendMessage(remoteJid, {
           text: "⚠️ Command ini hanya untuk admin/owner.",
@@ -91,14 +105,14 @@ module.exports = {
       return;
     }
 
-    // ── rsource ────────────────────────────────────────
-    if (cmdName === "rsource") {
+    // ── rsource / memesource ───────────────────────────
+    if (canonical === "rsource") {
       await handleSource(sock, msg, remoteJid, logger);
       return;
     }
 
-    // ── rtest ──────────────────────────────────────────
-    if (cmdName === "rtest") {
+    // ── rtest / memetest ───────────────────────────────
+    if (canonical === "rtest") {
       if (!isPrivileged) {
         await sock.sendMessage(remoteJid, {
           text: "⚠️ Command ini hanya untuk admin/owner.",
@@ -109,7 +123,7 @@ module.exports = {
       return;
     }
 
-    // ── reddit (main command) ───────────────────────────
+    // ── reddit / meme (main command) ────────────────────
     const input = args.join(" ").trim();
 
     if (!input) {
@@ -118,9 +132,8 @@ module.exports = {
       return;
     }
 
-    // Check if input is a Reddit URL
-    const { parseRedditUrl } = require("../services/redditService");
-    if (parseRedditUrl(input)) {
+    // Check if input is a Reddit URL (using strict parser)
+    if (parseRedditPostUrl(input)) {
       await handleUrlImport(input, sock, msg, remoteJid, logger);
       return;
     }
@@ -286,19 +299,22 @@ async function handleSource(sock, msg, remoteJid, logger) {
 }
 
 async function handleTest(sock, msg, remoteJid, logger) {
-  await sock.sendMessage(remoteJid, { text: "🧪 *Reddit Sticker Test*\n\nMenguji pipeline..." }, { quoted: msg });
+  await sock.sendMessage(remoteJid, { text: "🧪 *Reddit Sticker Test*\n\nMenguji pipeline via You.com..." }, { quoted: msg });
 
   const results = [];
   const startMs = Date.now();
 
   try {
-    // 1. Static image test
+    // 1. Test You.com discovery
+    const {
+      discoverTrendingPosts,
+      searchReddit,
+    } = require("../services/redditStickerDiscovery");
     const {
       resolveMedia,
       filterAndRankPosts,
       isEligibleRedditPost,
     } = require("../services/redditMediaResolver");
-    const { getTopPosts } = require("../services/redditService");
     const { downloadMedia, cleanupTempFile } = require("../services/redditMediaDownloader");
     const {
       convertStaticSticker,
@@ -306,21 +322,20 @@ async function handleTest(sock, msg, remoteJid, logger) {
       isAnimatedMedia,
     } = require("../services/redditMediaConverter");
 
-    const subreddits = (process.env.REDDIT_DEFAULT_SUBREDDITS || "memes,dankmemes,funny")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
+    // Test discovery connectivity
     let testPost = null;
 
-    for (const sr of subreddits.slice(0, 3)) {
-      try {
-        const data = await getTopPosts(sr, 25);
-        const posts = data?.data?.children?.map((c) => c.data) || [];
-        const eligible = filterAndRankPosts(posts);
+    try {
+      const candidates = await discoverTrendingPosts({ logger });
+      results.push(`🔍 Discovery: ${candidates.length} Reddit posts found`);
 
-        // Find one static and one animated
-        for (const p of eligible) {
+      if (candidates.length > 0) {
+        // Filter and rank
+        const ranked = filterAndRankPosts(candidates);
+        results.push(`📊 Eligible after filter: ${ranked.length}`);
+
+        // Find one static candidate for conversion test
+        for (const p of ranked) {
           const media = resolveMedia(p);
           if (media && !isAnimatedMedia(media.mediaType)) {
             testPost = p;
@@ -328,16 +343,51 @@ async function handleTest(sock, msg, remoteJid, logger) {
             break;
           }
         }
-        if (testPost) break;
-      } catch {}
+
+        if (!testPost) {
+          // Try any candidate with media
+          for (const p of ranked) {
+            const media = resolveMedia(p);
+            if (media) {
+              testPost = p;
+              testPost._resolvedMedia = media;
+              break;
+            }
+          }
+        }
+      } else {
+        results.push("⚠️ Discovery returned 0 results — trying single query");
+        const fallbackResults = await searchReddit(
+          "site:reddit.com/r/memes/comments popular meme",
+          { logger }
+        );
+        results.push(`🔍 Fallback query: ${fallbackResults.length} results`);
+
+        if (fallbackResults.length > 0) {
+          const ranked = filterAndRankPosts(fallbackResults);
+          for (const p of ranked) {
+            const media = resolveMedia(p);
+            if (media) {
+              testPost = p;
+              testPost._resolvedMedia = media;
+              break;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      results.push(`❌ Discovery error: ${String(err.message).slice(0, 50)}`);
     }
 
     if (!testPost) {
-      await sock.sendMessage(remoteJid, { text: "🧪 Tidak ada post uji yang tersedia." }, { quoted: msg });
+      results.push("⚠️ No test post found — discovery may be empty");
+      await sock.sendMessage(remoteJid, {
+        text: `🧪 *HASIL TEST*\n\n${results.join("\n")}\n\n_Tidak ada kandidat untuk uji konversi._`,
+      }, { quoted: msg });
       return;
     }
 
-    // Static test
+    // Static conversion test
     const media = testPost._resolvedMedia;
     let dlResult = null;
     try {
@@ -345,10 +395,10 @@ async function handleTest(sock, msg, remoteJid, logger) {
       const conv = await convertStaticSticker(dlResult.buffer);
 
       results.push(
-        `✅ *Static:* ${conv.fileSizeBytes} bytes | ${testPost.subreddit}`
+        `✅ *Static:* ${conv.fileSizeBytes} bytes | ${testPost.subreddit || "?"}`
       );
 
-      // Send the test static sticker
+      // Send test sticker (does not count toward sent count)
       await sock.sendMessage(remoteJid, { sticker: conv.buffer });
     } catch (err) {
       results.push(`❌ Static: ${String(err.message).slice(0, 50)}`);
@@ -356,31 +406,29 @@ async function handleTest(sock, msg, remoteJid, logger) {
       if (dlResult) cleanupTempFile(dlResult.filePath);
     }
 
-    // Animated test — find one if available
-    const animatedPost = null;
-    for (const sr of subreddits.slice(0, 3)) {
-      try {
-        const data = await getTopPosts(sr, 25);
-        const posts = data?.data?.children?.map((c) => c.data) || [];
-        const eligible = filterAndRankPosts(posts);
-        for (const p of eligible) {
-          const media = resolveMedia(p);
-          if (media && isAnimatedMedia(media.mediaType)) {
-            // Found animated candidate
-            break;
-          }
-        }
-      } catch {}
+    // Check for animated candidate
+    const candidates = await discoverTrendingPosts({ logger }).catch(() => []);
+    let animatedFound = false;
+    for (const p of filterAndRankPosts(candidates)) {
+      const m = resolveMedia(p);
+      if (m && isAnimatedMedia(m.mediaType)) {
+        animatedFound = true;
+        results.push(`🎬 Animated candidate: r/${p.subreddit || "?"} (${m.mediaType})`);
+        break;
+      }
+    }
+    if (!animatedFound) {
+      results.push("🎬 Animated: tidak ada kandidat (wajar jika tidak ditemukan)");
     }
 
     const latencyMs = Date.now() - startMs;
     results.push(`⏱️ Latency: ${latencyMs}ms`);
 
     await sock.sendMessage(remoteJid, {
-      text: `🧪 *HASIL TEST*\n\n${results.join("\n")}\n\n_Tidak menandai cron selesai._`,
+      text: `🧪 *HASIL TEST*\n\n${results.join("\n")}\n\n_Tidak menandai cron selesai. Tidak menambah sent count. Tidak menyimpan credential._`,
     }, { quoted: msg });
 
-    logger?.info({ results }, "Reddit test complete");
+    logger?.info({ results, latencyMs }, "Reddit test complete (You.com discovery)");
   } catch (err) {
     logger?.error({ err }, "Reddit test error");
     await sock.sendMessage(remoteJid, {

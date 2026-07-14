@@ -1,18 +1,21 @@
 // Reddit Sticker Service — orchestrates the full pipeline:
-// fetch → filter → rank → download → convert → store in Sticker Bank.
+// You.com discovery → filter → rank → download → convert → store in Sticker Bank.
 // Also handles search, URL import, bank stats, and sender logic.
+//
+// NO Reddit OAuth required. Discovery via You.com Web Search API.
+// The resolver, downloader, converter, and repository are reused as-is.
 
 const crypto = require("crypto");
 const {
-  getTopPosts,
-  getHotPosts,
-  searchSubreddit,
-  getPostById,
-  parseRedditUrl,
-} = require("./redditService");
+  discoverTrendingPosts,
+  discoverByKeyword,
+  fetchRedditPageMetadata,
+} = require("./redditStickerDiscovery");
+const { parseRedditPostUrl } = require("../utils/redditUrlParser");
 const {
   filterAndRankPosts,
   resolveMedia,
+  isEligibleRedditPost,
 } = require("./redditMediaResolver");
 const {
   downloadMedia,
@@ -36,24 +39,16 @@ const {
   computeHash,
 } = require("../repositories/redditStickerRepository");
 
-// ── Config ───────────────────────────────────────────────
-
-const DEFAULT_SUBREDDITS = () =>
-  (process.env.REDDIT_DEFAULT_SUBREDDITS || "memes,dankmemes,wholesomememes,me_irl,funny,gifs,ProgrammerHumor")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+// ── Config ──────────────────────────────────────────────────
 
 const GENERATE_COUNT = () =>
   parseInt(process.env.REDDIT_STICKER_GENERATE_COUNT || "5", 10);
 const SEND_COUNT = () =>
   parseInt(process.env.REDDIT_STICKER_SEND_COUNT || "1", 10);
-const FETCH_LIMIT = () =>
-  parseInt(process.env.REDDIT_FETCH_LIMIT || "50", 10);
 const MAX_CONCURRENT_DOWNLOADS = () =>
   parseInt(process.env.REDDIT_MAX_CONCURRENT_DOWNLOADS || "2", 10);
 
-// ── Idempotency ──────────────────────────────────────────
+// ── Idempotency ─────────────────────────────────────────────
 
 const generationStatus = new Map();
 
@@ -69,7 +64,7 @@ function markSlotGenerated(key) {
   generationStatus.set(key, { status: "generated", timestamp: Date.now() });
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────
 
 function shuffle(arr) {
   const a = [...arr];
@@ -91,7 +86,7 @@ function buildStickerRecord(post, downloadResult, convertResult) {
     author: post.author || "",
     title: (post.title || "").slice(0, 300),
     permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : "",
-    sourceUrl: post.url ? `https://www.reddit.com${post.permalink || ""}` : "",
+    sourceUrl: post.permalink ? `https://www.reddit.com${post.permalink}` : "",
     mediaUrl: media?.mediaUrl || "",
     mediaType: media?.mediaType || "unknown",
     stickerType: isAnimatedMedia(media?.mediaType) ? "animated" : "static",
@@ -113,57 +108,21 @@ function buildStickerRecord(post, downloadResult, convertResult) {
   };
 }
 
-// ── Pipeline step: fetch posts from Reddit ────────────────
+// ── Pipeline step: fetch candidates from You.com discovery ──
 
 async function fetchCandidates({ logger } = {}) {
-  const subreddits = shuffle(DEFAULT_SUBREDDITS());
-  const limit = FETCH_LIMIT();
+  // Use You.com Web Search to discover trending Reddit posts
+  const candidates = await discoverTrendingPosts({ logger });
 
-  const seenIds = new Set();
-  const allPosts = [];
+  logger?.info({
+    feature: "reddit_sticker",
+    discovered: candidates.length,
+  }, `Discovered ${candidates.length} Reddit posts via You.com`);
 
-  // Take a subset of subreddits to avoid over-fetching
-  const batch = subreddits.slice(0, 5);
-
-  for (const subreddit of batch) {
-    try {
-      // Fetch both /top and /hot
-      const [topData, hotData] = await Promise.all([
-        getTopPosts(subreddit, limit).catch(() => null),
-        getHotPosts(subreddit, limit).catch(() => null),
-      ]);
-
-      const topPosts = topData?.data?.children?.map((c) => c.data) || [];
-      const hotPosts = hotData?.data?.children?.map((c) => c.data) || [];
-
-      const combined = [...topPosts, ...hotPosts];
-
-      for (const post of combined) {
-        if (!seenIds.has(post.id)) {
-          seenIds.add(post.id);
-          allPosts.push(post);
-        }
-      }
-
-      logger?.info({
-        feature: "reddit_sticker",
-        subreddit,
-        topCount: topPosts.length,
-        hotCount: hotPosts.length,
-      }, `Fetched r/${subreddit}: ${topPosts.length} top + ${hotPosts.length} hot`);
-    } catch (err) {
-      logger?.warn({
-        feature: "reddit_sticker",
-        subreddit,
-        error: String(err.message).slice(0, 100),
-      }, `Failed to fetch r/${subreddit}`);
-    }
-  }
-
-  return allPosts;
+  return candidates;
 }
 
-// ── Pipeline step: download + convert one post ────────────
+// ── Pipeline step: download + convert one post ───────────────
 
 async function processPost(post, { logger } = {}) {
   const media = post._resolvedMedia || resolveMedia(post);
@@ -171,7 +130,7 @@ async function processPost(post, { logger } = {}) {
     return { success: false, reason: "no_supported_media" };
   }
 
-  // Check duplicate
+  // Check duplicate by Reddit post ID
   const dup = await isDuplicate({
     redditPostId: post.id,
     originalPostId: media.originalPostId || null,
@@ -194,7 +153,9 @@ async function processPost(post, { logger } = {}) {
       author: post.author || "",
       title: (post.title || "").slice(0, 300),
       permalink: post.permalink || "",
-      sourceUrl: `https://www.reddit.com${post.permalink || ""}`,
+      sourceUrl: post.permalink
+        ? `https://www.reddit.com${post.permalink}`
+        : "",
       mediaUrl: media.mediaUrl,
       mediaType: media.mediaType,
       stickerType: isAnimatedMedia(media.mediaType) ? "animated" : "static",
@@ -214,7 +175,6 @@ async function processPost(post, { logger } = {}) {
     });
 
     // Download
-    await updateStickerStatus(stickerId, "downloading");
     downloadResult = await downloadMedia(media.mediaUrl);
 
     // Check duplicate by content hash
@@ -241,7 +201,10 @@ async function processPost(post, { logger } = {}) {
     }
 
     // Save to persistent sticker storage
-    const persistentPath = saveStickerFile(convertResult.buffer, convertResult.durationSeconds ? "animated" : "static");
+    const persistentPath = saveStickerFile(
+      convertResult.buffer,
+      convertResult.durationSeconds ? "animated" : "static"
+    );
 
     // Update final record
     await insertSticker({
@@ -294,31 +257,34 @@ function formatStickerBytes(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-// ── Generator: fetch → filter → rank → process ────────────
+// ── Generator: discover → filter → rank → process ────────────
 
 async function generateStickers({ logger, count } = {}) {
   const target = count || GENERATE_COUNT();
-  const subreddits = shuffle(DEFAULT_SUBREDDITS());
 
   logger?.info({
     feature: "reddit_sticker",
     target,
-    subreddits: subreddits.slice(0, 5),
-  }, "Starting sticker generation");
+  }, "Starting sticker generation (You.com discovery)");
 
-  // 1. Fetch from multiple subreddits with concurrency limit of 3
-  const allPosts = await fetchCandidates({ logger });
-
-  // 2. Filter and rank
-  const candidates = filterAndRankPosts(allPosts);
-  logger?.info({
-    feature: "reddit_sticker",
-    fetched: allPosts.length,
-    candidates: candidates.length,
-  }, `Filtered: ${candidates.length} candidates from ${allPosts.length} posts`);
+  // 1. Discover trending Reddit posts via You.com
+  const candidates = await fetchCandidates({ logger });
 
   if (candidates.length === 0) {
-    logger?.warn("No eligible Reddit candidates found");
+    logger?.warn("[Reddit Sticker] No candidates discovered via You.com");
+    return { generated: 0, attempted: 0 };
+  }
+
+  // 2. Filter and rank using existing resolver
+  const ranked = filterAndRankPosts(candidates);
+  logger?.info({
+    feature: "reddit_sticker",
+    discovered: candidates.length,
+    eligible: ranked.length,
+  }, `Filtered: ${ranked.length} eligible from ${candidates.length} discovered`);
+
+  if (ranked.length === 0) {
+    logger?.warn("[Reddit Sticker] No eligible candidates after filtering");
     return { generated: 0, attempted: 0 };
   }
 
@@ -327,8 +293,8 @@ async function generateStickers({ logger, count } = {}) {
   let attempted = 0;
   const dlLimit = MAX_CONCURRENT_DOWNLOADS();
 
-  for (let i = 0; i < candidates.length && generated < target; i += dlLimit) {
-    const batch = candidates.slice(i, i + dlLimit).slice(0, target - generated + 2);
+  for (let i = 0; i < ranked.length && generated < target; i += dlLimit) {
+    const batch = ranked.slice(i, i + dlLimit).slice(0, target - generated + 2);
     attempted += batch.length;
 
     const results = await Promise.allSettled(
@@ -352,7 +318,7 @@ async function generateStickers({ logger, count } = {}) {
   return { generated, attempted };
 }
 
-// ── Sender: pick one ready sticker and send ────────────────
+// ── Sender: pick one ready sticker and send ───────────────────
 
 async function sendOneSticker(sock, groupJid, { logger } = {}) {
   const count = SEND_COUNT();
@@ -360,7 +326,7 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
 
   const stickers = await getLeastRecentlySent(count);
   if (stickers.length === 0) {
-    logger?.info("No ready stickers in bank");
+    logger?.info("[Reddit Sticker] No ready stickers in bank");
     return { sent: 0 };
   }
 
@@ -368,11 +334,13 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
 
   for (const sticker of stickers) {
     try {
-      // Verify file exists
       const fs = require("fs");
       if (!sticker.localPath || !fs.existsSync(sticker.localPath)) {
         await updateStickerStatus(sticker.id, "failed", "file_missing");
-        logger?.warn({ redditPostId: sticker.redditPostId }, "Sticker file missing");
+        logger?.warn(
+          { redditPostId: sticker.redditPostId },
+          "[Reddit Sticker] File missing"
+        );
         continue;
       }
 
@@ -403,64 +371,37 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
   return { sent };
 }
 
-// ── Search + send ─────────────────────────────────────────
+// ── Search + send (keyword) ──────────────────────────────────
 
 async function searchAndSend(keyword, sock, remoteJid, { logger } = {}) {
-  const subreddits = DEFAULT_SUBREDDITS();
-  const limit = FETCH_LIMIT();
-
-  // Sanitize keyword
-  const cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
+  const cleanKeyword = String(keyword || "")
+    .replace(/[\x00-\x1f]/g, "")
+    .trim()
+    .slice(0, 100);
   if (!cleanKeyword) {
     throw new Error("Keyword kosong");
   }
 
-  let allPosts = [];
-  const seenIds = new Set();
+  logger?.info(
+    { keyword: cleanKeyword },
+    "[Reddit Sticker] Keyword search via You.com"
+  );
 
-  // Search up to 3 subreddits with concurrency limit of 3
-  const searchBatch = subreddits.slice(0, 5);
-  for (let i = 0; i < searchBatch.length; i += 3) {
-    const batch = searchBatch.slice(i, i + 3);
-    const results = await Promise.allSettled(
-      batch.map(async (subreddit) => {
-        try {
-          const data = await searchSubreddit(subreddit, cleanKeyword, limit);
-          const posts = data?.data?.children?.map((c) => c.data) || [];
-          return { subreddit, posts };
-        } catch {
-          return { subreddit, posts: [] };
-        }
-      })
-    );
+  // Discover via You.com keyword search
+  const candidates = await discoverByKeyword(cleanKeyword, { logger });
 
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        for (const post of r.value.posts) {
-          if (!seenIds.has(post.id)) {
-            seenIds.add(post.id);
-            post._searchSubreddit = r.value.subreddit;
-            allPosts.push(post);
-          }
-        }
-      }
-    }
-
-    if (allPosts.length >= 30) break;
-  }
-
-  if (allPosts.length === 0) {
+  if (candidates.length === 0) {
     return { success: false, reason: "no_results" };
   }
 
   // Filter and rank, pick best
-  const candidates = filterAndRankPosts(allPosts);
-  if (candidates.length === 0) {
+  const ranked = filterAndRankPosts(candidates);
+  if (ranked.length === 0) {
     return { success: false, reason: "no_eligible" };
   }
 
   // Try the top 3 candidates
-  for (const candidate of candidates.slice(0, 3)) {
+  for (const candidate of ranked.slice(0, 3)) {
     const result = await processPost(candidate, { logger });
     if (result.success) {
       // Send immediately
@@ -486,29 +427,90 @@ async function searchAndSend(keyword, sock, remoteJid, { logger } = {}) {
   return { success: false, reason: "conversion_failed" };
 }
 
-// ── URL import ────────────────────────────────────────────
+// ── URL import ───────────────────────────────────────────────
 
 async function importFromUrl(urlStr, sock, remoteJid, { logger } = {}) {
-  const parsed = parseRedditUrl(urlStr);
+  // Parse URL with strict validation
+  const parsed = parseRedditPostUrl(urlStr);
   if (!parsed) {
     return { success: false, reason: "invalid_reddit_url" };
   }
 
-  const post = await getPostById(parsed.postId);
-  if (!post) {
-    return { success: false, reason: "post_not_found" };
+  logger?.info(
+    { postId: parsed.postId, subreddit: parsed.subreddit },
+    "[Reddit Sticker] URL import"
+  );
+
+  // Try lightweight unauthenticated metadata fetch (ONE attempt only)
+  let pageMeta = null;
+  try {
+    pageMeta = await fetchRedditPageMetadata(urlStr);
+  } catch {
+    // fetchRedditPageMetadata handles its own errors
   }
 
+  if (pageMeta && !pageMeta.available) {
+    // 401, 403, 429 — page unavailable
+    logger?.warn(
+      { postId: parsed.postId, reason: pageMeta.reason },
+      "[Reddit Sticker] Reddit page unavailable"
+    );
+    return { success: false, reason: "reddit_page_unavailable" };
+  }
+
+  // Build a minimal post object from URL + available metadata
+  const post = {
+    id: parsed.postId,
+    subreddit: parsed.subreddit || "",
+    subreddit_name_prefixed: parsed.subreddit ? `r/${parsed.subreddit}` : "",
+    permalink: parsed.permalink,
+    title: pageMeta?.ogTitle || parsed.postId,
+    author: "",
+    url: parsed.normalizedUrl,
+    created_utc: Math.floor(Date.now() / 1000) - 3600,
+    score: 0,
+    num_comments: 0,
+    upvote_ratio: 0,
+    over_18: false,
+    spoiler: false,
+    is_self: false,
+    is_video: false,
+    is_gif: false,
+    stickied: false,
+    removed_by_category: null,
+    post_hint: null,
+    thumbnail: pageMeta?.ogImage || "image",
+    url_overridden_by_dest: pageMeta?.ogImage || parsed.normalizedUrl,
+    preview: pageMeta?.ogImage
+      ? {
+          images: [
+            { source: { url: pageMeta.ogImage, width: 512, height: 512 }, resolutions: [] },
+          ],
+        }
+      : null,
+    media: null,
+    secure_media: null,
+    media_metadata: null,
+    gallery_data: null,
+    crosspost_parent_list: [],
+    _source: "reddit_url_import",
+  };
+
   // Check eligibility
-  const { isEligibleRedditPost } = require("./redditMediaResolver");
   if (!isEligibleRedditPost(post)) {
     return { success: false, reason: "post_not_eligible" };
   }
 
   // Resolve media
   const media = resolveMedia(post);
-  if (!media) {
-    return { success: false, reason: "no_supported_media" };
+  if (!media?.mediaUrl) {
+    // If OG video was found, try using it as direct media
+    if (pageMeta?.ogVideo && pageMeta.ogVideo.startsWith("https://")) {
+      media.mediaUrl = pageMeta.ogVideo;
+      media.mediaType = "video";
+    } else {
+      return { success: false, reason: "no_supported_media" };
+    }
   }
   post._resolvedMedia = media;
 
@@ -538,7 +540,7 @@ async function importFromUrl(urlStr, sock, remoteJid, { logger } = {}) {
   return { success: false, reason: "file_missing" };
 }
 
-// ── Send sticker from bank ────────────────────────────────
+// ── Send sticker from bank ───────────────────────────────────
 
 async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
   const stickers = await getLeastRecentlySent(1);
@@ -572,18 +574,21 @@ async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
       stickerId: sticker.id,
     };
   } catch (err) {
-    logger?.warn({ error: String(err.message).slice(0, 100) }, "Failed to send bank sticker");
+    logger?.warn(
+      { error: String(err.message).slice(0, 100) },
+      "[Reddit Sticker] Failed to send bank sticker"
+    );
     return { success: false, reason: "send_failed" };
   }
 }
 
-// ── Bank stats ────────────────────────────────────────────
+// ── Bank stats ───────────────────────────────────────────────
 
 async function getBankStats() {
   return getStats();
 }
 
-// ── Get source of a sticker ──────────────────────────────
+// ── Get source of a sticker ──────────────────────────────────
 
 async function getStickerSource(stickerId) {
   if (stickerId) {

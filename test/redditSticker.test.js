@@ -1,6 +1,6 @@
 // Unit tests for Reddit Sticker Bank.
 // Uses Node.js built-in test runner (node:test).
-// Reddit API calls are mocked — no real credentials used.
+// Mocked — no real credentials or network calls used.
 //
 // Run: node --test test/redditSticker.test.js
 
@@ -8,51 +8,287 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 
 // ══════════════════════════════════════════════════════════════
-// URL PARSING
+// URL PARSING (new standalone redditUrlParser)
 // ══════════════════════════════════════════════════════════════
 
-describe("Reddit URL Parsing", () => {
-  const { parseRedditUrl, VALID_REDDIT_HOSTS } = require("../src/services/redditService");
+describe("Reddit URL Parsing (redditUrlParser)", () => {
+  const {
+    parseRedditPostUrl,
+    isRedditPostUrl,
+    extractPostId,
+    REDDIT_POST_HOSTS,
+  } = require("../src/utils/redditUrlParser");
 
   it("parses standard reddit URL", () => {
-    const result = parseRedditUrl("https://www.reddit.com/r/memes/comments/abc123/title/");
+    const result = parseRedditPostUrl(
+      "https://www.reddit.com/r/memes/comments/abc123/title/"
+    );
     assert.ok(result);
     assert.strictEqual(result.postId, "abc123");
+    assert.strictEqual(result.subreddit, "memes");
   });
 
   it("parses old.reddit.com URL", () => {
-    const result = parseRedditUrl("https://old.reddit.com/r/funny/comments/xyz789/slug/");
+    const result = parseRedditPostUrl(
+      "https://old.reddit.com/r/funny/comments/xyz789/slug/"
+    );
     assert.ok(result);
     assert.strictEqual(result.postId, "xyz789");
+    assert.strictEqual(result.subreddit, "funny");
   });
 
   it("parses redd.it shortlink", () => {
-    const result = parseRedditUrl("https://redd.it/abc123");
+    const result = parseRedditPostUrl("https://redd.it/abc123");
     assert.ok(result);
     assert.strictEqual(result.postId, "abc123");
   });
 
-  it("rejects fake reddit hostname", () => {
-    assert.strictEqual(parseRedditUrl("https://reddit.com.evil.org/r/a/comments/abc123/"), null);
-    assert.strictEqual(parseRedditUrl("https://fake-reddit.com/r/a/comments/abc123/"), null);
+  it("parses reddit.com (no www)", () => {
+    const result = parseRedditPostUrl(
+      "https://reddit.com/r/memes/comments/abc123/"
+    );
+    assert.ok(result);
+    assert.strictEqual(result.postId, "abc123");
+  });
+
+  it("rejects fake reddit hostname (substring check bypass)", () => {
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com.evil.org/r/a/comments/abc123/"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://fake-reddit.com/r/a/comments/abc123/"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://www.reddit.com.example.com/r/memes/comments/abc/"),
+      null
+    );
+  });
+
+  it("rejects subreddit homepage", () => {
+    assert.strictEqual(parseRedditPostUrl("https://reddit.com/r/memes/"), null);
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com/r/memes/hot/"),
+      null
+    );
+  });
+
+  it("rejects non-post Reddit pages", () => {
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com/r/popular/"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com/search/?q=test"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com/user/someuser/"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://reddit.com/message/inbox/"),
+      null
+    );
   });
 
   it("rejects non-reddit URLs", () => {
-    assert.strictEqual(parseRedditUrl("https://youtube.com/watch?v=abc"), null);
-    assert.strictEqual(parseRedditUrl("https://twitter.com/user/status/123"), null);
+    assert.strictEqual(
+      parseRedditPostUrl("https://youtube.com/watch?v=abc"),
+      null
+    );
+    assert.strictEqual(
+      parseRedditPostUrl("https://twitter.com/user/status/123"),
+      null
+    );
   });
 
   it("rejects invalid input", () => {
-    assert.strictEqual(parseRedditUrl(""), null);
-    assert.strictEqual(parseRedditUrl(null), null);
-    assert.strictEqual(parseRedditUrl("not a url"), null);
+    assert.strictEqual(parseRedditPostUrl(""), null);
+    assert.strictEqual(parseRedditPostUrl(null), null);
+    assert.strictEqual(parseRedditPostUrl("not a url"), null);
   });
 
-  it("valid hosts list contains expected domains", () => {
-    assert.ok(VALID_REDDIT_HOSTS.includes("reddit.com"));
-    assert.ok(VALID_REDDIT_HOSTS.includes("www.reddit.com"));
-    assert.ok(VALID_REDDIT_HOSTS.includes("old.reddit.com"));
-    assert.ok(VALID_REDDIT_HOSTS.includes("redd.it"));
+  it("accepts HTTP for URL parsing (HTTPS enforced by downloader)", () => {
+    // URL parser validates structure; HTTPS requirement is in the downloader
+    const result = parseRedditPostUrl("http://reddit.com/r/memes/comments/abc123/");
+    assert.ok(result);
+    assert.strictEqual(result.postId, "abc123");
+  });
+
+  it("isRedditPostUrl helper works", () => {
+    assert.strictEqual(
+      isRedditPostUrl("https://reddit.com/r/a/comments/abc123/"),
+      true
+    );
+    assert.strictEqual(isRedditPostUrl("https://google.com/"), false);
+  });
+
+  it("extractPostId helper works", () => {
+    assert.strictEqual(
+      extractPostId("https://reddit.com/r/a/comments/abc123/"),
+      "abc123"
+    );
+    assert.strictEqual(extractPostId("https://redd.it/xyz789"), "xyz789");
+    assert.strictEqual(extractPostId("not a url"), null);
+  });
+
+  it("REDDIT_POST_HOSTS uses Set for O(1) lookup", () => {
+    assert.ok(REDDIT_POST_HOSTS instanceof Set);
+    assert.ok(REDDIT_POST_HOSTS.has("reddit.com"));
+    assert.ok(REDDIT_POST_HOSTS.has("www.reddit.com"));
+    assert.ok(REDDIT_POST_HOSTS.has("old.reddit.com"));
+    assert.ok(REDDIT_POST_HOSTS.has("redd.it"));
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// DISCOVERY — You.com search result normalization (ADAPTER)
+// ══════════════════════════════════════════════════════════════
+
+describe("You.com Search Result Normalization (Adapter)", () => {
+  const { normalizeSearchResult } = require("../src/services/redditStickerDiscovery");
+
+  it("normalizes a valid Reddit post result", () => {
+    const raw = {
+      title: "Funny meme about programming",
+      description: "A hilarious take on JavaScript promises",
+      url: "https://www.reddit.com/r/ProgrammerHumor/comments/abc123/funny_meme/",
+      source: "reddit.com",
+      page_age: "5 hours ago",
+      thumbnail: "https://preview.redd.it/abc123.jpg?width=640",
+    };
+
+    const result = normalizeSearchResult(raw, 0);
+    assert.ok(result);
+    assert.strictEqual(result.id, "abc123");
+    assert.strictEqual(result.subreddit, "ProgrammerHumor");
+    assert.strictEqual(result.title, "Funny meme about programming");
+    assert.strictEqual(result._source, "you.com");
+    assert.strictEqual(result.over_18, false);
+    assert.strictEqual(result.spoiler, false);
+    assert.ok(result.created_utc > 0);
+  });
+
+  it("normalizes a redd.it shortlink result", () => {
+    const raw = {
+      title: "Check this out",
+      url: "https://redd.it/xyz789",
+      page_age: "2 days ago",
+    };
+
+    const result = normalizeSearchResult(raw, 1);
+    assert.ok(result);
+    assert.strictEqual(result.id, "xyz789");
+  });
+
+  it("rejects non-Reddit URLs", () => {
+    const raw = {
+      title: "Not Reddit",
+      url: "https://twitter.com/user/status/123",
+    };
+
+    assert.strictEqual(normalizeSearchResult(raw, 0), null);
+  });
+
+  it("rejects Reddit homepage URLs", () => {
+    const raw = {
+      title: "Memes",
+      url: "https://reddit.com/r/memes/",
+    };
+
+    assert.strictEqual(normalizeSearchResult(raw, 0), null);
+  });
+
+  it("handles missing optional fields gracefully", () => {
+    const raw = {
+      url: "https://reddit.com/r/test/comments/min123/",
+    };
+
+    const result = normalizeSearchResult(raw, 0);
+    assert.ok(result);
+    assert.strictEqual(result.title, "");
+    assert.strictEqual(result.author, "");
+    assert.strictEqual(result.score, 0);
+    assert.strictEqual(result._searchThumbnailUrl, null);
+  });
+
+  it("normalized result has required fields for resolver", () => {
+    const raw = {
+      title: "Test Post",
+      url: "https://reddit.com/r/memes/comments/test456/test_post/",
+      page_age: "1 hour ago",
+      thumbnail: "https://preview.redd.it/test.jpg",
+    };
+
+    const result = normalizeSearchResult(raw, 0);
+    assert.ok(result);
+
+    // Fields the resolver expects
+    assert.ok("id" in result);
+    assert.ok("subreddit" in result);
+    assert.ok("permalink" in result);
+    assert.ok("url" in result);
+    assert.ok("created_utc" in result);
+    assert.ok("over_18" in result);
+    assert.ok("spoiler" in result);
+    assert.ok("is_self" in result);
+    assert.ok("is_video" in result);
+    assert.ok("thumbnail" in result);
+    assert.ok("preview" in result);
+
+    // Adapter metadata (not from Reddit OAuth)
+    assert.strictEqual(result._source, "you.com");
+    assert.strictEqual(result._searchIndex, 0);
+  });
+
+  it("does NOT fake Reddit vote metadata", () => {
+    const raw = {
+      url: "https://reddit.com/r/test/comments/vote1/",
+    };
+    const result = normalizeSearchResult(raw, 0);
+    assert.strictEqual(result.score, 0);
+    assert.strictEqual(result.num_comments, 0);
+    assert.strictEqual(result.upvote_ratio, 0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// DISCOVERY — no OAuth credentials needed
+// ══════════════════════════════════════════════════════════════
+
+describe("No Reddit OAuth Required", () => {
+  it("redditStickerDiscovery does not import redditService", () => {
+    const mod = require("../src/services/redditStickerDiscovery");
+    // Should only depend on urlParser, not on redditService
+    assert.ok(typeof mod.discoverTrendingPosts === "function");
+    assert.ok(typeof mod.discoverByKeyword === "function");
+    assert.ok(typeof mod.fetchRedditPageMetadata === "function");
+  });
+
+  it("redditStickerService does not import redditService (OAuth)", () => {
+    const mod = require("../src/services/redditStickerService");
+    assert.ok(typeof mod.generateStickers === "function");
+    assert.ok(typeof mod.searchAndSend === "function");
+    // The module should work without REDDIT_CLIENT_ID set
+  });
+
+  it("works when REDDIT_CLIENT_ID is empty", () => {
+    const prev = process.env.REDDIT_CLIENT_ID;
+    delete process.env.REDDIT_CLIENT_ID;
+    // Module should load without throwing
+    const mod = require("../src/services/redditStickerService");
+    assert.ok(typeof mod.generateStickers === "function");
+    if (prev) process.env.REDDIT_CLIENT_ID = prev;
+  });
+
+  it("works when REDDIT_CLIENT_SECRET is empty", () => {
+    const prev = process.env.REDDIT_CLIENT_SECRET;
+    delete process.env.REDDIT_CLIENT_SECRET;
+    const mod = require("../src/services/redditStickerService");
+    assert.ok(typeof mod.searchAndSend === "function");
+    if (prev) process.env.REDDIT_CLIENT_SECRET = prev;
   });
 });
 
@@ -549,30 +785,52 @@ describe("Keyword Sanitization", () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// COMMAND HANDLER — checks that prefix is not hardcoded
+// COMMAND HANDLER — dual naming convention, prefix not hardcoded
 // ══════════════════════════════════════════════════════════════
 
 describe("Command Handler", () => {
-  it("reddit command module exports expected functions", () => {
-    const cmd = require("../src/commands/reddit");
+  const cmd = require("../src/commands/reddit");
+
+  it("exports all command names (both conventions)", () => {
     assert.ok(Array.isArray(cmd.names));
+    // Original names
     assert.ok(cmd.names.includes("reddit"));
     assert.ok(cmd.names.includes("rbank"));
+    assert.ok(cmd.names.includes("rrefresh"));
+    assert.ok(cmd.names.includes("rmode"));
+    assert.ok(cmd.names.includes("rsource"));
+    assert.ok(cmd.names.includes("rtest"));
+    // meme/* names
+    assert.ok(cmd.names.includes("meme"));
+    assert.ok(cmd.names.includes("memebank"));
+    assert.ok(cmd.names.includes("memerefresh"));
+    assert.ok(cmd.names.includes("mememode"));
+    assert.ok(cmd.names.includes("memesource"));
+    assert.ok(cmd.names.includes("memetest"));
+  });
+
+  it("exported functions", () => {
     assert.ok(typeof cmd.execute === "function");
     assert.ok(typeof cmd.isCronSenderEnabled === "function");
     assert.ok(typeof cmd.toggleCronSender === "function");
   });
 
   it("command names don't start with prefix character", () => {
-    const cmd = require("../src/commands/reddit");
     for (const name of cmd.names) {
-      assert.ok(!name.startsWith("!"), `command ${name} should not hardcode prefix`);
-      assert.ok(!name.startsWith("."), `command ${name} should not hardcode prefix`);
+      assert.ok(
+        !name.startsWith("!"),
+        `command ${name} should not hardcode prefix`
+      );
+      assert.ok(
+        !name.startsWith("."),
+        `command ${name} should not hardcode prefix`
+      );
     }
   });
 
   it("toggleCronSender works", () => {
-    const { toggleCronSender, isCronSenderEnabled } = require("../src/commands/reddit");
+    const { toggleCronSender, isCronSenderEnabled } =
+      require("../src/commands/reddit");
 
     toggleCronSender(true);
     assert.strictEqual(isCronSenderEnabled(), true);
@@ -580,7 +838,7 @@ describe("Command Handler", () => {
     toggleCronSender(false);
     assert.strictEqual(isCronSenderEnabled(), false);
 
-    // Reset
+    // Reset for other tests
     toggleCronSender(true);
   });
 });

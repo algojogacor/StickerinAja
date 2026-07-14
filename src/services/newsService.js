@@ -708,10 +708,24 @@ async function verifyArticleUrl(url, logger) {
         } finally {
             clearTimeout(timer);
         }
+
+        // Validate final URL after redirects — prevent SSRF to untrusted hosts
+        const finalUrl = response.url;
+        const finalUrlCheck = isValidArticleUrl(finalUrl);
+        if (!finalUrlCheck.ok) {
+            logger?.info({
+                originalUrl: url,
+                finalUrl,
+                reason: finalUrlCheck.reason,
+                hostname: finalUrlCheck.hostname,
+            }, 'URL verify: redirect to untrusted host — rejected');
+            return { valid: false, status: response.status, finalUrl, contentType: null, error: `redirect_untrusted: ${finalUrlCheck.reason}` };
+        }
+
         return {
             valid: response.status >= 200 && response.status < 400,
             status: response.status,
-            finalUrl: response.url,
+            finalUrl,
             contentType: response.headers.get('content-type') || undefined,
         };
     } catch (error) {
