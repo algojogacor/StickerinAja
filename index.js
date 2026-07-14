@@ -7,6 +7,7 @@ global.botState = {
 };
 const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
 const { handler } = require('./src/handler');
+const { setSock } = require('./src/core/socket');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -179,8 +180,21 @@ http.createServer(async (req, res) => {
 });
 
 
+// ── Reddit Sticker Bank init ──
+const { init: initRedditStickerRepo } = require('./src/repositories/redditStickerRepository');
+const redditCron = require('./src/scheduler/redditStickerCron');
+initRedditStickerRepo(logger);
+
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
-    onMessage: (sock, msg) => hermesAwareHandler(sock, msg, logger)
+    onMessage: (sock, msg) => {
+        setSock(sock);
+        return hermesAwareHandler(sock, msg, logger);
+    }
 });
+
+// Start Reddit sticker cron after a short delay (let connection stabilize)
+setTimeout(() => {
+    redditCron.start({ logger });
+}, 10_000);
