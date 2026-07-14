@@ -11,12 +11,16 @@ const fxCron = require("../scheduler/fxCron");
 function isPrivileged(remoteJid, msg) {
   const OWNER_JID = process.env.OWNER_JID || "";
 
-  // If OWNER_JID is not configured, allow all users (permissive fallback)
-  if (!OWNER_JID) return true;
+  // If OWNER_JID is not configured, admin commands require group admin
+  // (bot must be group admin — msg.key.fromMe check).
+  // This prevents random members from abusing admin commands.
+  if (!OWNER_JID) {
+    const isGroup = remoteJid.endsWith("@g.us");
+    return isGroup && msg.key.fromMe;
+  }
 
   const isOwner =
-    OWNER_JID &&
-    (remoteJid === OWNER_JID || msg.key.participant === OWNER_JID);
+    remoteJid === OWNER_JID || msg.key.participant === OWNER_JID;
   const isGroup = remoteJid.endsWith("@g.us");
   const isAdmin = isGroup && msg.key.fromMe;
   return isOwner || isAdmin;
