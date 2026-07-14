@@ -1,6 +1,7 @@
 node_modules/
 auth/
 temp/
+data/
 .env
 *.log
 .jules/
