@@ -20,6 +20,7 @@ const {
 const {
   downloadMedia,
   cleanupTempFile,
+  validateMediaUrl,
 } = require("./redditMediaDownloader");
 const {
   convertStaticSticker,
@@ -502,12 +503,21 @@ async function importFromUrl(urlStr, sock, remoteJid, { logger } = {}) {
   }
 
   // Resolve media
-  const media = resolveMedia(post);
+  let media = resolveMedia(post);
   if (!media?.mediaUrl) {
-    // If OG video was found, try using it as direct media
-    if (pageMeta?.ogVideo && pageMeta.ogVideo.startsWith("https://")) {
-      media.mediaUrl = pageMeta.ogVideo;
-      media.mediaType = "video";
+    // If OG video was found, validate it with the same SSRF-safe check
+    // used by the downloader before accepting it as a media source
+    if (pageMeta?.ogVideo) {
+      const urlCheck = validateMediaUrl(pageMeta.ogVideo);
+      if (urlCheck.ok) {
+        media = { mediaUrl: urlCheck.url, mediaType: "video" };
+      } else {
+        logger?.warn(
+          { postId: parsed.postId, ogVideoHost: urlCheck.hostname || "unknown", reason: urlCheck.reason },
+          "[Reddit Sticker] OG video URL rejected by media validator"
+        );
+        return { success: false, reason: "unsupported_external_host" };
+      }
     } else {
       return { success: false, reason: "no_supported_media" };
     }
