@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-07-15 WIB (+0700)
-**Repository baseline:** `445384c` — `fix: add backfill cooldown to prevent quota exhaustion`
-**Current implementation:** Uncommitted working-tree changes
+**Repository baseline:** `c1e023b` — `feat: configure Reddit daily delivery slots`
+**Current implementation:** Committed on `main`; `.env` remains local/ignored
 **Last verified tests:** 259/259 pass across 52 suites; Reddit + scheduler targeted 97/97 pass
 
 ---
@@ -138,6 +138,7 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-07-15 | Opted-in adult-content policy | `REDDIT_ALLOW_NSFW=true` and `REDDIT_ALLOW_SPOILER=true` documented/configured; resolver allows by default and You.com uses `safesearch=off` unless explicitly disabled |
 | 2026-07-15 | Configurable Reddit frequency | `.env` set to 5 generator slots and 10 sender slots; loaded production configuration resolved to 5 generation times and 10 send times, all inside 07:00–22:00 WIB |
 | 2026-07-15 | `node --test` after configurable Reddit frequency | 259 pass, 0 fail, 0 skipped; 52 suites |
+| 2026-07-15 | Git publish | Commit `c1e023b` pushed and verified on `origin/main`; Koyeb redeploy not performed |
 
 The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb remains stopped and was not redeployed.
 
@@ -159,4 +160,4 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 
 ## Next Safe Action
 
-Review the working-tree diff, commit and push only when authorized, then verify the tracked Koyeb deployment commit, startup logs, `/health`, Baileys connection-open log, and one scheduled or controlled live send inside the active WIB window.
+Verify the tracked Koyeb deployment commit, startup logs, `/health`, Baileys connection-open log, and one scheduled or controlled live send inside the active WIB window.

@@ -40,7 +40,13 @@ Increase Reddit delivery frequency and make the number of daily sends configurab
 ### Scope and deployment
 
 - `.env.example`, `.env`, `PROJECT_STATE.md`, `WORKLOG.md`, scheduler source, and scheduler tests were updated.
-- No commit, push, Koyeb deployment, or production redeploy was performed.
+- No Koyeb deployment or production redeploy was performed.
+
+### Publish handoff
+
+- Commit `c1e023b` (`feat: configure Reddit daily delivery slots`) was created from the full requested scheduler/Reddit change set.
+- `git push origin main` succeeded; `origin/main` was verified at `c1e023b`.
+- Koyeb was not redeployed or health-checked.
 
 **Status: Completed**
 
