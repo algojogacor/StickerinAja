@@ -1000,6 +1000,7 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 
 ### Remaining
 
-- Run the full test suite, inspect the final diff, and finalize this worklog entry.
 - Koyeb deployment and live WhatsApp birthday delivery are not verified in this session.
-- Changes remain uncommitted and unpushed; next safe action is a focused review/commit, then deploy only after Koyeb env and Turso session values are confirmed.
+- Commit `961537d` (`feat: enable production birthday takeover`) created and pushed to `origin/main`.
+- Local `.env` was updated but remains ignored and was not pushed.
+- Next safe action: redeploy Koyeb, verify service logs/health, then run one live birthday smoke test.

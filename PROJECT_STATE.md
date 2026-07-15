@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-07-15 WIB (+0700)
 **Repository baseline:** `c1e023b` — `feat: configure Reddit daily delivery slots`
-**Current implementation:** Birthday Takeover changes are implemented in the working tree; previous scheduler work is on `main`; `.env` remains local/ignored
+**Current implementation:** Birthday Takeover is committed on `main`; `.env` remains local/ignored
 **Last verified tests:** 267/267 pass across 56 suites; Birthday targeted 8/8 pass
 
 ---
