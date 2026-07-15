@@ -95,6 +95,14 @@ Berikut adalah daftar variabel lingkungan yang dapat Anda gunakan di file `.env`
 | `KEEP_TEMP_MINUTES` | Jeda waktu penghapusan file temp lama (dalam menit). | `5` |
 | `MAX_FILE_SIZE` | Ukuran file media maksimal yang diizinkan (dalam byte). | `10485760` (10MB) |
 | `ANIMATED_STICKER_TARGET_BYTES` | Target ukuran hasil stiker animasi sebelum auto-compress mencoba profil lebih ringan. | `950000` |
+| `GROUP_JID` | Grup tujuan scheduler otomatis dan Birthday Takeover. | kosong |
+| `BIRTHDAY_FEATURE_ENABLED` | Mengaktifkan penyimpanan ulang tahun dan scheduler birthday. | `true` |
+| `BIRTHDAY_TAKEOVER_ENABLED` | Saat ada ulang tahun hari ini, suppress News/Reddit/FX untuk grup tersebut. | `true` |
+| `BIRTHDAY_SONG_URL` | URL lagu yang dikirim sebagai fallback teks. | kosong |
+| `BIRTHDAY_AUDIO_PATH` | Audio lokal opsional; jika tidak ada, bot tetap mengirim URL lagu. | kosong |
+| `BIRTHDAY_CARD_PATH` | Gambar kartu opsional; jika kosong, bot mengirim kartu teks. | kosong |
+| `BIRTHDAY_STICKER_PATH` | Stiker pembuka opsional. | kosong |
+| `BIRTHDAY_WISH_MAX_LENGTH` | Batas panjang ucapan yang dikumpulkan dari reply kartu. | `500` |
 
 ---
 
@@ -136,6 +144,14 @@ Kirim pesan ke bot menggunakan awalan yang telah diatur (default: `!`).
 | `!pack <nama>` | Mengubah nama paket stiker untuk ruang obrolan Anda saat ini. | `!pack Nama Baru` |
 | `!author <nama>` | Mengubah nama pembuat stiker untuk ruang obrolan Anda saat ini. | `!author Arya` |
 | `!packpreset <preset>` | Mengaktifkan preset pack/author. | `!packpreset meme`, `!packpreset anime`, `!packpreset personal`, `!packpreset clean` |
+| `!ultah tambah DD-MM @anggota [nama]` | Menyimpan tanggal ulang tahun (admin/owner). | `!ultah tambah 15-07 @Rina Rina` |
+| `!ultah ubah DD-MM @anggota [nama]` | Mengubah data ulang tahun (admin/owner). | `!ultah ubah 15-07-2000 @Rina Rina` |
+| `!ultah hapus @anggota` | Menghapus data ulang tahun (admin/owner). | `!ultah hapus @Rina` |
+| `!ultah list` | Melihat daftar ulang tahun grup. | `!ultah list` |
+| `!ultah hariini` / `!ultah besok` | Melihat ulang tahun hari ini/besok. | `!ultah hariini` |
+| `!ultah mode on\|off\|status` | Mengelola takeover hari ini (admin/owner). | `!ultah mode status` |
+
+Birthday Takeover berjalan pada slot WIB 07:00, 09:00, 12:00, 15:00, 18:00, 21:00, dan 22:00. Kartu siang menjadi pesan target: anggota cukup me-reply kartu dengan ucapan; recap malam mengumpulkan maksimal 30 ucapan. Event tersimpan di Turso sehingga restart/reconnect tidak menggandakan pesan. Media audio/kartu/stiker bersifat opsional dan otomatis fallback bila file tidak tersedia.
 
 ---
 
@@ -156,6 +172,8 @@ Karena bot ini telah dioptimalkan secara ketat untuk penggunaan RAM di bawah 500
 5.  Klik **Deploy**.
 
 > 💡 **Penting untuk Scan QR**: Baileys membutuhkan pemindaian QR sekali saat bot pertama kali dijalankan. Untuk hosting stateless seperti Koyeb, isi `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` agar sesi WhatsApp tersimpan di Turso. Setelah scan pertama, redeploy/restart berikutnya akan membaca sesi dari Turso tanpa perlu scan ulang. Jika variabel Turso dikosongkan, bot kembali memakai folder `/auth` atau volume persistensi.
+
+Untuk Koyeb, masukkan `GROUP_JID`, `BOT_TIMEZONE=Asia/Jakarta`, seluruh `BIRTHDAY_*`, dan kredensial Turso melalui Environment Variables/Secrets service. File `.env` lokal tidak ikut ter-deploy. Jika memakai `BIRTHDAY_AUDIO_PATH`, `BIRTHDAY_CARD_PATH`, atau `BIRTHDAY_STICKER_PATH`, pastikan file tersebut memang ada di image/volume Koyeb; bila tidak, fallback teks tetap digunakan.
 
 ### 2. Menjalankan Menggunakan Docker Lokal
 

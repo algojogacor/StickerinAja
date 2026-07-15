@@ -57,6 +57,7 @@ function checkHermesAuth(req, res) {
 // Non-sticker-command messages → push to Hermes queue
 const { handler: originalHandler } = { handler };
 const PREFIX = process.env.PREFIX || '!';
+const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
 async function hermesAwareHandler(sock, msg, logger) {
     const messageText =
@@ -69,6 +70,13 @@ async function hermesAwareHandler(sock, msg, logger) {
     // If it looks like a sticker command, process normally
     if (messageText.startsWith(PREFIX)) {
         return handler(sock, msg, logger);
+    }
+
+    // Birthday wishes are replies to the card message; persistence is best-effort.
+    try {
+        await birthdayTakeover.recordWishFromMessage(msg);
+    } catch (error) {
+        logger.debug({ err: error }, '[Birthday] Failed to record wish');
     }
 
     // Non-command message → queue for Hermes
@@ -185,6 +193,12 @@ const redditCron = require('./src/scheduler/redditStickerCron');
 const newsScheduler = require('./src/scheduler/newsScheduler');
 initRedditStickerRepo(logger);
 
+// ── Birthday Takeover init ──
+const birthdayRepository = require('./src/repositories/birthdayRepository');
+const birthdayScheduler = require('./src/scheduler/birthdayScheduler');
+global.botState.birthdayScheduler = 'stopped';
+birthdayRepository.init(logger).catch((err) => logger.warn({ err }, '[Birthday] Repository init failed'));
+
 // ── FX Market Intelligence init ──
 const fxRepository = require('./src/repositories/fxRepository');
 const fxCron = require('./src/scheduler/fxCron');
@@ -226,6 +240,7 @@ startBot({
             newsScheduler.resume(),
             redditCron.resume(),
             fxCron.resume(),
+            birthdayScheduler.resume(),
         ]);
     },
 });
@@ -234,6 +249,9 @@ startBot({
 setTimeout(async () => {
     newsScheduler.start({ logger });
     redditCron.start({ logger });
+    if (birthdayScheduler.start({ logger })) {
+        global.botState.birthdayScheduler = 'running';
+    }
     if (process.env.FX_USD_IDR_ENABLED !== "false") {
         await initializeFx();
     }

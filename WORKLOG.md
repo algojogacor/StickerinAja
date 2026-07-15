@@ -969,3 +969,37 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 - Koyeb deployment status is unknown.
 - The OG video validation fix (`fb2de70`) is critical — do not revert or weaken it.
 - `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` are intentionally optional; the sticker pipeline must never require them.
+
+## Session 11 — Birthday Takeover production implementation
+
+- **Date:** 2026-07-15
+- **Start:** 13:57 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Codex / GPT-5 / Windows PowerShell
+- **Request:** make Birthday Takeover ready to use in production
+- **Scope:** replace the stub with Turso-backed birthday records, idempotent takeover events, admin commands, wish collection, and a 07:00–22:00 WIB windowed scheduler; update deployment/configuration documentation
+- **Branch:** `main`
+- **Starting HEAD:** `6f53779 docs: record Reddit scheduler publish`
+- **Starting working tree:** clean before birthday files were added
+- **Status:** Completed
+
+### Implementation milestones
+
+- Added `birthdayConfig`, `birthdayRepository`, `birthdayService`, formatter, and absolute-slot `birthdayScheduler`.
+- Replaced `birthdayTakeoverService` stub with a compatibility facade used by News, Reddit, and FX suppression checks.
+- Added `!ultah` / `!birthday` group command with admin/owner authorization, CRUD, list/today/tomorrow, and takeover mode controls.
+- Integrated repository startup, wish reply capture, scheduler resume/start, and bot status tracking in `index.js`.
+- Added `.env.example`, README, and PROJECT_STATE documentation for Koyeb env/asset behavior.
+
+### Verification so far
+
+- `node --test test/birthday.test.js` — 8 pass, 0 fail, 0 skipped.
+- `node --check src/commands/birthday.js src/scheduler/birthdayScheduler.js src/services/birthdayService.js index.js` — pass.
+- Command auto-loader smoke — `ultah` and `birthday` registered.
+- `node --test` — 267 pass, 0 fail, 0 skipped across 56 suites.
+- `git diff --check` — pass; only expected LF/CRLF warnings.
+
+### Remaining
+
+- Run the full test suite, inspect the final diff, and finalize this worklog entry.
+- Koyeb deployment and live WhatsApp birthday delivery are not verified in this session.
+- Changes remain uncommitted and unpushed; next safe action is a focused review/commit, then deploy only after Koyeb env and Turso session values are confirmed.

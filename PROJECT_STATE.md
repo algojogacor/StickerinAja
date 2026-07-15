@@ -2,8 +2,8 @@
 
 **Last updated:** 2026-07-15 WIB (+0700)
 **Repository baseline:** `c1e023b` — `feat: configure Reddit daily delivery slots`
-**Current implementation:** Committed on `main`; `.env` remains local/ignored
-**Last verified tests:** 259/259 pass across 52 suites; Reddit + scheduler targeted 97/97 pass
+**Current implementation:** Birthday Takeover changes are implemented in the working tree; previous scheduler work is on `main`; `.env` remains local/ignored
+**Last verified tests:** 267/267 pass across 56 suites; Birthday targeted 8/8 pass
 
 ---
 
@@ -35,7 +35,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Reddit Sticker Bank | Active; four daily You.com discovery slots, targeted multi-subreddit meme filtering, duplicate/removed/generic-result protection, image + short-video support, persistent ready-state upsert, and quality-gated scheduled delivery | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Active and now runtime-scheduled | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Active | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
-| Birthday Takeover | Stub only | `src/services/birthdayTakeoverService.js` |
+| Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
 
 The legacy filenames `redditStickerCron.js`, `fxCron.js`, and legacy Reddit toggle names remain for internal compatibility, but neither module imports or runs `node-cron`.
@@ -53,6 +53,7 @@ All times are Asia/Jakarta (WIB). No application delivery job is scheduled outsi
 | Reddit sticker sender | Configurable; default 10 slots from 08:00 through 22:00 WIB |
 | FX rate collection + delivery | Hourly at `:05`, from 07:05 through 21:05 |
 | FX market context refresh | 07:15, 10:15, 13:15, 16:15, 19:15 |
+| Birthday Takeover | 07:00, 09:00, 12:00, 15:00, 18:00, 21:00, 22:00 when today has birthday records |
 
 The temp-file cleanup timer in `index.js` remains a 60-second maintenance interval. It deletes old local temp files and does not deliver content or depend on a wall-clock schedule.
 
@@ -88,6 +89,10 @@ Relevant toggles and targets:
 - `FX_USD_IDR_ENABLED` / `FX_USD_IDR_AUTO_SEND_ENABLED` — FX scheduler toggles.
 - `FX_USD_IDR_TARGET_JID` — FX-specific delivery target, falling back to `GROUP_JID`.
 - `FX_MARKET_CONTEXT_ENABLED` — enables the five context-refresh slots.
+- `BIRTHDAY_FEATURE_ENABLED` / `BIRTHDAY_TAKEOVER_ENABLED` — enable Birthday Takeover and suppression of News/Reddit/FX for the target group.
+- `BIRTHDAY_SONG_URL` — text fallback URL when no local audio file exists.
+- `BIRTHDAY_AUDIO_PATH`, `BIRTHDAY_CARD_PATH`, `BIRTHDAY_STICKER_PATH` — optional files bundled into the deployment image/volume.
+- `BIRTHDAY_WISH_MAX_LENGTH` — maximum stored reply length (50–2000 characters).
 
 The removed variables `FX_USD_IDR_CRON`, `FX_MARKET_CONTEXT_CRON`, `FX_USD_IDR_RUN_24_HOURS`, and `FX_USD_IDR_TIMEZONE` are no longer read. Slot definitions are intentionally fixed in source to enforce the 07:00–22:00 policy.
 
@@ -107,6 +112,7 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | `!reddit`, `!meme`, `!rbank`, aliases | `reddit.js` | Mixed |
 | `!usd`, `!kurs` | `fx.js` | Public |
 | `!usdrefresh`, `!usdquota`, admin aliases | `fx.js` | Admin |
+| `!ultah`, `!birthday` | `birthday.js` | Group admin/owner for mutations; read-only queries for members |
 
 ---
 
@@ -139,6 +145,8 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-07-15 | Configurable Reddit frequency | `.env` set to 5 generator slots and 10 sender slots; loaded production configuration resolved to 5 generation times and 10 send times, all inside 07:00–22:00 WIB |
 | 2026-07-15 | `node --test` after configurable Reddit frequency | 259 pass, 0 fail, 0 skipped; 52 suites |
 | 2026-07-15 | Git publish | Commit `c1e023b` pushed and verified on `origin/main`; Koyeb redeploy not performed |
+| 2026-07-15 | `node --test test/birthday.test.js` | 8 pass, 0 fail, 0 skipped; Turso/memory service, formatter, scheduler contract, and command smoke |
+| 2026-07-15 | `node --check` Birthday modules and `index.js` | Pass |
 
 The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb remains stopped and was not redeployed.
 
@@ -154,6 +162,8 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 | Live FX provider and Turso reconnect retry | Not verified |
 | Full process restart can discard pending News/Reddit in-memory delivery | Known limitation |
 | Historical low-quality `ready` rows from earlier smoke tests remain in Turso for audit; sender quality gate excludes photo-only non-meme metadata | Known limitation |
+| Birthday media assets in the current checkout | Optional files are absent; production falls back to text and `BIRTHDAY_SONG_URL` unless assets are bundled |
+| Koyeb Birthday scheduler health | Not verified in this session; requires deployment and log/WhatsApp smoke test |
 | Graphify diagnostic reported 65 dangling-endpoint edges and 166 collapsed endpoint pairs in the orientation graph | Graph artifact warning; source and tests were used for final technical conclusions |
 
 ---

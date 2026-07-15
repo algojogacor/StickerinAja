@@ -1,9 +1,8 @@
-// Birthday Takeover Service — checks if a scheduled delivery should be suppressed.
-// Stub: returns false (no takeover) until birthday feature is deployed.
-// When birthday feature is added, replace with actual implementation.
+// Compatibility facade for existing News/Reddit/FX schedulers.
+// The durable takeover state and event idempotency live in birthdayService.
+const birthday = require("./birthdayService");
 
-async function shouldSuppressCron(groupJid, jobName) {
-  return false;
-}
-
-module.exports = { shouldSuppressCron };
+module.exports = {
+  shouldSuppressCron: birthday.shouldSuppressCron,
+  recordWishFromMessage: birthday.recordWishFromMessage,
+};
