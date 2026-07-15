@@ -43,11 +43,30 @@ const {
 // ── Config ──────────────────────────────────────────────────
 
 const GENERATE_COUNT = () =>
-  parseInt(process.env.REDDIT_STICKER_GENERATE_COUNT || "5", 10);
+  parseInt(process.env.REDDIT_STICKER_GENERATE_COUNT || "2", 10);
 const SEND_COUNT = () =>
   parseInt(process.env.REDDIT_STICKER_SEND_COUNT || "1", 10);
 const MAX_CONCURRENT_DOWNLOADS = () =>
   parseInt(process.env.REDDIT_MAX_CONCURRENT_DOWNLOADS || "2", 10);
+
+// Automated generation should prefer communities whose content is explicitly
+// meme/comedy-oriented. Photo/news subreddits remain available for manual
+// imports, but generic images are not suitable for the daily bank.
+const AUTOMATED_MEME_SUBREDDITS = new Set([
+  "memes",
+  "dankmemes",
+  "me_irl",
+  "wholesomememes",
+  "funny",
+  "programmerhumor",
+  "starterpacks",
+  "lotrmemes",
+  "historymemes",
+  "animemes",
+  "comedycemetery",
+  "therewasanattempt",
+  "dndmemes",
+]);
 
 // ── Idempotency ─────────────────────────────────────────────
 
@@ -258,6 +277,14 @@ function formatStickerBytes(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+function isAutomatedMemeCandidate(post) {
+  const subreddit = String(post?.subreddit || "").trim().toLowerCase();
+  if (AUTOMATED_MEME_SUBREDDITS.has(subreddit)) return true;
+
+  const text = `${post?.title || ""} ${post?._searchDescription || ""}`;
+  return /\b(?:meme|shitpost|reaction|starter\s*pack|funny|lol)\b/i.test(text);
+}
+
 // ── Generator: discover → filter → rank → process ────────────
 
 async function generateStickers({ logger, count } = {}) {
@@ -278,24 +305,36 @@ async function generateStickers({ logger, count } = {}) {
 
   // 2. Filter and rank using existing resolver
   const ranked = filterAndRankPosts(candidates);
+  const memeRanked = ranked.filter(isAutomatedMemeCandidate);
   logger?.info({
     feature: "reddit_sticker",
     discovered: candidates.length,
     eligible: ranked.length,
-  }, `Filtered: ${ranked.length} eligible from ${candidates.length} discovered`);
+    memeEligible: memeRanked.length,
+  }, `Filtered: ${memeRanked.length} meme candidates from ${ranked.length} eligible / ${candidates.length} discovered`);
 
-  if (ranked.length === 0) {
-    logger?.warn("[Reddit Sticker] No eligible candidates after filtering");
+  if (memeRanked.length === 0) {
+    logger?.warn("[Reddit Sticker] No meme candidates after filtering");
     return { generated: 0, attempted: 0 };
   }
 
-  // 3. Process candidates (download + convert) with concurrency limit
+  // 3. Diversify by subreddit before processing. This preserves the rank
+  // order within each niche but prevents a single subreddit from filling the
+  // whole daily batch when other eligible communities are available.
+  const selected = selectDiversePosts(memeRanked, target);
+  logger?.info({
+    feature: "reddit_sticker",
+    selected: selected.length,
+    subreddits: [...new Set(selected.map((post) => post.subreddit).filter(Boolean))],
+  }, "Selected diversified Reddit candidates");
+
+  // 4. Process candidates (download + convert) with concurrency limit
   let generated = 0;
   let attempted = 0;
   const dlLimit = MAX_CONCURRENT_DOWNLOADS();
 
-  for (let i = 0; i < ranked.length && generated < target; i += dlLimit) {
-    const batch = ranked.slice(i, i + dlLimit).slice(0, target - generated + 2);
+  for (let i = 0; i < selected.length && generated < target; i += dlLimit) {
+    const batch = selected.slice(i, i + dlLimit).slice(0, target - generated + 2);
     attempted += batch.length;
 
     const results = await Promise.allSettled(
@@ -321,11 +360,48 @@ async function generateStickers({ logger, count } = {}) {
 
 // ── Sender: pick one ready sticker and send ───────────────────
 
+function selectScheduledStickers(stickers, count = 1) {
+  return (Array.isArray(stickers) ? stickers : [])
+    .filter((sticker) => sticker?.status === "ready")
+    .filter((sticker) => {
+      // Older rows may not have discovery metadata; keep those compatible.
+      // When metadata is present, apply the same meme-quality gate used by
+      // generation so a historical photo-only row cannot be sent later.
+      if (!sticker?.subreddit && !sticker?.title) return true;
+      return isAutomatedMemeCandidate(sticker);
+    })
+    .slice(0, Math.max(0, count));
+}
+
+function selectDiversePosts(posts, count = posts?.length || 0) {
+  const buckets = new Map();
+  for (const post of Array.isArray(posts) ? posts : []) {
+    const key = String(post?.subreddit || `unknown:${post?.id || buckets.size}`).toLowerCase();
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(post);
+  }
+
+  const selected = [];
+  let round = 0;
+  while (selected.length < Math.max(0, count)) {
+    let addedThisRound = false;
+    for (const bucket of buckets.values()) {
+      if (!bucket[round]) continue;
+      selected.push(bucket[round]);
+      addedThisRound = true;
+      if (selected.length >= count) break;
+    }
+    if (!addedThisRound) break;
+    round += 1;
+  }
+  return selected;
+}
+
 async function sendOneSticker(sock, groupJid, { logger } = {}) {
   const count = SEND_COUNT();
   if (count <= 0) return { sent: 0 };
 
-  const stickers = await getLeastRecentlySent(count);
+  const stickers = selectScheduledStickers(await getReadyStickers(count), count);
   if (stickers.length === 0) {
     logger?.info("[Reddit Sticker] No ready stickers in bank");
     return { sent: 0 };
@@ -622,4 +698,8 @@ module.exports = {
   markSlotGenerated,
   fetchCandidates,
   processPost,
+  selectScheduledStickers,
+  selectDiversePosts,
+  isAutomatedMemeCandidate,
+  AUTOMATED_MEME_SUBREDDITS,
 };

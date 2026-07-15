@@ -25,14 +25,32 @@ function getPostAgeHours(createdUtc) {
 function isEligibleRedditPost(post) {
   if (!post?.id) return false;
   if (post.removed_by_category) return false;
+  if (post.search_result_generic) return false;
   if (post.is_self) return false;
   if (post.stickied) return false;
 
-  if (process.env.REDDIT_ALLOW_NSFW !== "true" && post.over_18) {
+  if (post.is_video) {
+    const duration = Number(
+      post.duration
+      || post.media?.reddit_video?.duration
+      || post.secure_media?.reddit_video?.duration
+      || 0
+    );
+    const maxSeconds = parseInt(
+      process.env.STICKER_ANIMATED_MAX_SECONDS || "10",
+      10
+    );
+    // Unknown duration is allowed; FFmpeg will probe and trim it during
+    // conversion. Known videos beyond the configured sticker limit are
+    // skipped early to avoid downloading media we cannot use as-is.
+    if (Number.isFinite(duration) && duration > maxSeconds) return false;
+  }
+
+  if (process.env.REDDIT_ALLOW_NSFW === "false" && post.over_18) {
     return false;
   }
 
-  if (process.env.REDDIT_ALLOW_SPOILER !== "true" && post.spoiler) {
+  if (process.env.REDDIT_ALLOW_SPOILER === "false" && post.spoiler) {
     return false;
   }
 
@@ -40,6 +58,10 @@ function isEligibleRedditPost(post) {
 }
 
 function meetsScoreThreshold(post) {
+  // You.com discovery does not expose Reddit vote metadata. Preserve the
+  // source marker from the adapter and let freshness/media eligibility decide.
+  if (post?._source === "you.com") return true;
+
   const minScore = parseInt(process.env.REDDIT_MIN_SCORE || "200", 10);
   return (post.score || 0) >= minScore;
 }
@@ -347,8 +369,9 @@ function resolveExternalUrl(post) {
 
 function isRedditImageHost(url) {
   if (!url) return false;
-  // Matches URLs from i.redd.it or preview.redd.it
-  return /^https?:\/\/(i\.redd\.it|preview\.redd\.it)\//.test(url);
+  // Matches direct Reddit CDN image hosts, including the signed
+  // external-preview URLs returned by current You.com results.
+  return /^https?:\/\/(i\.redd\.it|preview\.redd\.it|external-preview\.redd\.it)\//.test(url);
 }
 
 function isDirectImageUrl(url) {

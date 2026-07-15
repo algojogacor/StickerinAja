@@ -4,6 +4,7 @@ const QR = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
 const { useTursoAuthState } = require('./utils/tursoAuthState');
+const { setSock, getSock, clearSock } = require('./core/socket');
 
 // ─── Hermes Relay Queue ───
 // Non-sticker-command messages are queued here for Hermes bridge to consume
@@ -30,12 +31,10 @@ function pushToHermesQueue(msg) {
     }
 }
 
-function startBot({ authDir, logger, onMessage }) {
+function startBot({ authDir, logger, onMessage, onConnectionOpen }) {
     if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
 
     let reconnectTimer;
-    let sock = null;
-
     async function connect() {
         const authState = await useTursoAuthState({ logger });
         const { state, saveCreds } = authState || (await useMultiFileAuthState(authDir));
@@ -52,7 +51,7 @@ function startBot({ authDir, logger, onMessage }) {
             logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
         }
 
-        sock = makeWASocket({
+        const sock = makeWASocket({
             version,
             auth: state,
             browser: Browsers.windows('StickerinBot'),
@@ -63,9 +62,6 @@ function startBot({ authDir, logger, onMessage }) {
             shouldIgnoreJid: jid => !jid.endsWith('@g.us') && !jid.endsWith('@s.whatsapp.net')
         });
 
-        // Export globally for Hermes relay endpoints
-        global.hermesSock = sock;
-
         sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
             if (qr) {
@@ -75,17 +71,29 @@ function startBot({ authDir, logger, onMessage }) {
                 logger.info('📱 Scan QR code above to login');
             }
             if (connection === 'open') {
+                setSock(sock);
+                global.hermesSock = sock;
                 global.botState.status = 'connected';
                 global.botState.qr = null;
                 global.botState.user = sock.user;
                 logger.info('✅ Bot connected!');
                 logger.info(`📱 Logged in as: ${sock.user?.name || sock.user?.id}`);
+                Promise.resolve(onConnectionOpen?.(sock)).catch((err) => {
+                    logger.error({ err }, 'Scheduler resume after reconnect failed');
+                });
             }
             if (connection === 'close') {
-                global.botState.status = 'connecting';
-                global.botState.qr = null;
-                global.botState.user = null;
-                global.hermesSock = null;
+                const wasActiveSocket = clearSock(sock);
+                if (global.hermesSock === sock) global.hermesSock = null;
+                if (!wasActiveSocket && getSock()) {
+                    logger.info('Ignoring close event from a stale WhatsApp socket');
+                    return;
+                }
+                if (wasActiveSocket) {
+                    global.botState.status = 'connecting';
+                    global.botState.qr = null;
+                    global.botState.user = null;
+                }
                 const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 // 440 = conflict: replaced → don't auto-reconnect
                 // Let Hermes bridge take over if it wants to connect

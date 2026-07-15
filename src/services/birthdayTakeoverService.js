@@ -1,4 +1,4 @@
-// Birthday Takeover Service — checks if cron should be suppressed.
+// Birthday Takeover Service — checks if a scheduled delivery should be suppressed.
 // Stub: returns false (no takeover) until birthday feature is deployed.
 // When birthday feature is added, replace with actual implementation.
 

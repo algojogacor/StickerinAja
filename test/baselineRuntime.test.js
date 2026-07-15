@@ -7,7 +7,8 @@ const assert = require("node:assert/strict");
 
 describe("Baseline Module Loading", () => {
   const modules = [
-    { name: "node-cron", path: "node-cron" },
+    { name: "windowedScheduler", path: "../src/scheduler/windowedScheduler" },
+    { name: "newsScheduler", path: "../src/scheduler/newsScheduler" },
     { name: "contentHistory", path: "../src/utils/contentHistory" },
     { name: "groqNewsEditor", path: "../src/services/groqNewsEditor" },
     { name: "newsService", path: "../src/services/newsService" },

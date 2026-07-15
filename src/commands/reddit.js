@@ -7,7 +7,7 @@
 //   reddit <url> / meme <url> — Import media from a Reddit post URL
 //   rbank / memebank        — Show sticker bank stats
 //   rrefresh / memerefresh  — Admin: run generator manually
-//   rmode / mememode on/off — Admin: toggle cron sender
+//   rmode / mememode on/off — Admin: toggle scheduled sender
 //   rsource / memesource    — Show source (permalink) of last sticker
 //   rtest / memetest        — Admin: diagnostic test
 
@@ -21,7 +21,7 @@ const {
 } = require("../services/redditStickerService");
 const { parseRedditPostUrl } = require("../utils/redditUrlParser");
 
-// Cron mode toggle — in-memory, resets on restart
+// Scheduled-sender toggle — in-memory, resets on restart
 let cronSenderEnabled = process.env.REDDIT_STICKER_CRON_ENABLED !== "false";
 
 function isCronSenderEnabled() {
@@ -152,7 +152,7 @@ async function handleSendFromBank(sock, msg, remoteJid, logger) {
     const result = await sendReadyFromBank(sock, remoteJid, { logger });
     if (!result.success) {
       await sock.sendMessage(remoteJid, {
-        text: "🎭 Sticker Bank kosong. Gunakan *!reddit <keyword>* untuk mencari, atau tunggu generator cron mengisi ulang.",
+        text: "🎭 Sticker Bank kosong. Gunakan *!reddit <keyword>* untuk mencari, atau tunggu scheduler mengisi ulang.",
       }, { quoted: msg });
     }
     logger?.info({ chat: remoteJid, postId: result.postId }, "✅ Bank sticker sent");
@@ -233,7 +233,7 @@ async function handleBank(sock, msg, remoteJid, logger) {
       `❌ Failed: *${stats.failed || 0}*`,
       `📊 Total: *${stats.total || 0}*`,
       "",
-      `_Cron sender: ${isCronSenderEnabled() ? "✅ ON" : "⛔ OFF"}_`,
+      `_Scheduled sender: ${isCronSenderEnabled() ? "✅ ON" : "⛔ OFF"}_`,
     ];
     await sock.sendMessage(remoteJid, { text: lines.join("\n") }, { quoted: msg });
   } catch (err) {
@@ -262,13 +262,13 @@ async function handleMode(sock, msg, args, remoteJid, logger) {
 
   if (mode === "on") {
     toggleCronSender(true);
-    await sock.sendMessage(remoteJid, { text: "✅ Reddit cron sender: *ON*" }, { quoted: msg });
+    await sock.sendMessage(remoteJid, { text: "✅ Reddit scheduled sender: *ON*" }, { quoted: msg });
   } else if (mode === "off") {
     toggleCronSender(false);
-    await sock.sendMessage(remoteJid, { text: "⛔ Reddit cron sender: *OFF*" }, { quoted: msg });
+    await sock.sendMessage(remoteJid, { text: "⛔ Reddit scheduled sender: *OFF*" }, { quoted: msg });
   } else {
     await sock.sendMessage(remoteJid, {
-      text: `🎭 Reddit cron sender: *${isCronSenderEnabled() ? "ON" : "OFF"}*\n\nGunakan: *!rmode on* atau *!rmode off*`,
+      text: `🎭 Reddit scheduled sender: *${isCronSenderEnabled() ? "ON" : "OFF"}*\n\nGunakan: *!rmode on* atau *!rmode off*`,
     }, { quoted: msg });
   }
 }
@@ -425,7 +425,7 @@ async function handleTest(sock, msg, remoteJid, logger) {
     results.push(`⏱️ Latency: ${latencyMs}ms`);
 
     await sock.sendMessage(remoteJid, {
-      text: `🧪 *HASIL TEST*\n\n${results.join("\n")}\n\n_Tidak menandai cron selesai. Tidak menambah sent count. Tidak menyimpan credential._`,
+      text: `🧪 *HASIL TEST*\n\n${results.join("\n")}\n\n_Tidak menandai slot scheduler selesai. Tidak menambah sent count. Tidak menyimpan credential._`,
     }, { quoted: msg });
 
     logger?.info({ results, latencyMs }, "Reddit test complete (You.com discovery)");

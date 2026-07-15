@@ -14,23 +14,21 @@ const DISCOVERY_QUERIES = () => {
   const custom = process.env.REDDIT_DISCOVERY_QUERIES;
   if (custom) {
     try {
-      return JSON.parse(custom);
+      const parsed = JSON.parse(custom);
+      if (Array.isArray(parsed) && parsed.every((query) => typeof query === "string" && query.trim())) {
+        return parsed.map((query) => query.trim());
+      }
     } catch {
       // fall through to defaults
     }
   }
-  return [
-    "site:reddit.com/r/memes/comments popular meme today",
-    "site:reddit.com/r/me_irl/comments top meme today",
-    "site:reddit.com/r/wholesomememes/comments popular post today",
-    "site:reddit.com/r/funny/comments funny image gif today",
-    "site:reddit.com/r/ProgrammerHumor/comments popular programming meme today",
-    "site:reddit.com/r/gifs/comments popular gif today",
-  ];
+  return SEARCH_SUBREDDITS().map((subreddit) =>
+    `site:reddit.com/r/${subreddit}/comments`
+  );
 };
 
 const SEARCH_SUBREDDITS = () =>
-  (process.env.REDDIT_SEARCH_SUBREDDITS || "memes,me_irl,wholesomememes,funny,gifs,ProgrammerHumor")
+  (process.env.REDDIT_SEARCH_SUBREDDITS || "memes,funny,starterpacks,lotrmemes,therewasanattempt,wholesomememes,ProgrammerHumor,mildlyinfuriating")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -40,7 +38,7 @@ const FALLBACK_FRESHNESS = () => process.env.REDDIT_SEARCH_FALLBACK_FRESHNESS ||
 const RESULTS_PER_QUERY = () =>
   parseInt(process.env.REDDIT_SEARCH_RESULTS_PER_QUERY || "10", 10);
 const MAX_QUERIES = () =>
-  parseInt(process.env.REDDIT_SEARCH_MAX_QUERIES || "6", 10);
+  parseInt(process.env.REDDIT_SEARCH_MAX_QUERIES || "8", 10);
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -87,12 +85,39 @@ function normalizeSearchResult(raw, searchIndex) {
     createdUtc = Math.floor(Date.now() / 1000) - 3600;
   }
 
-  // Build thumbnail from search result if available
-  const thumbnail = raw.thumbnail || raw.image || raw.favicon || "";
+  // Build thumbnail from a real Reddit media signal only. Favicon URLs are
+  // page branding, not sticker media, and caused the Reddit homepage logo to
+  // be converted into a sticker in the previous pipeline.
+  const rawThumbnail = raw.thumbnail_url
+    || raw.thumbnail?.src
+    || raw.thumbnail
+    || raw.image
+    || "";
+  const thumbnail = isUsableMediaThumbnail(rawThumbnail) ? rawThumbnail : "";
+  const mediaHint = getDirectMediaHint(raw.video_url || raw.media_url || raw.content_url || raw.image_url);
+  const videoHint = isVideoMediaHint(mediaHint);
 
   // Build a minimal preview structure for the resolver
-  const title = (raw.title || "").trim();
-  const description = (raw.description || raw.snippet || "").trim();
+  let title = (raw.title || "").trim();
+  const description = (
+    raw.description
+    || raw.snippet
+    || (Array.isArray(raw.snippets) ? raw.snippets.join(" ") : "")
+    || ""
+  ).trim();
+  const author = raw.author || (Array.isArray(raw.authors) ? raw.authors[0] : "") || "";
+  // You.com sometimes returns the generic Reddit shell title while the post
+  // slug still contains the real caption. Recover that caption only when a
+  // signed Reddit media thumbnail is present; otherwise keep the generic
+  // marker and reject the result.
+  if (isGenericSearchTitle(title) && thumbnail) {
+    const derivedTitle = deriveTitleFromUrl(url);
+    if (derivedTitle) title = derivedTitle;
+  }
+  const removedMarker = /\[\s*(?:removed(?:\s+by\s+moderator)?|deleted)\s*\]/i.test(
+    `${title} ${description}`
+  );
+  const genericSearchResult = isGenericSearchTitle(title);
 
   // The resolver needs certain fields. We provide what we have:
   return {
@@ -102,7 +127,7 @@ function normalizeSearchResult(raw, searchIndex) {
     subreddit_name_prefixed: parsed.subreddit ? `r/${parsed.subreddit}` : "",
     permalink: parsed.permalink,
     title,
-    author: raw.author || "",
+    author,
     url: url,
 
     // ── Metadata from search ──
@@ -115,19 +140,25 @@ function normalizeSearchResult(raw, searchIndex) {
     over_18: false,
     spoiler: false,
     is_self: false,
-    is_video: false,
-    is_gif: false,
+    is_video: videoHint,
+    is_gif: videoHint && /\.gif(?:\?|$)/i.test(mediaHint),
     stickied: false,
-    removed_by_category: null,
+    removed_by_category: removedMarker ? "search_result_removed" : null,
+    search_result_generic: genericSearchResult,
     post_hint: null,
 
     // ── Media placeholders (resolver will try to populate these) ──
-    thumbnail: thumbnail || "image",  // "image" tells resolver to try harder
-    url_overridden_by_dest: url,
+    thumbnail,
+    url_overridden_by_dest: mediaHint || url,
     preview: thumbnail ? {
       images: [{ source: { url: thumbnail, width: 512, height: 512 }, resolutions: [] }],
     } : null,
-    media: null,
+    media: videoHint ? {
+      reddit_video: {
+        fallback_url: mediaHint,
+        duration: Number(raw.duration || raw.duration_seconds || 0),
+      },
+    } : null,
     secure_media: null,
     media_metadata: null,
     gallery_data: null,
@@ -141,6 +172,57 @@ function normalizeSearchResult(raw, searchIndex) {
     _searchThumbnailUrl: thumbnail || null,
     _publishedAt: raw.page_age || null,
   };
+}
+
+function isUsableMediaThumbnail(value) {
+  if (!value || typeof value !== "string") return false;
+  const url = value.trim();
+  return /^https?:\/\/(?:i|preview|external-preview)\.redd\.it\//i.test(url)
+    || /\.(?:jpe?g|png|webp|gif)(?:\?|$)/i.test(url);
+}
+
+function getDirectMediaHint(value) {
+  if (!value || typeof value !== "string") return "";
+  try {
+    const url = new URL(value.trim());
+    const hostname = url.hostname.toLowerCase();
+    const allowedHost = ["i.redd.it", "preview.redd.it", "external-preview.redd.it", "v.redd.it"]
+      .includes(hostname);
+    const directExtension = /\.(?:jpe?g|png|webp|gif|mp4|webm)(?:\?|$)/i.test(url.pathname);
+    return allowedHost && directExtension ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function isVideoMediaHint(value) {
+  return Boolean(value && /\.(?:mp4|webm|gif)(?:\?|$)/i.test(value));
+}
+
+function isGenericSearchTitle(title) {
+  const normalized = String(title || "")
+    .replace(/[\u2013\u2014]/g, "-")
+    .trim()
+    .toLowerCase();
+  return normalized === "reddit"
+    || normalized === "reddit - the heart of the internet"
+    || /^reddit\s*[-:]\s*the heart of the internet$/.test(normalized);
+}
+
+function deriveTitleFromUrl(url) {
+  try {
+    const pathname = new URL(url).pathname.replace(/\/+$/, "");
+    const slug = pathname.split("/").pop();
+    if (!slug || /^(?:removed|deleted|removed_by_moderator)$/i.test(slug)) return "";
+    const title = decodeURIComponent(slug)
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (title.length < 4 || /^\d+$/.test(title)) return "";
+    return title.slice(0, 300);
+  } catch {
+    return "";
+  }
 }
 
 // ── Fetch ───────────────────────────────────────────────────
@@ -159,7 +241,10 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
     query,
     freshness: freshness || FRESHNESS(),
     count: String(count || RESULTS_PER_QUERY()),
-    safesearch: "strict",
+    // This group explicitly permits 18+/NSFW material. Set either flag to
+    // "false" to opt back into strict filtering for another deployment.
+    safesearch: process.env.REDDIT_ALLOW_NSFW === "false" ? "strict" : "off",
+    livecrawl: "all",
   });
 
   const searchUrl = `${WEB_SEARCH_URL}?${params.toString()}`;
@@ -188,8 +273,14 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
 
     const data = await res.json();
 
-    // Support both results.news and results.web formats
-    const rawResults = data?.results?.news || data?.results?.web || data?.hits || [];
+    // Support both result sections. The old adapter preferred `news` and
+    // discarded `web`, which could hide a valid Reddit post behind a removed
+    // news result from the same query.
+    const rawResults = [
+      ...(Array.isArray(data?.results?.web) ? data.results.web : []),
+      ...(Array.isArray(data?.results?.news) ? data.results.news : []),
+      ...(Array.isArray(data?.hits) ? data.hits : []),
+    ];
 
     if (!Array.isArray(rawResults) || rawResults.length === 0) {
       logger?.info("[Reddit Discovery] No search results");
@@ -220,7 +311,7 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
 
 /**
  * Discover trending Reddit posts via You.com Web Search.
- * Used by the cron generator.
+ * Used by the scheduled generator.
  *
  * @param {object} options
  * @param {object} options.logger
@@ -269,7 +360,7 @@ async function discoverTrendingPosts({ logger } = {}) {
     );
 
     const fallbackResults = await Promise.allSettled(
-      queries.slice(0, 3).map((q) =>
+      queries.map((q) =>
         searchReddit(q, { logger, freshness: FALLBACK_FRESHNESS() })
       )
     );

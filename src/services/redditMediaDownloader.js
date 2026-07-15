@@ -10,6 +10,7 @@ const fs = require("fs");
 const ALLOWED_REDDIT_MEDIA_HOSTS = [
   "i.redd.it",
   "preview.redd.it",
+  "external-preview.redd.it",
   "v.redd.it",
   "www.reddit.com",
   "reddit.com",

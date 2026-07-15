@@ -42,6 +42,14 @@ describe("FX Repository — Module Contract", () => {
     assert.equal(typeof repository.completeExecutionSlot, "function");
     assert.equal(typeof repository.failExecutionSlot, "function");
     assert.equal(typeof repository.suppressExecutionSlot, "function");
+    assert.equal(typeof repository.canReacquireExecutionSlot, "function");
+  });
+
+  it("only failed execution slots are immediately retryable", () => {
+    assert.equal(repository.canReacquireExecutionSlot("failed"), true);
+    assert.equal(repository.canReacquireExecutionSlot("completed"), false);
+    assert.equal(repository.canReacquireExecutionSlot("suppressed"), false);
+    assert.equal(repository.canReacquireExecutionSlot("processing"), false);
   });
 
   it("exports market context functions", () => {

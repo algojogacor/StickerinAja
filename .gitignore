@@ -5,6 +5,7 @@ data/
 .env
 *.log
 .jules/
+graphify-out/
 AGENTS.md
 CLAUDE.md
 PROJECT_STATE.md

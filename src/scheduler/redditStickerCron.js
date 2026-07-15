@@ -1,140 +1,247 @@
-// Reddit Sticker Cron — standalone generator + sender.
-// Integrates with origin/main architecture via getSock() from socket module.
-// Birthday takeover suppression via shouldSuppressCron() stub.
-// Cron toggle via isCronSenderEnabled() from commands/reddit.js.
+// Reddit Sticker scheduler. The filename remains for command compatibility.
 
-const cron = require("node-cron");
 const { getSock } = require("../core/socket");
 const { shouldSuppressCron } = require("../services/birthdayTakeoverService");
-const {
-  generateStickers,
-  sendOneSticker,
-} = require("../services/redditStickerService");
+const { createWindowedScheduler } = require("./windowedScheduler");
+const { generateStickers, sendOneSticker } = require("../services/redditStickerService");
 
-let genCronJob = null;
-let sendCronJobs = [];
+const DEFAULT_GENERATOR_TIMES = ["07:00", "10:00", "13:00", "16:00", "19:00"];
+const DEFAULT_SENDER_TIMES = [
+  "08:00", "09:33", "11:07", "12:40", "14:13",
+  "15:47", "17:20", "18:53", "20:27", "22:00",
+];
+
+function parseScheduleTimes(value) {
+  return String(value || "")
+    .split(/[\s,]+/)
+    .map((time) => time.trim())
+    .filter(Boolean)
+    .filter((time) => {
+      const match = /^(\d{2}):(\d{2})$/.exec(time);
+      if (!match) return false;
+      const hour = Number(match[1]);
+      const minute = Number(match[2]);
+      return hour >= 7 && hour <= 22 && minute >= 0 && minute <= 59;
+    });
+}
+
+function formatScheduleMinute(totalMinutes) {
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function distributeScheduleTimes(count, startMinutes = 8 * 60, endMinutes = 22 * 60) {
+  const safeCount = Math.max(1, Math.min(24, Number.parseInt(count, 10) || 1));
+  if (safeCount === 1) return [formatScheduleMinute(endMinutes)];
+  const step = (endMinutes - startMinutes) / (safeCount - 1);
+  return Array.from({ length: safeCount }, (_, index) =>
+    formatScheduleMinute(Math.round(startMinutes + step * index))
+  );
+}
+
+function buildSchedules(prefix, {
+  timesEnv,
+  countEnv,
+  fallbackTimes,
+  startMinutes,
+  endMinutes = 22 * 60,
+} = {}) {
+  const explicit = parseScheduleTimes(process.env[timesEnv]);
+  const times = explicit.length > 0
+    ? [...new Set(explicit)].sort()
+    : process.env[countEnv] !== undefined
+      ? distributeScheduleTimes(process.env[countEnv], startMinutes, endMinutes)
+      : fallbackTimes;
+
+  return times.map((time, index) => ({
+    id: `${prefix}-${String(index + 1).padStart(2, "0")}`,
+    time,
+  }));
+}
+
+function getConfiguredGeneratorSchedules() {
+  return buildSchedules("generate", {
+    timesEnv: "REDDIT_STICKER_GENERATE_TIMES",
+    countEnv: "REDDIT_STICKER_GENERATIONS_PER_DAY",
+    fallbackTimes: DEFAULT_GENERATOR_TIMES,
+    startMinutes: 7 * 60,
+    endMinutes: 21 * 60,
+  });
+}
+
+function getConfiguredSenderSchedules() {
+  return buildSchedules("send", {
+    timesEnv: "REDDIT_STICKER_SEND_TIMES",
+    countEnv: "REDDIT_STICKER_SENDS_PER_DAY",
+    fallbackTimes: DEFAULT_SENDER_TIMES,
+    startMinutes: 8 * 60,
+  });
+}
+
+const GENERATOR_SCHEDULES = getConfiguredGeneratorSchedules();
+const SENDER_SCHEDULES = getConfiguredSenderSchedules();
+
+let generatorScheduler = null;
+let senderScheduler = null;
 let running = false;
 let logger = null;
 let groupJid = "";
+const generatedSlots = new Set();
 
-// Idempotency per day
-let genRanToday = false;
-let genDay = -1;
+function getJakartaDate() {
+  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return `${wib.getUTCFullYear()}-${String(wib.getUTCMonth() + 1).padStart(2, "0")}-${String(wib.getUTCDate()).padStart(2, "0")}`;
+}
 
 function start({ logger: log, groupJid: gid } = {}) {
   if (running) {
-    log?.warn("[Reddit Cron] Already running — skipping");
-    return;
+    log?.warn("[Reddit Scheduler] Already running — skipping");
+    return false;
   }
-
   if (process.env.REDDIT_STICKER_ENABLED === "false") {
-    log?.info("[Reddit Cron] REDDIT_STICKER_ENABLED=false — not starting");
-    return;
+    log?.info("[Reddit Scheduler] REDDIT_STICKER_ENABLED=false — not starting");
+    return false;
   }
 
   logger = log;
   groupJid = gid || process.env.GROUP_JID || "";
   running = true;
+  const generatorSchedules = getConfiguredGeneratorSchedules();
+  const senderSchedules = getConfiguredSenderSchedules();
 
   if (!groupJid) {
-    logger?.warn("[Reddit Cron] No GROUP_JID set — sender disabled, generator still runs");
+    logger?.warn("[Reddit Scheduler] No GROUP_JID — sender disabled, generator still runs");
   }
 
-  // Generator: once daily at 05:00 WIB
   if (process.env.REDDIT_STICKER_GENERATOR_ENABLED !== "false") {
-    genCronJob = cron.schedule(
-      "0 5 * * *",
-      () => runGenerator(),
-      { timezone: "Asia/Jakarta", name: "reddit-sticker-gen" }
-    );
-    logger?.info("[Reddit Cron] Generator scheduled: daily at 05:00 WIB");
+    generatorScheduler = createWindowedScheduler({
+      name: "Reddit Generator",
+      slots: generatorSchedules,
+      task: runGenerator,
+      logger,
+    });
+    generatorScheduler.start();
   }
 
-  // Sender: 2x daily
   if (process.env.REDDIT_STICKER_SENDER_ENABLED !== "false" && groupJid) {
-    const schedules = ["0 10 * * *", "0 18 * * *"];
-    for (const s of schedules) {
-      const job = cron.schedule(
-        s,
-        () => sendSticker(),
-        { timezone: "Asia/Jakarta", name: `reddit-sticker-send-${s.replace(/[^0-9]/g, "")}` }
-      );
-      sendCronJobs.push(job);
-    }
-    logger?.info("[Reddit Cron] Sender scheduled: 2x daily (10:00 & 18:00 WIB)");
+    senderScheduler = createWindowedScheduler({
+      name: "Reddit Sender",
+      slots: senderSchedules,
+      task: sendSticker,
+      logger,
+    });
+    senderScheduler.start();
   }
+
+  logger?.info(
+    `[Reddit Scheduler] Started: generators ${generatorSchedules.map((slot) => slot.time).join(", ")}; senders ${senderSchedules.map((slot) => slot.time).join(", ")} WIB`
+  );
+  return true;
 }
 
 function stop() {
   running = false;
-  if (genCronJob) { genCronJob.stop(); genCronJob = null; }
-  for (const j of sendCronJobs) j.stop();
-  sendCronJobs = [];
-  logger?.info("[Reddit Cron] Stopped");
+  generatorScheduler?.stop();
+  senderScheduler?.stop();
+  generatorScheduler = null;
+  senderScheduler = null;
+  logger?.info("[Reddit Scheduler] Stopped");
+}
+
+async function resume() {
+  const results = await Promise.all([
+    generatorScheduler?.resume() || false,
+    senderScheduler?.resume() || false,
+  ]);
+  return results.some(Boolean);
 }
 
 function isRunning() {
   return running;
 }
 
-async function runGenerator() {
-  const now = new Date();
-  const wib = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
-  const today = wib.getDate();
+function shouldRecordGenerationSuccess(result) {
+  return Number(result?.generated) > 0;
+}
 
-  if (genDay === today && genRanToday) {
-    logger?.info("[Reddit Cron] Generator already ran today — skipping");
-    return;
+async function runGenerator(slot = { id: "generate" }) {
+  const today = getJakartaDate();
+  const slotId = slot?.id || "generate";
+  const generationKey = `${today}:${slotId}`;
+  for (const key of generatedSlots) {
+    if (!key.startsWith(`${today}:`)) generatedSlots.delete(key);
+  }
+  if (generatedSlots.has(generationKey)) {
+    logger?.info({ slot: generationKey }, "[Reddit Scheduler] Generator slot already completed — skipping");
+    return true;
   }
 
-  logger?.info("[Reddit Cron] Running sticker generator...");
+  logger?.info({ slot: generationKey }, "[Reddit Scheduler] Running sticker generator...");
   try {
-    const result = await generateStickers({ logger });
-    genRanToday = true;
-    genDay = today;
-    logger?.info(result, `[Reddit Cron] Generator done: ${result.generated} stickers`);
-  } catch (err) {
-    logger?.error({ err }, "[Reddit Cron] Generator failed");
+    const result = await generateStickers({ logger, slot: slotId });
+    if (shouldRecordGenerationSuccess(result)) {
+      generatedSlots.add(generationKey);
+    } else {
+      logger?.warn(
+        { slot: generationKey },
+        "[Reddit Scheduler] No new stickers generated — this slot remains retryable until a later slot"
+      );
+    }
+    logger?.info(result, `[Reddit Scheduler] Generator done: ${result.generated} stickers`);
+    return true;
+  } catch (error) {
+    logger?.error({ err: error }, "[Reddit Scheduler] Generator failed");
+    return false;
   }
 }
 
 async function sendSticker() {
   if (await shouldSuppressCron(groupJid, "reddit-sticker")) {
-    logger?.info("[Reddit Cron] Birthday takeover — skipping send");
-    return;
+    logger?.info("[Reddit Scheduler] Birthday takeover — skipping send");
+    return true;
   }
 
-  // Check cron sender toggle from commands/reddit.js
   let senderEnabled = true;
   try {
     const { isCronSenderEnabled } = require("../commands/reddit");
     senderEnabled = isCronSenderEnabled();
   } catch {
-    // If command module isn't loaded yet, default to enabled
+    // Command module may not be loaded yet; enabled is the safe compatibility default.
   }
-
   if (!senderEnabled) {
-    logger?.info("[Reddit Cron] Sender toggle is OFF — skipping");
-    return;
+    logger?.info("[Reddit Scheduler] Sender toggle is OFF — skipping");
+    return true;
   }
 
   const sock = getSock();
   if (!sock) {
-    logger?.warn("[Reddit Cron] No socket — skipping send");
-    return;
+    logger?.warn("[Reddit Scheduler] WhatsApp unavailable — pending until reconnect");
+    return false;
   }
+  if (!groupJid) return true;
 
-  if (!groupJid) return;
-
-  logger?.info("[Reddit Cron] Sending sticker from bank...");
   try {
     const result = await sendOneSticker(sock, groupJid, { logger });
-    if (result.sent > 0) {
-      logger?.info(`[Reddit Cron] Sticker sent (${result.sent})`);
-    }
-  } catch (err) {
-    logger?.error({ err }, "[Reddit Cron] Send failed");
+    if (result.sent > 0) logger?.info(`[Reddit Scheduler] Sticker sent (${result.sent})`);
+    return true;
+  } catch (error) {
+    logger?.error({ err: error }, "[Reddit Scheduler] Send failed — pending until reconnect");
+    return false;
   }
 }
 
-module.exports = { start, stop, isRunning, runGenerator, sendSticker };
+module.exports = {
+  GENERATOR_SCHEDULES,
+  SENDER_SCHEDULES,
+  getConfiguredGeneratorSchedules,
+  getConfiguredSenderSchedules,
+  distributeScheduleTimes,
+  start,
+  stop,
+  resume,
+  isRunning,
+  runGenerator,
+  sendSticker,
+  shouldRecordGenerationSuccess,
+};

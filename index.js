@@ -7,7 +7,6 @@ global.botState = {
 };
 const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
 const { handler } = require('./src/handler');
-const { setSock } = require('./src/core/socket');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -183,6 +182,7 @@ http.createServer(async (req, res) => {
 // ── Reddit Sticker Bank init ──
 const { init: initRedditStickerRepo } = require('./src/repositories/redditStickerRepository');
 const redditCron = require('./src/scheduler/redditStickerCron');
+const newsScheduler = require('./src/scheduler/newsScheduler');
 initRedditStickerRepo(logger);
 
 // ── FX Market Intelligence init ──
@@ -220,14 +220,19 @@ async function initializeFx() {
 startBot({
     authDir: process.env.AUTH_DIR || './auth',
     logger,
-    onMessage: (sock, msg) => {
-        setSock(sock);
-        return hermesAwareHandler(sock, msg, logger);
-    }
+    onMessage: (sock, msg) => hermesAwareHandler(sock, msg, logger),
+    onConnectionOpen: async () => {
+        await Promise.all([
+            newsScheduler.resume(),
+            redditCron.resume(),
+            fxCron.resume(),
+        ]);
+    },
 });
 
 // Start schedulers after a short delay (let connection stabilize)
 setTimeout(async () => {
+    newsScheduler.start({ logger });
     redditCron.start({ logger });
     if (process.env.FX_USD_IDR_ENABLED !== "false") {
         await initializeFx();

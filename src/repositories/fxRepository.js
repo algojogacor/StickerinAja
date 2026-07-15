@@ -371,6 +371,10 @@ async function getMissingHistoricalDates({ startDate, endDate, provider, base, q
  *
  * @returns {boolean} true if slot was acquired, false if already taken
  */
+function canReacquireExecutionSlot(status) {
+  return status === "failed";
+}
+
 async function acquireExecutionSlot({ slotKey, slotType, leaseDurationMs }) {
   if (!isPersistent()) return false;
 
@@ -402,6 +406,21 @@ async function acquireExecutionSlot({ slotKey, slotType, leaseDurationMs }) {
     if (!result || result.rowsAffected === 0) {
       // Check if existing slot is in a final state (completed/partial/failed/suppressed)
       const existing = await getExecutionSlot(slotKey);
+      if (existing && canReacquireExecutionSlot(existing.status)) {
+        const retryResult = await _exec(
+          `UPDATE fx_execution_slots
+           SET status = 'processing',
+               attempted_at = ?,
+               lease_expires_at = ?,
+               attempt_count = attempt_count + 1,
+               error_code = NULL,
+               error_message = NULL,
+               updated_at = ?
+           WHERE slot_key = ? AND status = 'failed'`,
+          [now, leaseExpires, now, slotKey]
+        );
+        return retryResult && retryResult.rowsAffected > 0;
+      }
       if (existing && !["completed", "partial", "failed", "suppressed"].includes(existing.status)) {
         // Slot is processing — check if lease expired
         if (existing.leaseExpiresAt && new Date(existing.leaseExpiresAt) < new Date()) {
@@ -659,6 +678,7 @@ module.exports = {
   getMissingHistoricalDates,
 
   // Execution slots
+  canReacquireExecutionSlot,
   acquireExecutionSlot,
   getExecutionSlot,
   completeExecutionSlot,

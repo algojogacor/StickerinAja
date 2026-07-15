@@ -30,6 +30,36 @@ describe("FX Cron — Module Contract", () => {
   it("exports manualRefresh function", () => {
     assert.equal(typeof fxCron.manualRefresh, "function");
   });
+
+  it("preserves the intended scheduled slot when reconnect delivery runs late", () => {
+    assert.equal(
+      fxCron.getJakartaHourlySlot({ date: "2026-07-15", time: "07:05" }),
+      "2026-07-15:07"
+    );
+    assert.deepEqual(
+      fxCron.getJakartaContextSlot({ date: "2026-07-15", time: "10:15" }),
+      { threeHourSlot: "2026-07-15:10", hour: 10 }
+    );
+  });
+
+  it("uses minute-specific execution keys during temporary interval testing", () => {
+    assert.equal(
+      fxCron.getJakartaHourlySlot({
+        date: "2026-07-15",
+        time: "07:05",
+        testMode: true,
+      }),
+      "2026-07-15:07-05"
+    );
+    assert.deepEqual(
+      fxCron.getJakartaContextSlot({
+        date: "2026-07-15",
+        time: "07:10",
+        testMode: true,
+      }),
+      { threeHourSlot: "2026-07-15:07-10", hour: 7 }
+    );
+  });
 });
 
 describe("FX Cron — Idempotency Key Format", () => {

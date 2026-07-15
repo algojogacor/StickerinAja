@@ -1,3 +1,5 @@
+const { createCanvas, loadImage } = require('canvas');
+const sharp = require('sharp');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const { renderTextToWebP } = require('../utils/textRenderer');
@@ -5,8 +7,6 @@ const { stickerCache, textStickerCache, ffmpegQueue, imageQueue } = require('../
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const sharp = require('sharp');
-const { createCanvas, loadImage } = require('canvas');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);

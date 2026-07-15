@@ -37,6 +37,18 @@ describe("Reddit URL Parsing (redditUrlParser)", () => {
     assert.strictEqual(result.subreddit, "funny");
   });
 
+  it("parses official regional Reddit post URLs", () => {
+    const result = parseRedditPostUrl(
+      "https://hr.reddit.com/r/dndmemes/comments/abc123/funny/"
+    );
+    assert.ok(result);
+    assert.strictEqual(result.postId, "abc123");
+    assert.strictEqual(
+      result.normalizedUrl,
+      "https://www.reddit.com/r/dndmemes/comments/abc123/"
+    );
+  });
+
   it("parses redd.it shortlink", () => {
     const result = parseRedditPostUrl("https://redd.it/abc123");
     assert.ok(result);
@@ -148,7 +160,30 @@ describe("Reddit URL Parsing (redditUrlParser)", () => {
 // ══════════════════════════════════════════════════════════════
 
 describe("You.com Search Result Normalization (Adapter)", () => {
-  const { normalizeSearchResult } = require("../src/services/redditStickerDiscovery");
+  const {
+    normalizeSearchResult,
+    DISCOVERY_QUERIES,
+  } = require("../src/services/redditStickerDiscovery");
+
+  it("uses subreddit-targeted queries so discovery is not generic or single-niche", () => {
+    const previous = process.env.REDDIT_DISCOVERY_QUERIES;
+    const previousSubreddits = process.env.REDDIT_SEARCH_SUBREDDITS;
+    delete process.env.REDDIT_DISCOVERY_QUERIES;
+    delete process.env.REDDIT_SEARCH_SUBREDDITS;
+    try {
+      const queries = DISCOVERY_QUERIES();
+      assert.ok(queries.length >= 6);
+      assert.ok(queries.every((query) => /reddit/i.test(query)));
+      assert.ok(queries.some((query) => /r\/funny\/comments/i.test(query)));
+      assert.ok(queries.some((query) => /r\/mildlyinfuriating\/comments/i.test(query)));
+      assert.ok(queries.some((query) => /r\/starterpacks\/comments/i.test(query)));
+    } finally {
+      if (previous === undefined) delete process.env.REDDIT_DISCOVERY_QUERIES;
+      else process.env.REDDIT_DISCOVERY_QUERIES = previous;
+      if (previousSubreddits === undefined) delete process.env.REDDIT_SEARCH_SUBREDDITS;
+      else process.env.REDDIT_SEARCH_SUBREDDITS = previousSubreddits;
+    }
+  });
 
   it("normalizes a valid Reddit post result", () => {
     const raw = {
@@ -181,6 +216,64 @@ describe("You.com Search Result Normalization (Adapter)", () => {
     const result = normalizeSearchResult(raw, 1);
     assert.ok(result);
     assert.strictEqual(result.id, "xyz789");
+  });
+
+  it("accepts the current You.com thumbnail and author fields", () => {
+    const result = normalizeSearchResult({
+      title: "Fresh Reddit meme",
+      description: "A meme discovered from web search",
+      url: "https://www.reddit.com/r/memes/comments/current1/fresh_meme/",
+      page_age: "2026-07-15T03:00:00",
+      thumbnail_url: "https://preview.redd.it/current1.jpg",
+      authors: ["meme-author"],
+    }, 0);
+
+    assert.ok(result);
+    assert.strictEqual(result.author, "meme-author");
+    assert.strictEqual(result._searchThumbnailUrl, "https://preview.redd.it/current1.jpg");
+    assert.ok(result.preview?.images?.[0]?.source?.url.includes("current1.jpg"));
+  });
+
+  it("preserves a direct Reddit short-video hint", () => {
+    const result = normalizeSearchResult({
+      title: "Funny clip",
+      url: "https://www.reddit.com/r/funny/comments/video1/funny_clip/",
+      video_url: "https://v.redd.it/video1/DASH_720.mp4",
+      duration_seconds: 8,
+    }, 0);
+
+    assert.ok(result);
+    assert.strictEqual(result.is_video, true);
+    assert.strictEqual(result.media.reddit_video.fallback_url, "https://v.redd.it/video1/DASH_720.mp4");
+    assert.strictEqual(result.media.reddit_video.duration, 8);
+
+    const { resolveMedia } = require("../src/services/redditMediaResolver");
+    const media = resolveMedia(result);
+    assert.strictEqual(media.mediaType, "video");
+    assert.strictEqual(media.mediaUrl, "https://v.redd.it/video1/DASH_720.mp4");
+    assert.strictEqual(media.duration, 8);
+  });
+
+  it("marks removed Reddit posts so the media resolver rejects them", () => {
+    const result = normalizeSearchResult({
+      title: "r/gifs on Reddit: [ Removed by moderator ]",
+      url: "https://www.reddit.com/r/gifs/comments/removed1/",
+      page_age: "1 hour ago",
+    }, 0);
+
+    assert.ok(result);
+    assert.strictEqual(result.removed_by_category, "search_result_removed");
+  });
+
+  it("marks generic Reddit shell titles so favicon pages are not turned into stickers", () => {
+    const result = normalizeSearchResult({
+      title: "Reddit - The heart of the internet",
+      url: "https://www.reddit.com/r/funny/comments/generic1/",
+      thumbnail_url: "https://www.reddit.com/favicon.ico",
+    }, 0);
+
+    assert.ok(result);
+    assert.strictEqual(result.search_result_generic, true);
   });
 
   it("rejects non-Reddit URLs", () => {
@@ -254,6 +347,70 @@ describe("You.com Search Result Normalization (Adapter)", () => {
   });
 });
 
+describe("Reddit daily generator retry policy", () => {
+  const { shouldRecordGenerationSuccess } = require("../src/scheduler/redditStickerCron");
+
+  it("does not consume the daily slot when no sticker was generated", () => {
+    assert.strictEqual(shouldRecordGenerationSuccess({ generated: 0 }), false);
+    assert.strictEqual(shouldRecordGenerationSuccess({ generated: 1 }), true);
+    assert.strictEqual(shouldRecordGenerationSuccess({ generated: 5 }), true);
+  });
+});
+
+describe("Reddit scheduled sender selection", () => {
+  const {
+    selectScheduledStickers,
+    selectDiversePosts,
+    isAutomatedMemeCandidate,
+  } = require("../src/services/redditStickerService");
+
+  it("selects only ready stickers and never replays sent stickers", () => {
+    const selected = selectScheduledStickers([
+      { id: "old", status: "sent" },
+      {
+        id: "photo-only",
+        status: "ready",
+        subreddit: "mildlyinfuriating",
+        title: "Chipotle did not add the roasted vegetables",
+      },
+      { id: "fresh", status: "ready" },
+    ], 1);
+
+    assert.deepStrictEqual(selected.map((sticker) => sticker.id), ["fresh"]);
+  });
+
+  it("round-robins subreddit candidates before taking a second post from one niche", () => {
+    const selected = selectDiversePosts([
+      { id: "funny-1", subreddit: "funny", _rank: 10 },
+      { id: "funny-2", subreddit: "funny", _rank: 9 },
+      { id: "pics-1", subreddit: "pics", _rank: 8 },
+      { id: "mild-1", subreddit: "mildlyinfuriating", _rank: 7 },
+    ], 4);
+
+    assert.deepStrictEqual(selected.map((post) => post.id), [
+      "funny-1",
+      "pics-1",
+      "mild-1",
+      "funny-2",
+    ]);
+  });
+
+  it("rejects photo-only candidates outside meme or comedy contexts", () => {
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "mildlyinfuriating",
+      title: "Chipotle did not add the roasted vegetables",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "starterpacks",
+      title: "Fates Of A Modern Meme Starter Pack",
+    }), true);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "pics",
+      title: "Reaction to this weird thing lol",
+    }), true);
+  });
+});
+
 // ══════════════════════════════════════════════════════════════
 // DISCOVERY — no OAuth credentials needed
 // ══════════════════════════════════════════════════════════════
@@ -306,6 +463,11 @@ describe("Media URL Validation", () => {
 
   it("accepts preview.redd.it URLs", () => {
     const result = validateMediaUrl("https://preview.redd.it/abc123.png?width=1080");
+    assert.strictEqual(result.ok, true);
+  });
+
+  it("accepts external-preview.redd.it URLs", () => {
+    const result = validateMediaUrl("https://external-preview.redd.it/abc123.png?format=pjpg");
     assert.strictEqual(result.ok, true);
   });
 
@@ -366,9 +528,10 @@ describe("Post Eligibility", () => {
 
   it("rejects NSFW posts when disabled", () => {
     const prev = process.env.REDDIT_ALLOW_NSFW;
-    delete process.env.REDDIT_ALLOW_NSFW;
+    process.env.REDDIT_ALLOW_NSFW = "false";
     assert.strictEqual(isEligibleRedditPost({ id: "123", over_18: true }), false);
-    if (prev) process.env.REDDIT_ALLOW_NSFW = prev;
+    if (prev === undefined) delete process.env.REDDIT_ALLOW_NSFW;
+    else process.env.REDDIT_ALLOW_NSFW = prev;
   });
 
   it("accepts NSFW posts when enabled", () => {
@@ -378,11 +541,20 @@ describe("Post Eligibility", () => {
     if (prev) process.env.REDDIT_ALLOW_NSFW = prev;
   });
 
+  it("allows NSFW posts by default for the opted-in group", () => {
+    const prev = process.env.REDDIT_ALLOW_NSFW;
+    delete process.env.REDDIT_ALLOW_NSFW;
+    assert.strictEqual(isEligibleRedditPost({ id: "123-default", over_18: true }), true);
+    if (prev === undefined) delete process.env.REDDIT_ALLOW_NSFW;
+    else process.env.REDDIT_ALLOW_NSFW = prev;
+  });
+
   it("rejects spoiler posts when disabled", () => {
     const prev = process.env.REDDIT_ALLOW_SPOILER;
-    delete process.env.REDDIT_ALLOW_SPOILER;
+    process.env.REDDIT_ALLOW_SPOILER = "false";
     assert.strictEqual(isEligibleRedditPost({ id: "123", spoiler: true }), false);
-    if (prev) process.env.REDDIT_ALLOW_SPOILER = prev;
+    if (prev === undefined) delete process.env.REDDIT_ALLOW_SPOILER;
+    else process.env.REDDIT_ALLOW_SPOILER = prev;
   });
 
   it("accepts normal eligible post", () => {
@@ -548,6 +720,59 @@ describe("Reddit Ranking", () => {
 // ══════════════════════════════════════════════════════════════
 // CONVERTER — SIZE LIMITS
 // ══════════════════════════════════════════════════════════════
+
+describe("You.com discovery eligibility", () => {
+  const {
+    filterAndRankPosts,
+    meetsScoreThreshold,
+    isEligibleRedditPost,
+  } = require("../src/services/redditMediaResolver");
+
+  it("allows a fresh You.com candidate when Reddit vote metadata is unavailable", () => {
+    const candidate = {
+      id: "you-current1",
+      _source: "you.com",
+      score: 0,
+      created_utc: Math.floor(Date.now() / 1000) - 3600,
+      url: "https://i.redd.it/current1.jpg",
+      preview: {
+        images: [{ source: { url: "https://preview.redd.it/current1.jpg" } }],
+      },
+      is_self: false,
+      stickied: false,
+      over_18: false,
+      spoiler: false,
+      removed_by_category: null,
+    };
+
+    assert.strictEqual(meetsScoreThreshold(candidate), true);
+    assert.strictEqual(filterAndRankPosts([candidate]).length, 1);
+  });
+
+  it("rejects generic Reddit shell results", () => {
+    assert.strictEqual(
+      isEligibleRedditPost({ id: "generic1", search_result_generic: true }),
+      false
+    );
+  });
+
+  it("allows short videos and rejects videos over the sticker limit", () => {
+    assert.strictEqual(isEligibleRedditPost({
+      id: "short-video",
+      is_video: true,
+      media: { reddit_video: { duration: 9 } },
+    }), true);
+    assert.strictEqual(isEligibleRedditPost({
+      id: "long-video",
+      is_video: true,
+      media: { reddit_video: { duration: 11 } },
+    }), false);
+  });
+
+  it("still rejects an unauthenticated Reddit-shaped post without a score", () => {
+    assert.strictEqual(meetsScoreThreshold({ id: "reddit-no-score", score: 0 }), false);
+  });
+});
 
 describe("Converter Size Limits", () => {
   it("STATIC_MAX_BYTES env default is 100000", () => {
@@ -718,6 +943,60 @@ describe("Sticker Bank Repository", () => {
     assert.ok("failed" in stats);
     assert.ok("total" in stats);
     assert.ok("sentToday" in stats);
+  });
+
+  it("upgrades a Turso placeholder into a ready sticker with the same ID", async () => {
+    const previousUrl = process.env.TURSO_DATABASE_URL;
+    const previousToken = process.env.TURSO_AUTH_TOKEN;
+    process.env.TURSO_DATABASE_URL = "file::memory:?cache=shared";
+    delete process.env.TURSO_AUTH_TOKEN;
+
+    try {
+      await repo.init();
+      const id = "upgrade-" + Math.random().toString(36).slice(2, 8);
+      const base = {
+        id,
+        redditPostId: id,
+        subreddit: "memes",
+        author: "u",
+        title: "Upgrade test",
+        permalink: "/r/memes/comments/upgrade/",
+        sourceUrl: "https://reddit.com/r/memes/comments/upgrade/",
+        mediaUrl: "https://i.redd.it/upgrade.jpg",
+        mediaType: "image",
+        stickerType: "static",
+        localPath: "C:/temp/upgrade.webp",
+        fileSizeBytes: 1000,
+        score: 0,
+        status: "downloading",
+        contentHash: "upgrade-hash",
+      };
+
+      await repo.insertSticker(base);
+      await repo.insertSticker({ ...base, status: "ready" });
+
+      const ready = await repo.getReadyStickers(100);
+      const upgraded = ready.find((sticker) => sticker.id === id);
+      assert.ok(upgraded);
+      assert.strictEqual(upgraded.status, "ready");
+    } finally {
+      if (previousUrl === undefined) delete process.env.TURSO_DATABASE_URL;
+      else process.env.TURSO_DATABASE_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.TURSO_AUTH_TOKEN;
+      else process.env.TURSO_AUTH_TOKEN = previousToken;
+    }
+  });
+
+  it("does not treat an incomplete sticker record as a permanent duplicate", async () => {
+    const id = "retry-" + Math.random().toString(36).slice(2, 8);
+    await repo.insertSticker({
+      id,
+      redditPostId: id,
+      status: "converting",
+      contentHash: "retry-hash",
+    });
+
+    assert.strictEqual(await repo.isDuplicate({ redditPostId: id }), false);
   });
 });
 

@@ -122,8 +122,32 @@ async function insertSticker(sticker) {
              local_path, file_size_bytes, duration_seconds,
              score, upvote_ratio, created_utc,
              fetched_at, generated_at, sent_count, last_sent_at,
-             status, failure_reason, content_hash)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            status, failure_reason, content_hash)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET
+              reddit_post_id = excluded.reddit_post_id,
+              original_post_id = excluded.original_post_id,
+              subreddit = excluded.subreddit,
+              author = excluded.author,
+              title = excluded.title,
+              permalink = excluded.permalink,
+              source_url = excluded.source_url,
+              media_url = excluded.media_url,
+              media_type = excluded.media_type,
+              sticker_type = excluded.sticker_type,
+              local_path = excluded.local_path,
+              file_size_bytes = excluded.file_size_bytes,
+              duration_seconds = excluded.duration_seconds,
+              score = excluded.score,
+              upvote_ratio = excluded.upvote_ratio,
+              created_utc = excluded.created_utc,
+              fetched_at = excluded.fetched_at,
+              generated_at = excluded.generated_at,
+              sent_count = excluded.sent_count,
+              last_sent_at = excluded.last_sent_at,
+              status = excluded.status,
+              failure_reason = excluded.failure_reason,
+              content_hash = excluded.content_hash`,
       args: [
         sticker.id,
         sticker.redditPostId,
@@ -268,7 +292,10 @@ async function isDuplicate({ redditPostId, originalPostId, contentHash }) {
     // Check by post ID
     if (redditPostId) {
       const byPost = await client.execute({
-        sql: `SELECT 1 FROM reddit_stickers WHERE reddit_post_id = ? OR original_post_id = ? LIMIT 1`,
+        sql: `SELECT 1 FROM reddit_stickers
+              WHERE status IN ('ready', 'sent')
+                AND (reddit_post_id = ? OR original_post_id = ?)
+              LIMIT 1`,
         args: [redditPostId, originalPostId || redditPostId],
       });
       if (byPost.rows.length > 0) return true;
@@ -276,7 +303,9 @@ async function isDuplicate({ redditPostId, originalPostId, contentHash }) {
     // Check by content hash
     if (contentHash) {
       const byHash = await client.execute({
-        sql: `SELECT 1 FROM reddit_stickers WHERE content_hash = ? LIMIT 1`,
+        sql: `SELECT 1 FROM reddit_stickers
+              WHERE status IN ('ready', 'sent') AND content_hash = ?
+              LIMIT 1`,
         args: [contentHash],
       });
       if (byHash.rows.length > 0) return true;
@@ -361,9 +390,20 @@ function getStatsMemory() {
 }
 
 function isDuplicateMemory({ redditPostId, originalPostId, contentHash }) {
-  if (redditPostId && postIdIndex.has(redditPostId)) return true;
-  if (originalPostId && postIdIndex.has(originalPostId)) return true;
-  if (contentHash && hashIndex.has(contentHash)) return true;
+  const isFinal = (id) => {
+    const sticker = stickerMemory.get(id);
+    return sticker?.status === "ready" || sticker?.status === "sent";
+  };
+
+  if (redditPostId && postIdIndex.has(redditPostId) && isFinal(postIdIndex.get(redditPostId))) {
+    return true;
+  }
+  if (originalPostId && postIdIndex.has(originalPostId) && isFinal(postIdIndex.get(originalPostId))) {
+    return true;
+  }
+  if (contentHash && hashIndex.has(contentHash) && isFinal(hashIndex.get(contentHash))) {
+    return true;
+  }
   return false;
 }
 

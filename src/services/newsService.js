@@ -101,7 +101,7 @@ const EXCLUDED_DOMAINS = [
 
 const SLOTS = {
     morning: {
-        cron: '0 7 * * *',
+        time: '07:00',
         emoji: '☀️',
         title: 'MORNING NEWS',
         greetings: [
@@ -112,7 +112,7 @@ const SLOTS = {
         ],
     },
     midday: {
-        cron: '0 12 * * *',
+        time: '12:00',
         emoji: '🍽️',
         title: 'MIDDAY BRIEF',
         greetings: [
@@ -123,7 +123,7 @@ const SLOTS = {
         ],
     },
     evening: {
-        cron: '0 17 * * *',
+        time: '17:00',
         emoji: '🌆',
         title: 'EVENING BRIEF',
         greetings: [
@@ -134,7 +134,7 @@ const SLOTS = {
         ],
     },
     nightcap: {
-        cron: '0 21 * * *',
+        time: '22:00',
         emoji: '🌙',
         title: 'NIGHTCAP',
         greetings: [

@@ -116,6 +116,7 @@ function markSent(namespace, hash, ttlMs) {
         if (m.size === 0) _store.delete(namespace);
       }
     }, ttl);
+    entry.ttlTimer.unref?.();
   }
 
   // Only increment if new entry (not overwriting existing)

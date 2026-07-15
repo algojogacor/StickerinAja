@@ -11,4 +11,10 @@ function getSock() {
   return _sock;
 }
 
-module.exports = { setSock, getSock };
+function clearSock(expectedSock) {
+  if (expectedSock && _sock !== expectedSock) return false;
+  _sock = null;
+  return true;
+}
+
+module.exports = { setSock, getSock, clearSock };

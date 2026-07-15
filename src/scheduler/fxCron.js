@@ -1,13 +1,13 @@
-// FX Cron — single lifecycle module with two independent jobs.
+// FX scheduler — single lifecycle module with two independent jobs.
 //
-// Job 1: USD/IDR rate collection + delivery — 5 * * * * (every hour at :05)
-// Job 2: Market context refresh — 15 */3 * * * (every 3 hours at :15)
+// Job 1: USD/IDR rate collection + delivery — hourly at :05 from 07:05 to 21:05 WIB.
+// Job 2: Market context refresh — every 3 hours from 07:15 to 19:15 WIB.
 //
 // One failure does not stop the other job.
 // Persistent idempotency via fx_execution_slots table.
 
-const cron = require("node-cron");
 const { getSock } = require("../core/socket");
+const { createWindowedScheduler } = require("./windowedScheduler");
 const { shouldSuppressCron } = require("../services/birthdayTakeoverService");
 const provider = require("../services/fxRateProvider");
 const rateService = require("../services/fxRateService");
@@ -17,14 +17,30 @@ const repository = require("../repositories/fxRepository");
 // ── Module State ──────────────────────────────────────────
 
 let running = false;
-let rateJob = null;
-let contextJob = null;
+const RATE_SCHEDULES = Array.from({ length: 15 }, (_, index) => {
+  const hour = index + 7;
+  const label = String(hour).padStart(2, "0");
+  return { id: `rate-${label}`, time: `${label}:05` };
+});
+const CONTEXT_SCHEDULES = [7, 10, 13, 16, 19].map((hour) => {
+  const label = String(hour).padStart(2, "0");
+  return { id: `context-${label}`, time: `${label}:15` };
+});
+
+let rateScheduler = null;
+let contextScheduler = null;
 let logger = null;
 let targetJid = "";
 
 // ── Configuration Helpers ─────────────────────────────────
 
-function getJakartaHourlySlot() {
+function getJakartaHourlySlot(scheduledSlot) {
+  if (scheduledSlot?.date && scheduledSlot?.time) {
+    if (scheduledSlot.testMode) {
+      return `${scheduledSlot.date}:${scheduledSlot.time.replace(":", "-")}`;
+    }
+    return `${scheduledSlot.date}:${scheduledSlot.time.slice(0, 2)}`;
+  }
   const now = new Date();
   const wib = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
   const year = wib.getFullYear();
@@ -34,7 +50,17 @@ function getJakartaHourlySlot() {
   return `${year}-${month}-${day}:${hour}`;
 }
 
-function getJakartaContextSlot() {
+function getJakartaContextSlot(scheduledSlot) {
+  if (scheduledSlot?.date && scheduledSlot?.time) {
+    const hour = parseInt(scheduledSlot.time.slice(0, 2), 10);
+    if (scheduledSlot.testMode) {
+      return {
+        threeHourSlot: `${scheduledSlot.date}:${scheduledSlot.time.replace(":", "-")}`,
+        hour,
+      };
+    }
+    return { threeHourSlot: `${scheduledSlot.date}:${String(hour).padStart(2, "0")}`, hour };
+  }
   const now = new Date();
   const wib = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
   const year = wib.getFullYear();
@@ -79,17 +105,17 @@ function sanitizeError(error) {
 
 function start({ logger: log, targetJid: jid } = {}) {
   if (running) {
-    log?.warn("[FX Cron] Already running — skipping");
+    log?.warn("[FX Scheduler] Already running — skipping");
     return;
   }
 
   if (process.env.FX_USD_IDR_ENABLED === "false") {
-    log?.info("[FX Cron] FX_USD_IDR_ENABLED=false — not starting");
+    log?.info("[FX Scheduler] FX_USD_IDR_ENABLED=false — not starting");
     return;
   }
 
   if (!repository.isPersistent()) {
-    log?.error("[FX Cron] Persistent storage unavailable — cannot start");
+    log?.error("[FX Scheduler] Persistent storage unavailable — cannot start");
     return;
   }
 
@@ -97,39 +123,48 @@ function start({ logger: log, targetJid: jid } = {}) {
   targetJid = jid || process.env.FX_USD_IDR_TARGET_JID || process.env.GROUP_JID || "";
   running = true;
 
-  const rateCronExpr = process.env.FX_USD_IDR_CRON || "5 * * * *";
-  const contextCronExpr = process.env.FX_MARKET_CONTEXT_CRON || "15 */3 * * *";
-
-  if (process.env.FX_USD_IDR_RUN_24_HOURS !== "false" || !process.env.FX_USD_IDR_RUN_24_HOURS) {
-    rateJob = cron.schedule(
-      rateCronExpr,
-      () => runHourlyRateUpdate(),
-      { timezone: "Asia/Jakarta", name: "fx-rate-hourly" }
-    );
-    logger?.info(`[FX Cron] Rate job scheduled: ${rateCronExpr} WIB`);
-  }
+  rateScheduler = createWindowedScheduler({
+    name: "FX Rate Scheduler",
+    slots: RATE_SCHEDULES,
+    task: (slot, meta) => runHourlyRateUpdate({ reason: meta.reason, scheduledSlot: slot }),
+    logger,
+  });
+  rateScheduler.start();
+  logger?.info("[FX Scheduler] Rate job scheduled hourly from 07:05 through 21:05 WIB");
 
   if (process.env.FX_MARKET_CONTEXT_ENABLED !== "false") {
-    contextJob = cron.schedule(
-      contextCronExpr,
-      () => runMarketContextRefresh(),
-      { timezone: "Asia/Jakarta", name: "fx-context-3h" }
-    );
-    logger?.info(`[FX Cron] Context job scheduled: ${contextCronExpr} WIB`);
+    contextScheduler = createWindowedScheduler({
+      name: "FX Context Scheduler",
+      slots: CONTEXT_SCHEDULES,
+      task: (slot, meta) => runMarketContextRefresh({ reason: meta.reason, scheduledSlot: slot }),
+      logger,
+    });
+    contextScheduler.start();
+    logger?.info("[FX Scheduler] Context job scheduled at 07:15, 10:15, 13:15, 16:15, and 19:15 WIB");
   }
 
   if (!targetJid) {
-    logger?.warn("[FX Cron] No target JID — delivery disabled");
+    logger?.warn("[FX Scheduler] No target JID — delivery disabled");
   }
 
-  logger?.info("[FX Cron] Started");
+  logger?.info("[FX Scheduler] Started");
 }
 
 function stop() {
   running = false;
-  if (rateJob) { rateJob.stop(); rateJob = null; }
-  if (contextJob) { contextJob.stop(); contextJob = null; }
-  logger?.info("[FX Cron] Stopped");
+  rateScheduler?.stop();
+  contextScheduler?.stop();
+  rateScheduler = null;
+  contextScheduler = null;
+  logger?.info("[FX Scheduler] Stopped");
+}
+
+async function resume() {
+  const results = await Promise.all([
+    rateScheduler?.resume() || false,
+    contextScheduler?.resume() || false,
+  ]);
+  return results.some(Boolean);
 }
 
 function isRunning() {
@@ -138,18 +173,18 @@ function isRunning() {
 
 // ── Job 1: Hourly Rate Update ─────────────────────────────
 
-async function runHourlyRateUpdate({ reason } = {}) {
+async function runHourlyRateUpdate({ reason, scheduledSlot } = {}) {
   const isManual = reason === "manual";
 
   // Only check suppression for automatic runs
   if (!isManual && !running) return;
 
-  const slot = getJakartaHourlySlot();
+  const slot = getJakartaHourlySlot(scheduledSlot);
   const collectKey = `fx-collect:USD-IDR:${slot}`;
   const deliveryKey = `fx-delivery:USD-IDR:${slot}`;
   const leases = getLeaseConfig();
 
-  logger?.info({ slot, reason: reason || "scheduled" }, "[FX Cron] Hourly rate update");
+  logger?.info({ slot, reason: reason || "scheduled" }, "[FX Scheduler] Hourly rate update");
 
   // ── Collection ──
   const collectState = await repository.getExecutionSlot(collectKey);
@@ -182,10 +217,10 @@ async function runHourlyRateUpdate({ reason } = {}) {
         }
 
         await repository.completeExecutionSlot(collectKey);
-        logger?.info({ slot, rate: rateData.rates.IDR }, "[FX Cron] Rate collected");
+        logger?.info({ slot, rate: rateData.rates.IDR }, "[FX Scheduler] Rate collected");
       } catch (error) {
         await repository.failExecutionSlot(collectKey, sanitizeError(error));
-        logger?.error({ err: sanitizeError(error) }, "[FX Cron] Rate collection failed");
+        logger?.error({ err: sanitizeError(error) }, "[FX Scheduler] Rate collection failed");
         return; // No snapshot → cannot deliver
       }
     }
@@ -197,7 +232,7 @@ async function runHourlyRateUpdate({ reason } = {}) {
   }
 
   if (!snapshot) {
-    logger?.warn({ slot }, "[FX Cron] No snapshot available for delivery");
+    logger?.warn({ slot }, "[FX Scheduler] No snapshot available for delivery");
     return;
   }
 
@@ -207,15 +242,20 @@ async function runHourlyRateUpdate({ reason } = {}) {
     return snapshot;
   }
 
-  await handleHourlyDelivery({ slot, deliveryKey, snapshot });
+  return handleHourlyDelivery({ slot, deliveryKey, snapshot });
 }
 
 async function handleHourlyDelivery({ slot, deliveryKey, snapshot }) {
   // Check if delivery already completed or suppressed
   const deliveryState = await repository.getExecutionSlot(deliveryKey);
   if (deliveryState?.status === "completed" || deliveryState?.status === "suppressed") {
-    logger?.info({ slot }, "[FX Cron] Delivery already completed or suppressed");
-    return;
+    logger?.info({ slot }, "[FX Scheduler] Delivery already completed or suppressed");
+    return true;
+  }
+
+  if (targetJid && !getSock()) {
+    logger?.warn({ slot }, "[FX Scheduler] WhatsApp unavailable — pending until reconnect");
+    return false;
   }
 
   const leases = getLeaseConfig();
@@ -226,23 +266,23 @@ async function handleHourlyDelivery({ slot, deliveryKey, snapshot }) {
   });
 
   if (!acquired) {
-    logger?.info({ slot }, "[FX Cron] Delivery slot already taken");
-    return;
+    logger?.info({ slot }, "[FX Scheduler] Delivery slot already taken");
+    return true;
   }
 
   try {
     // Check Birthday Takeover suppression
     if (targetJid && await shouldSuppressCron(targetJid, "fx-market")) {
       await repository.suppressExecutionSlot(deliveryKey, "birthday-takeover");
-      logger?.info("[FX Cron] Birthday takeover — delivery suppressed");
-      return;
+      logger?.info("[FX Scheduler] Birthday takeover — delivery suppressed");
+      return true;
     }
 
     // Check auto-send toggle
     if (process.env.FX_USD_IDR_AUTO_SEND_ENABLED === "false") {
       await repository.suppressExecutionSlot(deliveryKey, "auto-send-disabled");
-      logger?.info("[FX Cron] Auto-send disabled — delivery suppressed");
-      return;
+      logger?.info("[FX Scheduler] Auto-send disabled — delivery suppressed");
+      return true;
     }
 
     // Build statistics
@@ -297,30 +337,32 @@ async function handleHourlyDelivery({ slot, deliveryKey, snapshot }) {
         throw new Error("WhatsApp socket not available");
       }
       await sock.sendMessage(targetJid, { text: report });
-      logger?.info({ slot }, "[FX Cron] Report delivered");
+      logger?.info({ slot }, "[FX Scheduler] Report delivered");
     }
 
     await repository.completeExecutionSlot(deliveryKey);
+    return true;
   } catch (error) {
     await repository.failExecutionSlot(deliveryKey, sanitizeError(error));
-    logger?.error({ err: sanitizeError(error) }, "[FX Cron] Delivery failed");
+    logger?.error({ err: sanitizeError(error) }, "[FX Scheduler] Delivery failed");
+    return false;
   }
 }
 
 // ── Job 2: Market Context Refresh ─────────────────────────
 
-async function runMarketContextRefresh({ reason } = {}) {
+async function runMarketContextRefresh({ reason, scheduledSlot } = {}) {
   if (process.env.FX_MARKET_CONTEXT_ENABLED === "false") return;
 
-  const { threeHourSlot } = getJakartaContextSlot();
+  const { threeHourSlot } = getJakartaContextSlot(scheduledSlot);
   const contextKey = `fx-context:USD-IDR:${threeHourSlot}`;
   const leases = getLeaseConfig();
 
-  logger?.info({ slot: threeHourSlot, reason: reason || "scheduled" }, "[FX Cron] Context refresh");
+  logger?.info({ slot: threeHourSlot, reason: reason || "scheduled" }, "[FX Scheduler] Context refresh");
 
   const state = await repository.getExecutionSlot(contextKey);
   if (state?.status === "completed" || state?.status === "partial") {
-    logger?.info({ slot: threeHourSlot }, "[FX Cron] Context slot already processed");
+    logger?.info({ slot: threeHourSlot }, "[FX Scheduler] Context slot already processed");
     return;
   }
 
@@ -331,7 +373,7 @@ async function runMarketContextRefresh({ reason } = {}) {
   });
 
   if (!acquired) {
-    logger?.info({ slot: threeHourSlot }, "[FX Cron] Context slot already taken");
+    logger?.info({ slot: threeHourSlot }, "[FX Scheduler] Context slot already taken");
     return;
   }
 
@@ -351,7 +393,7 @@ async function runMarketContextRefresh({ reason } = {}) {
       await repository.completeExecutionSlot(contextKey);
       logger?.info(
         { slot: threeHourSlot, articles: result.articles.length, status: result.status },
-        "[FX Cron] Context refreshed and saved"
+        "[FX Scheduler] Context refreshed and saved"
       );
     } else {
       // Failed — don't overwrite previous valid context
@@ -359,11 +401,11 @@ async function runMarketContextRefresh({ reason } = {}) {
         errorCode: "CONTEXT_FAILED",
         errorMessage: "No new context available",
       });
-      logger?.warn({ slot: threeHourSlot }, "[FX Cron] Context refresh failed");
+      logger?.warn({ slot: threeHourSlot }, "[FX Scheduler] Context refresh failed");
     }
   } catch (error) {
     await repository.failExecutionSlot(contextKey, sanitizeError(error));
-    logger?.error({ err: sanitizeError(error) }, "[FX Cron] Context refresh error");
+    logger?.error({ err: sanitizeError(error) }, "[FX Scheduler] Context refresh error");
   }
 }
 
@@ -403,8 +445,13 @@ async function manualRefresh({ logger: log, replyCallback }) {
 // ── Exports ───────────────────────────────────────────────
 
 module.exports = {
+  RATE_SCHEDULES,
+  CONTEXT_SCHEDULES,
+  getJakartaHourlySlot,
+  getJakartaContextSlot,
   start,
   stop,
+  resume,
   isRunning,
   runHourlyRateUpdate,
   runMarketContextRefresh,

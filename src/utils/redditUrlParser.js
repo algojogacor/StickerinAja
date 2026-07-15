@@ -8,6 +8,9 @@ const REDDIT_POST_HOSTS = new Set([
   "reddit.com",
   "www.reddit.com",
   "old.reddit.com",
+  "en.reddit.com",
+  "hr.reddit.com",
+  "np.reddit.com",
   "redd.it",
 ]);
 
