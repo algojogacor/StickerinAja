@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `cc4c8e2` — `docs: record final session 14 commit in worklog` |
-| **Ending HEAD** | In progress |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `9982ea6` — `feat(sticker): add adaptive flexible duration up to 8s for video stickers` |
+| **Working-tree status** | Clean |
 
 ### User request
 
