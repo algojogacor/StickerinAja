@@ -15,22 +15,34 @@ fs.readdirSync(commandsDir).filter(f => f.endsWith('.js')).forEach(f => {
 
 // Module-level config — read from env once
 const PREFIX = process.env.PREFIX || '!';
-const BOT_NAME = process.env.STICKERIN_BOT_NAME || 'Stikerin Aja';
-const BOT_AUTHOR = process.env.STICKERIN_AUTHOR || 'Bot';
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
-// Shared state across commands (pack/author settings)
+// Shared state across commands (per-user pack/author settings)
 const state = new Map();
 
-function getSession(jid) {
-    if (!state.has(jid)) {
-        state.set(jid, {
-            pack: BOT_NAME,
-            author: BOT_AUTHOR,
+function getSession(userJid) {
+    const now = Date.now();
+    const defaultPack = process.env.STICKERIN_BOT_NAME || 'Stikerin Aja';
+    const defaultAuthor = process.env.STICKERIN_AUTHOR || 'Bot';
+
+    if (!state.has(userJid)) {
+        state.set(userJid, {
+            pack: defaultPack,
+            author: defaultAuthor,
             quality: 80,
-            type: 'default'
+            type: 'default',
+            customExpiresAt: null
         });
     }
-    return state.get(jid);
+
+    const session = state.get(userJid);
+    if (session.customExpiresAt && now > session.customExpiresAt) {
+        session.pack = defaultPack;
+        session.author = defaultAuthor;
+        session.customExpiresAt = null;
+    }
+
+    return session;
 }
 
 function extractMessageContent(msg) {
@@ -67,6 +79,9 @@ async function handler(sock, msg, logger) {
     const remoteJid = msg.key?.remoteJid;
     if (!remoteJid) return;
 
+    // Per-user session tracking (in groups, participant is user's direct JID)
+    const senderJid = msg.key?.participant || remoteJid;
+
     const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
     if (!messageText || !messageText.startsWith(PREFIX)) return;
 
@@ -76,12 +91,12 @@ async function handler(sock, msg, logger) {
     const cmd = commands.get(cmdName);
     if (!cmd) return;
 
-    logger.info({ cmd: cmdName, chat: remoteJid }, `→ ${cmdName}`);
+    logger.info({ cmd: cmdName, chat: remoteJid, sender: senderJid }, `→ ${cmdName}`);
 
     try {
         await cmd.execute({
-            sock, msg, args, cmdName, remoteJid, quotedMsg, quotedStanza,
-            session: getSession(remoteJid),
+            sock, msg, args, cmdName, remoteJid, senderJid, quotedMsg, quotedStanza,
+            session: getSession(senderJid),
             logger, PREFIX, state
         });
     } catch (err) {

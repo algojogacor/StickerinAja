@@ -6,6 +6,45 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 18 — Implement per-user 6-hour expiring session customization for pack name, author, and bot name
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 01:16 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `cf0723b` — `docs: record final session 17 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Allow per-user customization of pack name, bot name, and author (via `!pack`, `!botname`, `!author`, `!packpreset`) with silent 6-hour automatic expiration back to `.env` defaults.
+
+### Implementation
+
+- Updated `getSession` in `src/handler.js` to key by user JID (`msg.key.participant || msg.key.remoteJid`) and auto-reset after 6 hours (`customExpiresAt`).
+- Updated `src/commands/settings.js` to support aliases `pack`, `botname`, `name`, `author`, `packpreset` and set 6-hour TTL without exposing timer text in responses.
+- Added 2 unit tests in `test/baselineRuntime.test.js` verifying user isolation and 6-hour expiration reset.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/baselineRuntime.test.js` | 37 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 283 pass, 0 fail, 0 skipped; 60 suites (760ms) |
+
+### Scope and deployment
+
+- Files modified: `src/handler.js`, `src/commands/settings.js`, `test/baselineRuntime.test.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 17 — Inject WhatsApp WebP EXIF metadata (Pack Name & Author)
 
 | Field | Value |

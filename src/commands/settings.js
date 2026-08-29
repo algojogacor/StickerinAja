@@ -1,8 +1,10 @@
+const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+
 module.exports = {
-    names: ['pack', 'author', 'packpreset'],
+    names: ['pack', 'botname', 'name', 'author', 'packpreset'],
 
     async execute({ sock, msg, args, cmdName, remoteJid, session, logger }) {
-        const value = args.join(' '); // all args are the value since cmdName is separate
+        const value = args.join(' ');
 
         if (cmdName === 'packpreset') {
             const presets = {
@@ -19,19 +21,23 @@ module.exports = {
             }
             session.pack = presets[key].pack;
             session.author = presets[key].author;
+            session.customExpiresAt = Date.now() + SIX_HOURS_MS;
+
             await sock.sendMessage(remoteJid, {
                 text: `✅ Pack preset *${key}* aktif.\nPack: *${session.pack}*\nAuthor: *${session.author}*`
             }, { quoted: msg });
             logger.info(`Pack preset changed: ${key}`);
         }
 
-        if (cmdName === 'pack') {
+        if (['pack', 'botname', 'name'].includes(cmdName)) {
             if (!value) {
                 return sock.sendMessage(remoteJid, {
                     text: `📦 Pack saat ini: *${session.pack}*\n\nGunakan: *!pack <nama>*`
                 }, { quoted: msg });
             }
             session.pack = value;
+            session.customExpiresAt = Date.now() + SIX_HOURS_MS;
+
             await sock.sendMessage(remoteJid, {
                 text: `✅ Pack name diubah ke: *${value}*`
             }, { quoted: msg });
@@ -45,6 +51,8 @@ module.exports = {
                 }, { quoted: msg });
             }
             session.author = value;
+            session.customExpiresAt = Date.now() + SIX_HOURS_MS;
+
             await sock.sendMessage(remoteJid, {
                 text: `✅ Author diubah ke: *${value}*`
             }, { quoted: msg });

@@ -173,3 +173,37 @@ describe("exifHelper WebP Metadata Injection", () => {
   });
 });
 
+describe("Per-user session state and 6h expiration", () => {
+  const { getSession } = require("../src/handler");
+
+  it("isolates settings between different user JIDs", () => {
+    const s1 = getSession("user1@s.whatsapp.net");
+    const s2 = getSession("user2@s.whatsapp.net");
+
+    s1.pack = "Ahay Pack";
+    s1.author = "User Satu";
+
+    s2.pack = "Uhuy Pack";
+    s2.author = "User Dua";
+
+    assert.equal(getSession("user1@s.whatsapp.net").pack, "Ahay Pack");
+    assert.equal(getSession("user1@s.whatsapp.net").author, "User Satu");
+    assert.equal(getSession("user2@s.whatsapp.net").pack, "Uhuy Pack");
+    assert.equal(getSession("user2@s.whatsapp.net").author, "User Dua");
+  });
+
+  it("resets custom pack and author back to default after 6 hours", () => {
+    const s = getSession("expiring_user@s.whatsapp.net");
+    s.pack = "Temporary Pack";
+    s.author = "Temporary Author";
+    // Set customExpiresAt to 1 millisecond in the past
+    s.customExpiresAt = Date.now() - 1;
+
+    const refreshed = getSession("expiring_user@s.whatsapp.net");
+    assert.equal(refreshed.pack, process.env.STICKERIN_BOT_NAME || "Stikerin Aja");
+    assert.equal(refreshed.author, process.env.STICKERIN_AUTHOR || "Bot");
+    assert.equal(refreshed.customExpiresAt, null);
+  });
+});
+
+
