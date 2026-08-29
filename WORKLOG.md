@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `bda6768` — `docs: record final session 13 commit` |
-| **Ending HEAD** | In progress |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `b5d97dd` — `feat(sticker): migrate to pure FFmpeg palettegen engine and remove wa-sticker-formatter` |
+| **Working-tree status** | Clean |
 
 ### User request
 
