@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `50265c7` — `docs: record final session 16 commit in worklog` |
-| **Ending HEAD** | In progress |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `0bbb7c9` — `feat(sticker): inject WhatsApp WebP EXIF pack and author metadata` |
+| **Working-tree status** | Clean |
 
 ### User request
 
