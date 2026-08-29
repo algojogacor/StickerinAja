@@ -17,7 +17,7 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `7df612c` — `docs: finalize session 11 worklog` |
-| **Ending HEAD** | In progress |
+| **Ending HEAD** | `1c83abf` — `config: disable USD/IDR and News schedulers via feature toggles` |
 | **Working-tree status** | Clean |
 
 ### User request
