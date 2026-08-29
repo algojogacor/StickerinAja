@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `cf0723b` — `docs: record final session 17 commit in worklog` |
-| **Ending HEAD** | In progress |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `004b30b` — `feat(settings): support per-user pack and author customization with 6h expiry` |
+| **Working-tree status** | Clean |
 
 ### User request
 
