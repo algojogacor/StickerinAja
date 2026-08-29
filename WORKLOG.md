@@ -17,7 +17,21 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `7113433` — `docs: record birthday takeover publish` |
+| **Ending HEAD** | `0d4679b` — `refactor: modularize sticker pipeline, migrate to pure sharp svg, and fix web qr` |
 | **Working-tree status** | Clean |
+
+### User request
+
+1. Investigate Koyeb unhealthy logs and diagnose why WhatsApp connection or sticker creation fails.
+2. Explain why the web QR scan page returned `ERR_BLOCKED_BY_CLIENT` and fix the QR rendering so it is self-hosted and reliable.
+3. Fix the memory crash / Out Of Memory (`free(): invalid size` on `!s`) on Koyeb by eliminating native C++ conflicts and tuning Sharp.
+4. Modularize `src/commands/sticker.js` (which reached over 1,000 lines) into clean, maintainable service files.
+
+### Findings and root causes
+
+- **Koyeb Native Memory Crash:** In the Debian-slim Linux container on Koyeb, `node-canvas` (linked with Cairo/Pango) and `sharp` (bundled with libvips) running in the same process caused glibc heap corruption (`free(): invalid size` / Exit code 11) when passing raw pixel buffers.
+- **Web QR Adblocker Blocking:** The login web interface in `src/utils/login.html` fetched `https://api.qrserver.com/v1/...` which gets blocked by browser extensions with `net::ERR_BLOCKED_BY_CLIENT`.
+- **Sticker Architecture Bloat:** `src/commands/sticker.js` contained 1,007 lines mixing SVG/Canvas rendering, image filters, animated FFmpeg pipelines, format conversions, and WhatsApp message routing in a single monolithic file.
 
 ### Implementation
 
@@ -25,11 +39,11 @@ Append-only development log. Newest session at the top.
 - Created `src/services/sticker/imageProcessor.js`: Handles static sticker preprocessing (grayscale, blur, sharpen, vintage, deepfried, glow, sepia, remove background) and `createFromMedia` execution.
 - Created `src/services/sticker/animatedProcessor.js`: Handles async multi-attempt FFmpeg video conversion and animated WebP optimization.
 - Created `src/services/sticker/converterService.js`: Handles `toImage`, `toGif`, `toMp4`, and `stickerInfo` commands.
-- Refactored `src/commands/sticker.js` from 1007 lines down to 226 clean lines as a high-level command router.
+- Refactored `src/commands/sticker.js` from 1,007 lines down to 226 clean lines as a high-level command router.
 - Removed `canvas` dependency entirely from `package.json` to eliminate glibc memory heap corruption (`free(): invalid size`).
-- Tuned Sharp in `index.js` with `sharp.cache(false)` and `sharp.concurrency(1)`.
-- Created `src/utils/qrHelper.js` with `generateQrSvg` and updated `src/utils/login.html` and `index.js` to serve self-hosted vector SVG QR codes, eliminating `ERR_BLOCKED_BY_CLIENT` from third-party adblockers.
-- Added comprehensive unit tests in `test/stickerModularServices.test.js` and updated `test/stickerModuleLoad.test.js`.
+- Tuned Sharp in `index.js` with `sharp.cache(false)` and `sharp.concurrency(1)` for 512MB RAM Koyeb container stability.
+- Created `src/utils/qrHelper.js` with `generateQrSvg` and updated `src/utils/login.html` and `index.js` to serve self-hosted vector SVG QR codes via `/api/status` and `/api/qr.svg`.
+- Added unit tests in `test/stickerModularServices.test.js` and updated `test/stickerModuleLoad.test.js`.
 
 ### Verification
 
@@ -40,14 +54,24 @@ Append-only development log. Newest session at the top.
 | `node --test test/stickerModuleLoad.test.js` | 1 pass, 0 fail, 0 skipped |
 | `node --test` across entire repository | 274 pass, 0 fail, 0 skipped; 57 suites (763ms) |
 | Zero `require('canvas')` occurrences across codebase | Verified |
+| Koyeb live deployment `2b92fc11` health check | Instance `1e667e23` reported `HEALTHY`, WhatsApp connected as `6289505630895`, Turso connected |
+
+### Scope and deployment
+
+- Files created: `src/services/sticker/svgRenderer.js`, `src/services/sticker/imageProcessor.js`, `src/services/sticker/animatedProcessor.js`, `src/services/sticker/converterService.js`, `src/utils/qrHelper.js`, `test/stickerModularServices.test.js`.
+- Files modified: `src/commands/sticker.js`, `src/utils/textRenderer.js`, `src/utils/login.html`, `index.js`, `package.json`, `package-lock.json`, `test/stickerModuleLoad.test.js`, `PROJECT_STATE.md`, `WORKLOG.md`.
+
+### Publish handoff
+
+- Commit `0d4679b` (`refactor: modularize sticker pipeline, migrate to pure sharp svg, and fix web qr`) was pushed to `origin/main`.
+- Koyeb automatically built and deployed commit `0d4679b` (Deployment ID `2b92fc11-8b41-48de-926d-c8eaa5a2440c`, Instance `1e667e23`).
+- Verified live logs show `HEALTHY`, all health checks passing, and active WhatsApp socket established.
 
 **Status: Completed**
 
 ---
 
 ## Session 10 — Configurable Reddit send frequency
-
-
 
 | Field | Value |
 |---|---|
