@@ -1,8 +1,19 @@
 const sharp = require('sharp');
 const crypto = require('crypto');
-const { Sticker } = require('wa-sticker-formatter');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const { renderTextOverlaySvg } = require('./svgRenderer');
 const { stickerCache, imageQueue } = require('../../utils/cache');
+
+function getStickerType(typeStr) {
+    const map = {
+        'crop': StickerTypes.CROPPED,
+        'full': StickerTypes.FULL,
+        'circle': StickerTypes.CIRCLE,
+        'rounded': StickerTypes.ROUNDED,
+        'default': StickerTypes.DEFAULT
+    };
+    return map[typeStr] || StickerTypes.FULL;
+}
 
 function hasImageTransforms(options = {}) {
     return !!(options.gray || options.invert || options.blur || options.sharpen ||
@@ -95,7 +106,7 @@ async function createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedSt
         return sock.sendMessage(remoteJid, { text: '⚠️ File terlalu besar! Maks 10MB' }, { quoted: msg });
     }
 
-    const parsedArgs = parseArgsFn(args);
+    const parsedArgs = parseArgsFn ? parseArgsFn(args) : {};
     const stickerType = parsedArgs.type || session.type;
     const quality = parsedArgs.quality || session.quality;
 
@@ -110,27 +121,33 @@ async function createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedSt
     await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker...' }, { quoted: msg });
 
     await imageQueue.add(async () => {
-        if (hasImageTransforms(parsedArgs)) {
-            buffer = await preprocessImage(buffer, parsedArgs);
+        try {
+            if (hasImageTransforms(parsedArgs)) {
+                buffer = await preprocessImage(buffer, parsedArgs);
+            }
+
+            const sticker = new Sticker(buffer, {
+                pack: session.pack,
+                author: session.author,
+                type: getStickerType(stickerType),
+                quality,
+                background: { r: 0, g: 0, b: 0, alpha: 0 }
+            });
+
+            const msgData = await sticker.toMessage();
+            stickerCache.set(cacheKey, msgData.sticker);
+            await sock.sendMessage(remoteJid, msgData, { quoted: msg });
+            session.type = 'default';
+            logger.info(`✅ Sticker sent to ${remoteJid}`);
+        } catch (err) {
+            logger.error({ err }, 'Sticker generation error in createFromMedia');
+            await sock.sendMessage(remoteJid, { text: '❌ Gagal memproses stiker.' }, { quoted: msg });
         }
-
-        const sticker = new Sticker(buffer, {
-            pack: session.pack,
-            author: session.author,
-            type: getTypeFn(stickerType),
-            quality,
-            background: { r: 0, g: 0, b: 0, alpha: 0 }
-        });
-
-        const msgData = await sticker.toMessage();
-        stickerCache.set(cacheKey, msgData.sticker);
-        await sock.sendMessage(remoteJid, msgData, { quoted: msg });
-        session.type = 'default';
-        logger.info(`✅ Sticker sent to ${remoteJid}`);
     });
 }
 
 module.exports = {
+    getStickerType,
     hasImageTransforms,
     removeSimpleBackground,
     applyTextOverlay,

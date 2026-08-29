@@ -12,8 +12,10 @@ const {
 } = require('../src/services/sticker/svgRenderer');
 
 const {
+    getStickerType,
     hasImageTransforms,
-    removeSimpleBackground
+    removeSimpleBackground,
+    createFromMedia
 } = require('../src/services/sticker/imageProcessor');
 
 const { generateQrSvg } = require('../src/utils/qrHelper');
@@ -86,5 +88,37 @@ describe('Sticker Modular Services & SVG Rendering', () => {
         assert.equal(hasImageTransforms({ gray: true }), true);
         assert.equal(hasImageTransforms({ blur: 4 }), true);
         assert.equal(hasImageTransforms({ overlayText: 'test' }), true);
+    });
+
+    it('creates sticker from media buffer successfully', async () => {
+        const sampleImage = await sharp({
+            create: { width: 300, height: 300, channels: 4, background: { r: 100, g: 150, b: 200, alpha: 1 } }
+        }).png().toBuffer();
+
+        const sentMessages = [];
+        const mockSock = {
+            sendMessage: async (jid, content) => {
+                sentMessages.push({ jid, content });
+            }
+        };
+
+        await createFromMedia({
+            sock: mockSock,
+            msg: { key: { remoteJid: 'test@g.us' } },
+            args: ['--crop'],
+            remoteJid: 'test@g.us',
+            quotedMsg: null,
+            quotedStanza: null,
+            session: { pack: 'TestPack', author: 'TestAuthor', type: 'default', quality: 80 },
+            logger: { info: () => {}, error: () => {} },
+            downloadFn: async () => sampleImage,
+            parseArgsFn: (args) => ({ type: 'crop' }),
+            MAX_FILE_SIZE: 10485760
+        });
+
+        assert.equal(sentMessages.length, 2);
+        assert.equal(sentMessages[0].content.text, '⏳ Membuat stiker...');
+        assert.ok(sentMessages[1].content.sticker);
+        assert.ok(Buffer.isBuffer(sentMessages[1].content.sticker));
     });
 });

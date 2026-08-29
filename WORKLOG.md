@@ -6,6 +6,50 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 13 — Fix createFromMedia sticker type mapping and queue error handling
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 00:51 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `74a4366` — `docs: record final session 12 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Clean |
+
+### User request
+
+Fix user-reported issue where `!s` sent `⏳ Membuat stiker...` but did not complete or deliver the sticker.
+
+### Findings and root causes
+
+- `createFromMedia` in `src/services/sticker/imageProcessor.js` used an external `getTypeFn` parameter instead of directly mapping `StickerTypes` from `wa-sticker-formatter`.
+- `imageQueue.add` lacked a localized `try/catch` wrapper to catch and log internal sticker generation exceptions or send a fallback error message to the user.
+
+### Implementation
+
+- Added `getStickerType(typeStr)` directly in `src/services/sticker/imageProcessor.js` using `wa-sticker-formatter`'s `StickerTypes`.
+- Wrapped `imageQueue.add` in a `try/catch` block with localized error logging and user notification.
+- Added end-to-end unit test in `test/stickerModularServices.test.js` verifying `createFromMedia` successfully generates and dispatches a sticker message.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/stickerModularServices.test.js` | 8 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 275 pass, 0 fail, 0 skipped; 57 suites (1435ms) |
+
+### Scope and deployment
+
+- Files modified: `src/services/sticker/imageProcessor.js`, `test/stickerModularServices.test.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 12 — Temporarily disable USD/IDR and News Briefing schedulers
 
 | Field | Value |
