@@ -6,6 +6,44 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 15 — Implement adaptive flexible duration and size-bounded encoding for video stickers
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 01:03 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `cc4c8e2` — `docs: record final session 14 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Allow flexible adaptive duration for video stickers (up to 8s) instead of rigid 5s cutoff, with automatic compression fallback to respect WhatsApp's 1MB limit.
+
+### Implementation
+
+- Updated `src/services/sticker/animatedProcessor.js` to encode up to 8s by default at 15fps (`-q:v 50`), preserving original video length for videos under 8s.
+- Added automatic size-check and fallback re-encode (6s, 12fps, `-q:v 40`) if the output exceeds 950KB.
+- Verified test suite with `node --test` (274/274 pass).
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test` across entire repository | 274 pass, 0 fail, 0 skipped; 57 suites (704ms) |
+
+### Scope and deployment
+
+- Files modified: `src/services/sticker/animatedProcessor.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 14 — Migrate sticker pipeline to pure FFmpeg palettegen engine & remove wa-sticker-formatter
 
 | Field | Value |

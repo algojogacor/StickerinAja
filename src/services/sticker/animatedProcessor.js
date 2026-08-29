@@ -6,6 +6,29 @@ const path = require('path');
 const { ffmpegQueue } = require('../../utils/cache');
 
 const TEMP_DIR = path.join(__dirname, '../../../temp');
+const MAX_STICKER_BYTES = 950 * 1024; // 950KB safe limit for WhatsApp
+
+function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, quality = 50 } = {}) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .inputFormat('mp4')
+            .outputOptions([
+                '-vcodec libwebp',
+                `-vf scale=512:512:force_original_aspect_ratio=decrease,fps=${fps},pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse`,
+                '-loop 0',
+                '-ss 00:00:00',
+                `-t 00:00:0${duration}`,
+                '-preset default',
+                '-an',
+                '-vsync 0',
+                `-q:v ${quality}`
+            ])
+            .toFormat('webp')
+            .on('end', resolve)
+            .on('error', reject)
+            .save(outputPath);
+    });
+}
 
 async function createAnimated({
     sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
@@ -30,29 +53,21 @@ async function createAnimated({
 
     await ffmpegQueue.add(async () => {
         try {
-            await new Promise((resolve, reject) => {
-                ffmpeg(tempInput)
-                    .inputFormat('mp4')
-                    .outputOptions([
-                        '-vcodec libwebp',
-                        '-vf scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse',
-                        '-loop 0',
-                        '-ss 00:00:00',
-                        '-t 00:00:05',
-                        '-preset default',
-                        '-an',
-                        '-vsync 0',
-                        '-q:v 50'
-                    ])
-                    .toFormat('webp')
-                    .on('end', resolve)
-                    .on('error', reject)
-                    .save(tempOutput);
-            });
+            // Attempt 1: Adaptive up to 8s, 15fps, quality 50
+            await runFfmpegEncode(tempInput, tempOutput, { duration: 8, fps: 15, quality: 50 });
+            let stat = await fs.promises.stat(tempOutput);
+
+            // Attempt 2: If > 950KB (over WA limit), re-encode with 6s, 12fps, quality 40
+            if (stat.size > MAX_STICKER_BYTES) {
+                logger.info({ size: stat.size }, 'Animated sticker exceeded 950KB, optimizing...');
+                try { fs.unlinkSync(tempOutput); } catch {}
+                await runFfmpegEncode(tempInput, tempOutput, { duration: 6, fps: 12, quality: 40 });
+                stat = await fs.promises.stat(tempOutput);
+            }
 
             const stickerBuffer = await fs.promises.readFile(tempOutput);
             await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ Animated sticker sent to ${remoteJid}`);
+            logger.info({ size: stat.size }, `✅ Animated sticker sent to ${remoteJid}`);
         } catch (err) {
             logger.error({ err }, 'Animated sticker conversion error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal. Video mungkin corrupt atau FFmpeg error.' }, { quoted: msg });
@@ -64,5 +79,6 @@ async function createAnimated({
 }
 
 module.exports = {
+    runFfmpegEncode,
     createAnimated
 };
