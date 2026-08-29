@@ -1,17 +1,19 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const path = require("node:path");
-const { spawnSync } = require("node:child_process");
 
-describe("Sticker command native module loading", () => {
-  it("loads in a fresh Windows process without a canvas DLL ordering failure", () => {
-    const repoRoot = path.resolve(__dirname, "..");
-    const result = spawnSync(
-      process.execPath,
-      ["-e", "require('./src/commands/sticker')"],
-      { cwd: repoRoot, encoding: "utf8" }
-    );
+describe("Sticker command module loading", () => {
+  it("loads sticker command and services directly without failure", () => {
+    const stickerCmd = require("../src/commands/sticker");
+    const svgRenderer = require("../src/services/sticker/svgRenderer");
+    const imageProcessor = require("../src/services/sticker/imageProcessor");
+    const animatedProcessor = require("../src/services/sticker/animatedProcessor");
+    const converterService = require("../src/services/sticker/converterService");
 
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.ok(stickerCmd.names.includes("s"));
+    assert.ok(stickerCmd.names.includes("sticker"));
+    assert.ok(typeof svgRenderer.renderTextToWebP === "function");
+    assert.ok(typeof imageProcessor.preprocessImage === "function");
+    assert.ok(typeof animatedProcessor.createAnimated === "function");
+    assert.ok(typeof converterService.toImage === "function");
   });
 });

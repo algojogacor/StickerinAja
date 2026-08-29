@@ -139,8 +139,7 @@
                         <p style="margin-top: 10px;">Bot sudah siap digunakan sebagai <b>${data.user?.name || data.user?.id || 'Stickerin Bot'}</b>.</p>
                         <p>Anda bisa menutup halaman ini sekarang.</p>
                     `;
-                } else if (data.status === 'qr' && data.qr) {
-                    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(data.qr);
+                } else if (data.status === 'qr' && (data.qrSvg || data.qr)) {
                     app.innerHTML = `
                         <div class="status-badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2);">
                             <span class="status-dot" style="background: #f59e0b; box-shadow: 0 0 8px #f59e0b; animation-name: pulse-orange;"></span>
@@ -148,8 +147,8 @@
                         </div>
                         <h1>Pindai Kode QR</h1>
                         <p>Buka WhatsApp -> Perangkat Tertaut -> Tautkan Perangkat, lalu arahkan kamera ke kode di bawah ini.</p>
-                        <div class="qr-wrapper">
-                            <img src="${qrUrl}" alt="QR Code" />
+                        <div class="qr-wrapper" style="width: 250px; height: 250px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;">
+                            ${data.qrSvg ? data.qrSvg : '<img src="/api/qr.svg?t=' + Date.now() + '" alt="QR Code" style="width: 100%; height: 100%;" />'}
                         </div>
                         <p style="font-size: 13px; color: #64748b;">Kode QR akan diperbarui secara otomatis setiap beberapa detik.</p>
                     `;

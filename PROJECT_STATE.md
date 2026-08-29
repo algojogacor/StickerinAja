@@ -31,7 +31,8 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 
 | Feature | Status | Files |
 |---|---|---|
-| Sticker creation | Active | `src/commands/sticker.js`, `src/utils/textRenderer.js` |
+| Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
+| Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, zero external API calls, Adblocker-proof | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
 | Reddit Sticker Bank | Active; four daily You.com discovery slots, targeted multi-subreddit meme filtering, duplicate/removed/generic-result protection, image + short-video support, persistent ready-state upsert, and quality-gated scheduled delivery | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Active and now runtime-scheduled | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Active | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
@@ -144,9 +145,10 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-07-15 | Opted-in adult-content policy | `REDDIT_ALLOW_NSFW=true` and `REDDIT_ALLOW_SPOILER=true` documented/configured; resolver allows by default and You.com uses `safesearch=off` unless explicitly disabled |
 | 2026-07-15 | Configurable Reddit frequency | `.env` set to 5 generator slots and 10 sender slots; loaded production configuration resolved to 5 generation times and 10 send times, all inside 07:00–22:00 WIB |
 | 2026-07-15 | `node --test` after configurable Reddit frequency | 259 pass, 0 fail, 0 skipped; 52 suites |
-| 2026-07-15 | Git publish | Commit `c1e023b` pushed and verified on `origin/main`; Koyeb redeploy not performed |
 | 2026-07-15 | `node --test test/birthday.test.js` | 8 pass, 0 fail, 0 skipped; Turso/memory service, formatter, scheduler contract, and command smoke |
 | 2026-07-15 | `node --check` Birthday modules and `index.js` | Pass |
+| 2026-08-30 | `node --test` across all suites after sticker modularization and canvas removal | 274 pass, 0 fail, 0 skipped; 57 suites |
+| 2026-08-30 | `node --test test/stickerModularServices.test.js test/stickerModuleLoad.test.js` | 8 pass, 0 fail, 0 skipped; SVG text/meme/quote/emoji/template rendering & QR SVG generation verified |
 
 The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb remains stopped and was not redeployed.
 

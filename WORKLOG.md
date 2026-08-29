@@ -6,7 +6,48 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 11 — Sticker modularization, pure Sharp SVG migration, and Web QR adblock fix
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 00:32 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `7113433` — `docs: record birthday takeover publish` |
+| **Working-tree status** | Clean |
+
+### Implementation
+
+- Created `src/services/sticker/svgRenderer.js`: Pure Sharp + SVG string compositing for plain text, meme stickers (top/bottom captions), quote cards, emoji stickers, and template banners (`label`, `warning`, `bubble`, `poster`).
+- Created `src/services/sticker/imageProcessor.js`: Handles static sticker preprocessing (grayscale, blur, sharpen, vintage, deepfried, glow, sepia, remove background) and `createFromMedia` execution.
+- Created `src/services/sticker/animatedProcessor.js`: Handles async multi-attempt FFmpeg video conversion and animated WebP optimization.
+- Created `src/services/sticker/converterService.js`: Handles `toImage`, `toGif`, `toMp4`, and `stickerInfo` commands.
+- Refactored `src/commands/sticker.js` from 1007 lines down to 226 clean lines as a high-level command router.
+- Removed `canvas` dependency entirely from `package.json` to eliminate glibc memory heap corruption (`free(): invalid size`).
+- Tuned Sharp in `index.js` with `sharp.cache(false)` and `sharp.concurrency(1)`.
+- Created `src/utils/qrHelper.js` with `generateQrSvg` and updated `src/utils/login.html` and `index.js` to serve self-hosted vector SVG QR codes, eliminating `ERR_BLOCKED_BY_CLIENT` from third-party adblockers.
+- Added comprehensive unit tests in `test/stickerModularServices.test.js` and updated `test/stickerModuleLoad.test.js`.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --check` over all modified and new modules | Pass |
+| `node --test test/stickerModularServices.test.js` | 7 pass, 0 fail, 0 skipped |
+| `node --test test/stickerModuleLoad.test.js` | 1 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 274 pass, 0 fail, 0 skipped; 57 suites (763ms) |
+| Zero `require('canvas')` occurrences across codebase | Verified |
+
+**Status: Completed**
+
+---
+
 ## Session 10 — Configurable Reddit send frequency
+
+
 
 | Field | Value |
 |---|---|

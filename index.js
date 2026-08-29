@@ -5,8 +5,15 @@ global.botState = {
     qr: null,
     user: null
 };
+
+// ⚡ Sharp memory optimization for Koyeb 512MB RAM environment
+const sharp = require('sharp');
+sharp.cache(false);
+sharp.concurrency(1);
+
 const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
 const { handler } = require('./src/handler');
+const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -55,7 +62,6 @@ function checkHermesAuth(req, res) {
 
 // ─── Hermes message wrapper for handler ───
 // Non-sticker-command messages → push to Hermes queue
-const { handler: originalHandler } = { handler };
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
@@ -170,8 +176,18 @@ http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()) }));
     } else if (url.pathname === '/api/status') {
+        const qrSvg = global.botState.qr ? generateQrSvg(global.botState.qr) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(global.botState));
+        res.end(JSON.stringify({ ...global.botState, qrSvg }));
+    } else if (url.pathname === '/api/qr' || url.pathname === '/api/qr.svg') {
+        if (!global.botState.qr) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('No active QR code available.');
+        } else {
+            const svg = generateQrSvg(global.botState.qr);
+            res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+            res.end(svg);
+        }
     } else if (url.pathname === '/qr-string') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end(global.botState.qr || 'No QR code available. Already connected or connecting...');
@@ -185,7 +201,6 @@ http.createServer(async (req, res) => {
 }).listen(PORT, () => {
     logger.info(`🌐 Server on port ${PORT} | Hermes relay: ${HERMES_SECRET ? '🔒 auth' : '⚠️ open'}`);
 });
-
 
 // ── Reddit Sticker Bank init ──
 const { init: initRedditStickerRepo } = require('./src/repositories/redditStickerRepository');
