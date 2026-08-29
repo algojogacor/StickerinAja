@@ -4,6 +4,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const fs = require('fs');
 const path = require('path');
 const { ffmpegQueue } = require('../../utils/cache');
+const { addExifToWebp } = require('../../utils/exifHelper');
 
 const TEMP_DIR = path.join(__dirname, '../../../temp');
 const MAX_STICKER_BYTES = 950 * 1024; // 950KB safe limit for WhatsApp
@@ -65,9 +66,10 @@ async function createAnimated({
                 stat = await fs.promises.stat(tempOutput);
             }
 
-            const stickerBuffer = await fs.promises.readFile(tempOutput);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info({ size: stat.size }, `✅ Animated sticker sent to ${remoteJid}`);
+            const rawStickerBuffer = await fs.promises.readFile(tempOutput);
+            const stickerWithMetadata = addExifToWebp(rawStickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithMetadata }, { quoted: msg });
+            logger.info({ size: stat.size }, `✅ Animated sticker with EXIF (pack: "${session?.pack}", author: "${session?.author}") sent to ${remoteJid}`);
         } catch (err) {
             logger.error({ err }, 'Animated sticker conversion error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal. Video mungkin corrupt atau FFmpeg error.' }, { quoted: msg });

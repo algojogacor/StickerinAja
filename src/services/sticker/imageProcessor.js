@@ -4,6 +4,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const fs = require('fs');
 const path = require('path');
 const { imageQueue } = require('../../utils/cache');
+const { addExifToWebp } = require('../../utils/exifHelper');
 
 const TEMP_DIR = path.join(__dirname, '../../../temp');
 
@@ -39,9 +40,10 @@ async function createFromMedia({ sock, msg, args, remoteJid, quotedMsg, quotedSt
                     .save(tempOutput);
             });
 
-            const stickerBuffer = await fs.promises.readFile(tempOutput);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ Sticker sent to ${remoteJid}`);
+            const rawStickerBuffer = await fs.promises.readFile(tempOutput);
+            const stickerWithMetadata = addExifToWebp(rawStickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithMetadata }, { quoted: msg });
+            logger.info(`✅ Sticker with EXIF (pack: "${session?.pack}", author: "${session?.author}") sent to ${remoteJid}`);
         } catch (err) {
             logger.error({ err }, 'Sticker conversion error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal membuat stiker.' }, { quoted: msg });

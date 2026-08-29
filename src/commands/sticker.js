@@ -26,6 +26,7 @@ const {
 } = require('../services/sticker/converterService');
 
 const { textStickerCache, imageQueue } = require('../utils/cache');
+const { addExifToWebp } = require('../utils/exifHelper');
 
 const TEMP_DIR = path.join(__dirname, '../../temp');
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760');
@@ -279,9 +280,10 @@ module.exports = {
             quality: session.quality || 90
         });
 
-        await sock.sendMessage(remoteJid, { sticker: imgBuffer }, { quoted: msg });
-        textStickerCache.set(textCacheKey, imgBuffer);
-        logger.info(`✅ Text sticker sent: "${displayText.slice(0, 30)}..."`);
+        const stickerWithExif = addExifToWebp(imgBuffer, session?.pack, session?.author);
+        await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+        textStickerCache.set(textCacheKey, stickerWithExif);
+        logger.info(`✅ Text sticker with EXIF sent: "${displayText.slice(0, 30)}..."`);
     },
 
     async createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {
@@ -301,8 +303,9 @@ module.exports = {
                 buffer = await this.download(sock, msg, quotedMsg, quotedStanza);
             }
             const stickerBuffer = await renderMemeSticker(buffer, top, bottom, session.quality || 90);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ Meme sticker sent to ${remoteJid}`);
+            const stickerWithExif = addExifToWebp(stickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+            logger.info(`✅ Meme sticker with EXIF sent to ${remoteJid}`);
         });
     },
 
@@ -316,8 +319,9 @@ module.exports = {
 
         await imageQueue.add(async () => {
             const stickerBuffer = await renderQuoteSticker(text, session.author, session.quality || 90);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ Quote sticker sent to ${remoteJid}`);
+            const stickerWithExif = addExifToWebp(stickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+            logger.info(`✅ Quote sticker with EXIF sent to ${remoteJid}`);
         });
     },
 
@@ -329,8 +333,9 @@ module.exports = {
 
         await imageQueue.add(async () => {
             const stickerBuffer = await renderEmojiSticker(Array.from(emoji).slice(0, 4).join(''), session.quality || 90);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ Emoji sticker sent to ${remoteJid}`);
+            const stickerWithExif = addExifToWebp(stickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+            logger.info(`✅ Emoji sticker with EXIF sent to ${remoteJid}`);
         });
     },
 
@@ -344,8 +349,9 @@ module.exports = {
 
         await imageQueue.add(async () => {
             const stickerBuffer = await renderTemplateSticker(text, cmdName, session.quality || 90);
-            await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { quoted: msg });
-            logger.info(`✅ ${cmdName} sticker sent to ${remoteJid}`);
+            const stickerWithExif = addExifToWebp(stickerBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+            logger.info(`✅ ${cmdName} sticker with EXIF sent to ${remoteJid}`);
         });
     }
 };

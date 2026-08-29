@@ -141,3 +141,35 @@ describe("handler extractMessageContent", () => {
   });
 });
 
+describe("exifHelper WebP Metadata Injection", () => {
+  const { createExif, addExifToWebp } = require("../src/utils/exifHelper");
+  const sharp = require("sharp");
+
+  it("generates valid EXIF binary buffer", () => {
+    const exif = createExif("MyPack", "MyAuthor");
+    assert.ok(Buffer.isBuffer(exif));
+    assert.ok(exif.length > 50);
+    assert.ok(exif.toString().includes("MyPack"));
+    assert.ok(exif.toString().includes("MyAuthor"));
+  });
+
+  it("injects EXIF metadata into WebP buffer successfully", async () => {
+    const rawWebp = await sharp({
+      create: { width: 512, height: 512, channels: 4, background: { r: 100, g: 150, b: 200, alpha: 1 } }
+    }).webp().toBuffer();
+
+    const withExif = addExifToWebp(rawWebp, "yg buat stiker femboy", "rtl femboy");
+    assert.ok(Buffer.isBuffer(withExif));
+    assert.ok(withExif.length > rawWebp.length);
+    assert.equal(withExif.slice(0, 4).toString(), "RIFF");
+    assert.equal(withExif.slice(8, 12).toString(), "WEBP");
+
+    const meta = await sharp(withExif).metadata();
+    assert.equal(meta.format, "webp");
+    assert.equal(meta.width, 512);
+    assert.ok(meta.exif);
+    assert.ok(meta.exif.toString().includes("rtl femboy"));
+    assert.ok(meta.exif.toString().includes("yg buat stiker femboy"));
+  });
+});
+

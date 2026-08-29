@@ -6,6 +6,45 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 17 — Inject WhatsApp WebP EXIF metadata (Pack Name & Author)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 01:09 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `50265c7` — `docs: record final session 16 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Restore WhatsApp sticker pack metadata (Pack Name: `STICKERIN_BOT_NAME`, Author: `STICKERIN_AUTHOR`) so stickers show custom pack details in WhatsApp chat.
+
+### Implementation
+
+- Created `src/utils/exifHelper.js` with pure JS WebP EXIF chunk builder and RIFF/VP8X container injector.
+- Connected `addExifToWebp` into `src/services/sticker/imageProcessor.js`, `src/services/sticker/animatedProcessor.js`, and all text/card commands in `src/commands/sticker.js`.
+- Added unit tests in `test/baselineRuntime.test.js` verifying EXIF binary generation and metadata preservation.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/baselineRuntime.test.js` | 35 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 281 pass, 0 fail, 0 skipped; 59 suites (692ms) |
+
+### Scope and deployment
+
+- Files modified: `src/utils/exifHelper.js`, `src/services/sticker/imageProcessor.js`, `src/services/sticker/animatedProcessor.js`, `src/commands/sticker.js`, `test/baselineRuntime.test.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 16 — Support direct caption commands for images and videos in addition to quoted replies
 
 | Field | Value |
