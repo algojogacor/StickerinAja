@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `948bbf3` — `docs: record final session 15 commit in worklog` |
-| **Ending HEAD** | In progress |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `948ba44` — `feat(handler): support direct media captions alongside quoted messages` |
+| **Working-tree status** | Clean |
 
 ### User request
 
