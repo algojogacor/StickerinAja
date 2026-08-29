@@ -6,6 +6,49 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 16 — Support direct caption commands for images and videos in addition to quoted replies
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 01:07 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `948bbf3` — `docs: record final session 15 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Allow `!s` command to work both when sent as a caption directly with an image/video and when replying (quoting) to an image/video.
+
+### Findings and root causes
+
+- `src/handler.js` previously only extracted text from `msg.message.conversation` and `msg.message.extendedTextMessage?.text`, ignoring `msg.message.imageMessage?.caption` and `msg.message.videoMessage?.caption`.
+
+### Implementation
+
+- Added `extractMessageContent` in `src/handler.js` to unwrap ephemeral, view-once, and caption messages (`imageMessage.caption`, `videoMessage.caption`, `documentMessage.caption`).
+- Updated `src/commands/sticker.js` to unwrap nested wrappers when detecting `isVideo` and `hasMedia`.
+- Added 5 unit tests for `extractMessageContent` in `test/baselineRuntime.test.js`.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/baselineRuntime.test.js` | 33 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 279 pass, 0 fail, 0 skipped; 58 suites (721ms) |
+
+### Scope and deployment
+
+- Files modified: `src/handler.js`, `src/commands/sticker.js`, `test/baselineRuntime.test.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 15 — Implement adaptive flexible duration and size-bounded encoding for video stickers
 
 | Field | Value |

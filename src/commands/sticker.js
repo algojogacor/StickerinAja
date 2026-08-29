@@ -105,9 +105,16 @@ module.exports = {
         }
 
         // ─── Default Media Sticker ───
-        const isVideo = !!(msg.message.videoMessage ||
-            quotedMsg?.videoMessage ||
-            quotedMsg?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage);
+        const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
+            m?.viewOnceMessage?.message ||
+            m?.viewOnceMessageV2?.message ||
+            m?.documentWithCaptionMessage?.message ||
+            m;
+
+        const directM = unwrapMsg(msg.message);
+        const quotedM = unwrapMsg(quotedMsg);
+
+        const isVideo = !!(directM?.videoMessage || quotedM?.videoMessage);
 
         if (isVideo) {
             await createAnimated({
@@ -137,9 +144,15 @@ module.exports = {
     },
 
     hasMedia(msg, quotedMsg) {
-        return !!(msg.message.imageMessage || msg.message.videoMessage ||
-            quotedMsg?.imageMessage || quotedMsg?.videoMessage ||
-            quotedMsg?.stickerMessage);
+        const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
+            m?.viewOnceMessage?.message ||
+            m?.viewOnceMessageV2?.message ||
+            m?.documentWithCaptionMessage?.message ||
+            m;
+        const directM = unwrapMsg(msg?.message);
+        const quotedM = unwrapMsg(quotedMsg);
+        return !!(directM?.imageMessage || directM?.videoMessage || directM?.stickerMessage ||
+            quotedM?.imageMessage || quotedM?.videoMessage || quotedM?.stickerMessage);
     },
 
     parseArgs(args) {

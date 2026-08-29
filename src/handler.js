@@ -33,20 +33,45 @@ function getSession(jid) {
     return state.get(jid);
 }
 
+function extractMessageContent(msg) {
+    if (!msg?.message) return { text: '', quotedMsg: null, quotedStanza: null };
+
+    let m = msg.message;
+    if (m.ephemeralMessage?.message) m = m.ephemeralMessage.message;
+    if (m.viewOnceMessage?.message) m = m.viewOnceMessage.message;
+    if (m.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+    if (m.documentWithCaptionMessage?.message) m = m.documentWithCaptionMessage.message;
+
+    const text = (
+        m.conversation ||
+        m.extendedTextMessage?.text ||
+        m.imageMessage?.caption ||
+        m.videoMessage?.caption ||
+        m.documentMessage?.caption ||
+        ''
+    ).trim();
+
+    const contextInfo =
+        m.extendedTextMessage?.contextInfo ||
+        m.imageMessage?.contextInfo ||
+        m.videoMessage?.contextInfo ||
+        m.documentMessage?.contextInfo;
+
+    const quotedMsg = contextInfo?.quotedMessage || null;
+    const quotedStanza = contextInfo?.stanzaId || null;
+
+    return { text, quotedMsg, quotedStanza };
+}
 
 async function handler(sock, msg, logger) {
-    const remoteJid = msg.key.remoteJid;
-    const messageText =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        '';
+    const remoteJid = msg.key?.remoteJid;
+    if (!remoteJid) return;
 
-    if (!messageText.startsWith(PREFIX)) return;
+    const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
+    if (!messageText || !messageText.startsWith(PREFIX)) return;
 
-    const [rawCmd, ...args] = messageText.slice(PREFIX.length).split(/\s+/);
+    const [rawCmd, ...args] = messageText.slice(PREFIX.length).trim().split(/\s+/);
     const cmdName = rawCmd.toLowerCase();
-    const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage;
-    const quotedStanza = msg.message.extendedTextMessage?.contextInfo?.stanzaId;
 
     const cmd = commands.get(cmdName);
     if (!cmd) return;
@@ -67,4 +92,4 @@ async function handler(sock, msg, logger) {
     }
 }
 
-module.exports = { handler, commands, getSession };
+module.exports = { handler, commands, getSession, extractMessageContent };

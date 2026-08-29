@@ -91,3 +91,53 @@ describe("contentHistory Exports", () => {
     assert.equal(typeof ch.getEntryCount, "function");
   });
 });
+
+describe("handler extractMessageContent", () => {
+  const { extractMessageContent } = require("../src/handler");
+
+  it("extracts text from plain conversation message", () => {
+    const res = extractMessageContent({ message: { conversation: "!s" } });
+    assert.equal(res.text, "!s");
+    assert.equal(res.quotedMsg, null);
+  });
+
+  it("extracts caption from direct imageMessage", () => {
+    const res = extractMessageContent({ message: { imageMessage: { caption: "!s --crop" } } });
+    assert.equal(res.text, "!s --crop");
+    assert.equal(res.quotedMsg, null);
+  });
+
+  it("extracts caption from direct videoMessage", () => {
+    const res = extractMessageContent({ message: { videoMessage: { caption: "!s" } } });
+    assert.equal(res.text, "!s");
+  });
+
+  it("extracts quoted message from extendedTextMessage", () => {
+    const quotedImage = { imageMessage: { url: "https://example.com/img.jpg" } };
+    const res = extractMessageContent({
+      message: {
+        extendedTextMessage: {
+          text: "!s",
+          contextInfo: { stanzaId: "stanza-123", quotedMessage: quotedImage }
+        }
+      }
+    });
+    assert.equal(res.text, "!s");
+    assert.deepEqual(res.quotedMsg, quotedImage);
+    assert.equal(res.quotedStanza, "stanza-123");
+  });
+
+  it("extracts from viewOnceMessage or ephemeralMessage wrappers", () => {
+    const res = extractMessageContent({
+      message: {
+        ephemeralMessage: {
+          message: {
+            imageMessage: { caption: "!s" }
+          }
+        }
+      }
+    });
+    assert.equal(res.text, "!s");
+  });
+});
+
