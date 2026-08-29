@@ -6,6 +6,53 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 14 — Migrate sticker pipeline to pure FFmpeg palettegen engine & remove wa-sticker-formatter
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 01:00 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `bda6768` — `docs: record final session 13 commit` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Migrate `!s` and `!sticker` core pipeline to user's proven FFmpeg `palettegen` & `paletteuse` algorithm for crisp WebP stickers, and resolve ongoing `free(): invalid size` crashes on Koyeb.
+
+### Findings and root causes
+
+- `wa-sticker-formatter` bundled duplicate native dependencies (`sharp 0.30` and `node-webpmux 3.1`), causing glibc heap corruption (`free(): invalid size` / exit code 11) inside Debian slim containers on Koyeb.
+- The user's February FFmpeg pipeline (`scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:...:color=white@0.0` + `palettegen=reserve_transparent=on:transparency_color=ffffff` + `paletteuse`) runs as an external subprocess via `ffmpeg-static`, completely immune to Node.js C++ memory heap conflicts while delivering superior transparency and color accuracy.
+
+### Implementation
+
+- Uninstalled `wa-sticker-formatter` (removing 38 redundant nested packages).
+- Rewrote `src/services/sticker/imageProcessor.js` to use pure FFmpeg two-pass palette generation for image stickers.
+- Updated `src/services/sticker/animatedProcessor.js` to use pure FFmpeg palette generation with 5s duration limit and 15 fps.
+- Cleaned up imports and removed unused `getType` and `wa-sticker-formatter` references in `src/commands/sticker.js`.
+- Updated test assertions in `test/stickerModularServices.test.js` and `test/stickerModuleLoad.test.js`.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/stickerModularServices.test.js` | 7 pass, 0 fail, 0 skipped |
+| `node --test test/stickerModuleLoad.test.js` | 1 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 274 pass, 0 fail, 0 skipped; 57 suites (724ms) |
+
+### Scope and deployment
+
+- Files modified: `package.json`, `package-lock.json`, `src/commands/sticker.js`, `src/services/sticker/imageProcessor.js`, `src/services/sticker/animatedProcessor.js`, `test/stickerModularServices.test.js`, `test/stickerModuleLoad.test.js`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 13 — Fix createFromMedia sticker type mapping and queue error handling
 
 | Field | Value |

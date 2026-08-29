@@ -12,7 +12,7 @@ describe("Sticker command module loading", () => {
     assert.ok(stickerCmd.names.includes("s"));
     assert.ok(stickerCmd.names.includes("sticker"));
     assert.ok(typeof svgRenderer.renderTextToWebP === "function");
-    assert.ok(typeof imageProcessor.preprocessImage === "function");
+    assert.ok(typeof imageProcessor.createFromMedia === "function");
     assert.ok(typeof animatedProcessor.createAnimated === "function");
     assert.ok(typeof converterService.toImage === "function");
   });

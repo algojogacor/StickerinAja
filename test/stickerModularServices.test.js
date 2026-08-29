@@ -12,9 +12,6 @@ const {
 } = require('../src/services/sticker/svgRenderer');
 
 const {
-    getStickerType,
-    hasImageTransforms,
-    removeSimpleBackground,
     createFromMedia
 } = require('../src/services/sticker/imageProcessor');
 
@@ -83,12 +80,6 @@ describe('Sticker Modular Services & SVG Rendering', () => {
         assert.ok(svg.includes('<path'));
     });
 
-    it('detects image transforms correctly', () => {
-        assert.equal(hasImageTransforms({}), false);
-        assert.equal(hasImageTransforms({ gray: true }), true);
-        assert.equal(hasImageTransforms({ blur: 4 }), true);
-        assert.equal(hasImageTransforms({ overlayText: 'test' }), true);
-    });
 
     it('creates sticker from media buffer successfully', async () => {
         const sampleImage = await sharp({

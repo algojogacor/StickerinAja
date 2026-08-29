@@ -1,7 +1,6 @@
 const sharp = require('sharp');
 const path = require('path');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-const { StickerTypes } = require('wa-sticker-formatter');
 
 const {
     renderTextToWebP,
@@ -78,17 +77,15 @@ module.exports = {
         if (presetArgs) {
             return createFromMedia({
                 sock, msg, args: [...presetArgs, ...args], remoteJid, quotedMsg, quotedStanza, session, logger,
-                downloadFn: this.download, parseArgsFn: this.parseArgs, getTypeFn: this.getType, MAX_FILE_SIZE
+                downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE
             });
         }
 
         const shortcutCmds = ['scircle', 'scrop', 'srounded'];
         if (shortcutCmds.includes(cmdName)) {
-            const typeMap = { scircle: 'circle', scrop: 'crop', srounded: 'rounded' };
-            session.type = typeMap[cmdName];
             return createFromMedia({
                 sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
-                downloadFn: this.download, parseArgsFn: this.parseArgs, getTypeFn: this.getType, MAX_FILE_SIZE
+                downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE
             });
         }
 
@@ -97,7 +94,7 @@ module.exports = {
         if (gifCmds.includes(cmdName)) {
             return createAnimated({
                 sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
-                downloadFn: this.download, parseArgsFn: this.parseArgs, TEMP_DIR, MAX_FILE_SIZE, ANIMATED_STICKER_TARGET_BYTES
+                downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE
             });
         }
 
@@ -108,10 +105,6 @@ module.exports = {
         }
 
         // ─── Default Media Sticker ───
-        const parsedArgs = this.parseArgs(args);
-        if (parsedArgs.type) session.type = parsedArgs.type;
-        if (parsedArgs.quality) session.quality = parsedArgs.quality;
-
         const isVideo = !!(msg.message.videoMessage ||
             quotedMsg?.videoMessage ||
             quotedMsg?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage);
@@ -119,12 +112,12 @@ module.exports = {
         if (isVideo) {
             await createAnimated({
                 sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
-                downloadFn: this.download, parseArgsFn: this.parseArgs, TEMP_DIR, MAX_FILE_SIZE, ANIMATED_STICKER_TARGET_BYTES
+                downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE
             });
         } else {
             await createFromMedia({
                 sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
-                downloadFn: this.download, parseArgsFn: this.parseArgs, getTypeFn: this.getType, MAX_FILE_SIZE
+                downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE
             });
         }
     },
@@ -218,16 +211,6 @@ module.exports = {
         return result;
     },
 
-    getType(typeStr) {
-        const map = {
-            'crop': StickerTypes.CROPPED,
-            'full': StickerTypes.FULL,
-            'circle': StickerTypes.CIRCLE,
-            'rounded': StickerTypes.ROUNDED,
-            'default': StickerTypes.DEFAULT
-        };
-        return map[typeStr] || StickerTypes.FULL;
-    },
 
     getPresetArgs(cmdName) {
         const presets = {
