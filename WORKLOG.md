@@ -6,6 +6,46 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 12 — Temporarily disable USD/IDR and News Briefing schedulers
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 00:46 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `7df612c` — `docs: finalize session 11 worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Clean |
+
+### User request
+
+Temporarily disable USD/IDR Market Intelligence and News Briefing schedulers via configuration without deleting any source files.
+
+### Implementation
+
+- Updated `.env.example` and local `.env` with `NEWS_SCHEDULER_ENABLED=false`, `FX_USD_IDR_ENABLED=false`, and `FX_USD_IDR_AUTO_SEND_ENABLED=false`.
+- Preserved all underlying services (`src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js`, `src/services/fxRate*.js`, `src/scheduler/fxCron.js`) and command handlers untouched so they can be re-enabled at any time.
+- Updated `PROJECT_STATE.md` to document the paused state of both features.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test` across all suites | 274 pass, 0 fail, 0 skipped; 57 suites (815ms) |
+| `.env` configuration check | `NEWS_SCHEDULER_ENABLED=false`, `FX_USD_IDR_ENABLED=false` set safely without printing secrets |
+
+### Scope and deployment
+
+- Files modified: `.env.example`, `PROJECT_STATE.md`, `WORKLOG.md`.
+- No source code deleted.
+
+**Status: Completed**
+
+---
+
 ## Session 11 — Sticker modularization, pure Sharp SVG migration, and Web QR adblock fix
 
 | Field | Value |

@@ -34,8 +34,8 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, zero external API calls, Adblocker-proof | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
 | Reddit Sticker Bank | Active; four daily You.com discovery slots, targeted multi-subreddit meme filtering, duplicate/removed/generic-result protection, image + short-video support, persistent ready-state upsert, and quality-gated scheduled delivery | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
-| News Service | Active and now runtime-scheduled | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
-| USD/IDR Market Intelligence | Active | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
+| News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
+| USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
 | Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
 
