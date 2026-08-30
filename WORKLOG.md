@@ -1467,3 +1467,28 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - Koyeb environment variables updated with `GIPHY_API_KEY`, `REDDIT_STICKER_SENDS_PER_DAY=24`, and `REDDIT_STICKER_SEND_COUNT=2`.
 - **Status:** Completed
 
+---
+
+## Session 21 — Fresh On-Demand Meme Delivery & 24-Hour Round-the-Clock Scheduler
+
+- **Date:** 2026-08-31
+- **Start:** 00:37 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Ensure no old/recycled stickers are ever re-sent (always fetch 100% fresh memes on-the-fly), allow `!gif` / `!sgif` without arguments to auto-fetch trending memes, and disable the 22:00 nighttime scheduler cutoff so stickers run 24 hours round-the-clock.
+- **Scope:**
+  - `src/repositories/redditStickerRepository.js`: Update `getReadyStickers` and `getLeastRecentlySent` to strictly select un-sent stickers (`sent_count = 0` / `NULL`). Never return or recycle already-sent records.
+  - `src/services/redditStickerDiscovery.js`: Completely remove You.com web search fallback from trending discovery to eliminate stale Reddit site banners/placeholders.
+  - `src/services/redditStickerService.js`: Update `sendReadyFromBank` to generate brand-new fresh memes from Meme-API & GIPHY on demand if no un-sent stickers exist in the bank. Add fallback query array for GIPHY when keyword is empty.
+  - `src/commands/reddit.js`: Update `!gif` and `!sgif` to allow empty keywords with automatic random trending meme search. Update status prompt to "🎭 Mencari meme terbaru...".
+  - `src/scheduler/windowedScheduler.js`: Add `SCHEDULER_ALLOW_24_HOURS` support and `allow24Hours` option to permit 24-hour non-stop runs (00:00 to 23:59 WIB) without 22:00 cutoff.
+  - `src/scheduler/redditStickerCron.js`: Enable `allow24Hours: true` and 24-hour time parser/distributor for round-the-clock delivery.
+  - Database: Purged 14 historical stale/placeholder records from Turso database.
+- **Branch:** `main`
+- **Ending HEAD:** `69c9e24`
+- **Verification:**
+  - `node --test test/*.test.js`: **295 pass, 0 fail, 0 skipped across 63 test suites**.
+  - Verified live on-demand fresh meme generation with Turso persistence and duplicate avoidance.
+  - Pushed to `origin/main` and updated Koyeb environment with `SCHEDULER_ALLOW_24_HOURS=true`.
+- **Status:** Completed
+
+
