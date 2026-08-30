@@ -130,12 +130,6 @@ module.exports = {
     // ── gif / giphy / sgif (GIPHY commands) ───────────
     if (canonical === "gif" || canonical === "sgif") {
       const query = args.join(" ").trim();
-      if (!query) {
-        await sock.sendMessage(remoteJid, {
-          text: `⚠️ Contoh penggunaan: *${PREFIX || "!"}${cmdName} funny cat*`,
-        }, { quoted: msg });
-        return;
-      }
       await handleGiphySearch(query, canonical === "sgif" ? "stickers" : "gifs", sock, msg, remoteJid, logger);
       return;
     }
@@ -144,7 +138,7 @@ module.exports = {
     const input = args.join(" ").trim();
 
     if (!input) {
-      // No args → send one from bank
+      // No args → send fresh meme
       await handleSendFromBank(sock, msg, remoteJid, logger);
       return;
     }
@@ -164,15 +158,19 @@ module.exports = {
 
 async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
   const typeLabel = type === "stickers" ? "stiker transparan" : "animasi GIF";
-  await sock.sendMessage(remoteJid, {
-    text: `🔍 Mencari ${typeLabel} "${keyword}" di GIPHY...`,
-  }, { quoted: msg });
+  const searchMsg = keyword
+    ? `🔍 Mencari ${typeLabel} "${keyword}" di GIPHY...`
+    : `🔍 Mengambil ${typeLabel} meme terbaru dari GIPHY...`;
+
+  await sock.sendMessage(remoteJid, { text: searchMsg }, { quoted: msg });
 
   try {
     const result = await searchAndSendGiphy(keyword, sock, remoteJid, { type, logger });
     if (!result.success) {
       await sock.sendMessage(remoteJid, {
-        text: `❌ Tidak ditemukan ${typeLabel} untuk "${keyword}". Coba kata kunci lain.`,
+        text: keyword
+          ? `❌ Tidak ditemukan ${typeLabel} untuk "${keyword}". Coba kata kunci lain.`
+          : `❌ Gagal mengambil ${typeLabel} dari GIPHY. Coba lagi sebentar.`,
       }, { quoted: msg });
     } else {
       logger?.info({ chat: remoteJid, postId: result.postId, title: result.title }, "✅ GIPHY sticker sent");
@@ -180,7 +178,7 @@ async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
   } catch (err) {
     logger?.error({ err }, "GIPHY sticker error");
     await sock.sendMessage(remoteJid, {
-      text: "❌ Gagal mencari di GIPHY. Coba kata kunci lain.",
+      text: "❌ Gagal mencari di GIPHY. Coba lagi.",
     }, { quoted: msg });
   }
 }

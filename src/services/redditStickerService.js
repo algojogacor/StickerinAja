@@ -437,15 +437,19 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
 
 // ── Search + send GIPHY ──────────────────────────────────────
 
+const RANDOM_GIF_QUERIES = ["funny meme", "dank meme", "reaction meme", "lol", "cat meme", "fail meme", "laughing meme", "comedy"];
+const RANDOM_STICKER_QUERIES = ["funny sticker", "meme reaction", "cat reaction", "funny face", "anime reaction"];
+
 async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", logger } = {}) {
-  const cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
+  let cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
   if (!cleanKeyword) {
-    throw new Error("Keyword kosong");
+    const list = type === "stickers" ? RANDOM_STICKER_QUERIES : RANDOM_GIF_QUERIES;
+    cleanKeyword = list[Math.floor(Math.random() * list.length)];
   }
 
   logger?.info({ keyword: cleanKeyword, type }, "[GIPHY Sticker] Search and send");
 
-  const candidates = await fetchGiphyPosts({ query: cleanKeyword, limit: 3, type, logger });
+  const candidates = await fetchGiphyPosts({ query: cleanKeyword, limit: 4, type, logger });
   if (candidates.length === 0) {
     return { success: false, reason: "no_results" };
   }

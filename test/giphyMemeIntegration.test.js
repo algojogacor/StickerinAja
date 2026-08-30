@@ -44,10 +44,9 @@ describe("Meme-API and GIPHY Integrations", () => {
     assert.ok(redditCommand.names.includes("meme"));
   });
 
-  it("rejects empty keywords safely", async () => {
-    await assert.rejects(
-      async () => searchAndSendGiphy("", {}, "dummy@g.us"),
-      /Keyword kosong/i
-    );
+  it("handles empty keywords with fallback queries gracefully", async () => {
+    const dummySock = { sendMessage: async () => ({}) };
+    const res = await searchAndSendGiphy("", dummySock, "dummy@g.us");
+    assert.ok(typeof res === "object");
   });
 });
