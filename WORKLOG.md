@@ -17,7 +17,7 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `28c9506` — `docs: record final session 18 commit in worklog` |
-| **Ending HEAD** | `815b4ee` — `fix(baileys): allow @lid JIDs and pass session botMode to handler for selfbot replies` |
+| **Ending HEAD** | `aff3c89` — `chore: remove unused Hermes HTTP relay module and endpoints` |
 | **Working-tree status** | Clean |
 
 ### User request
@@ -30,6 +30,7 @@ Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 5. Support running 2 WhatsApp sessions (Nomor Pribadi + Nomor Bot) simultaneously in 1 Koyeb instance with Turso database persistence.
 6. Push to GitHub and update environment variables on Koyeb CLI.
 7. Diagnose and fix selfbot message processing (allowing `@lid` multi-device JIDs, resolving session-specific `botMode`, unwrap ephemeral quoted media in `!toimg`).
+8. Remove unused Hermes HTTP relay module and endpoints per user request to keep codebase clean and minimal.
 
 ### Implementation
 
@@ -38,17 +39,18 @@ Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 - Implemented Multi-Session WhatsApp architecture:
   - `src/core/socket.js`: supports managing multiple named sockets (`setSock`, `getSock`, `clearSock`, `getAllSocks`) so disconnecting one socket never touches or clears other active sessions.
   - `src/baileys.js`: added `startSession` and `startBot({ sessions })` allowing multiple Baileys connections in parallel with isolated reconnect loops and Turso auth storage. Fixed `shouldIgnoreJid` to allow `@lid` multi-device JIDs.
-  - `index.js`: parses `MULTI_SESSION=true` or `SESSIONS=pribadi:self,bot:public` into isolated sessions, passes `sessionId` to `hermesAwareHandler` and `handler` to respect per-session `botMode`.
+  - `index.js`: parses `MULTI_SESSION=true` or `SESSIONS=pribadi:self,bot:public` into isolated sessions, passes `sessionId` to `messageHandler` and `handler` to respect per-session `botMode`.
   - `src/commands/sticker.js` & `src/services/sticker/converterService.js`: improved `download` to pass `participant` context on quoted media and added message unwrapping for ephemeral/viewOnce quoted stickers in `!toimg`, `!togif`, and `!tomp4`.
   - `src/utils/login.html`: upgraded web interface with tabbed multi-session switching (📱 Nomor Pribadi / 🤖 Nomor Bot) for scanning QR codes and monitoring connection status.
+- Completely removed unused Hermes HTTP relay module and routes (`/hermes/send`, `/hermes/typing`, `/hermes/messages`, `/hermes/health`) and in-memory queue from `index.js` and `src/baileys.js`.
 - Updated `messages.upsert` in `src/baileys.js` to use `shouldProcessMessage`.
-- Updated `hermesAwareHandler` in `index.js` to use `extractMessageContent` and `shouldProcessMessage`, and ignore bot's own non-command outputs from being pushed to Hermes or triggering birthday takeover wishes.
+- Updated `messageHandler` in `index.js` to record birthday wishes while ignoring bot's own outputs.
 - Updated `isPrivileged` in `src/commands/fx.js` and `src/commands/reddit.js` to ensure `fromMe: true` is always privileged for owner commands.
 - Documented `BOT_MODE`, `MULTI_SESSION`, and `SESSIONS` in `.env.example`.
 - Added 5 unit tests in `test/baselineRuntime.test.js` and 3 unit tests in `test/multiSession.test.js`.
 - Updated standalone distribution package zip in `C:\Users\Arya Rizky\Downloads\StickerinAja-StickerOnly.zip`.
-- Committed and pushed `acf18e3` and `815b4ee` to `origin/main`.
-- Updated Koyeb environment variable `MULTI_SESSION=true` via Koyeb CLI and verified live deployment `7afc9bd4`.
+- Committed and pushed `acf18e3`, `815b4ee`, and `aff3c89` to `origin/main`.
+- Updated Koyeb environment variable `MULTI_SESSION=true` via Koyeb CLI and verified live deployment.
 
 ### Verification
 
@@ -56,10 +58,9 @@ Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 |---|---|
 | `node --test test/baselineRuntime.test.js` | 48 pass, 0 fail, 0 skipped |
 | `node --test test/multiSession.test.js` | 3 pass, 0 fail, 0 skipped |
-| `node --test` across entire repository | 291 pass, 0 fail, 0 skipped; 62 suites (1097ms) |
+| `node --test` across entire repository | 291 pass, 0 fail, 0 skipped; 62 suites (1419ms) |
 | Staging standalone sticker suite | 36 pass, 0 fail, 0 skipped; 7 suites (891ms) |
-| `git push origin main` | Pushed `acf18e3` & `815b4ee` |
-| Koyeb CLI deployment `7afc9bd4` | Succeeded (Healthy) |
+| `git push origin main` | Pushed `acf18e3`, `815b4ee`, `aff3c89` |
 | Live Koyeb `/api/status` check | Verified: Both `pribadi` and `bot` sessions connected live to WhatsApp |
 
 ### Scope
