@@ -17,17 +17,18 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `28c9506` — `docs: record final session 18 commit in worklog` |
-| **Ending HEAD** | `28c9506` (uncommitted / ready for review) |
-| **Working-tree status** | Modified |
+| **Ending HEAD** | `acf18e3` — `feat: add WhatsApp multi-session and selfbot mode support` |
+| **Working-tree status** | Clean |
 
 ### User request
 
-Implement Selfbot / 1-Number mode for WhatsApp sticker bot:
+Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 1. Add `BOT_MODE` configuration (`public`, `self`, `dual` / default `dual`).
 2. Update `messages.upsert` and handler filtering to support `fromMe === true` according to mode.
 3. Prevent infinite loops (require prefix validation before command execution, avoid processing automated bot outputs).
 4. Ensure target JID and media download (including quoted messages & direct captions) work seamlessly when triggered by own number.
-5. Validate all commands and run tests.
+5. Support running 2 WhatsApp sessions (Nomor Pribadi + Nomor Bot) simultaneously in 1 Koyeb instance with Turso database persistence.
+6. Push to GitHub and update environment variables on Koyeb CLI.
 
 ### Implementation
 
@@ -35,7 +36,7 @@ Implement Selfbot / 1-Number mode for WhatsApp sticker bot:
 - Added `getSenderJid(msg, sock)` in `src/handler.js` to normalize sender JID when `fromMe === true` (using `sock.user.id` without device suffix, or falling back to `msg.key.participant` / `msg.key.remoteJid`).
 - Implemented Multi-Session WhatsApp architecture:
   - `src/core/socket.js`: supports managing multiple named sockets (`setSock`, `getSock`, `clearSock`, `getAllSocks`) so disconnecting one socket never touches or clears other active sessions.
-  - `src/baileys.js`: added `startSession` and `startBot({ sessions })` allowing multiple Baileys connections in parallel with isolated reconnect loops and auth storage.
+  - `src/baileys.js`: added `startSession` and `startBot({ sessions })` allowing multiple Baileys connections in parallel with isolated reconnect loops and Turso auth storage.
   - `index.js`: parses `MULTI_SESSION=true` or `SESSIONS=pribadi:self,bot:public` into isolated sessions and exposes session-aware API endpoints (`/api/status`, `/api/qr?session=...`, `/qr-string?session=...`).
   - `src/utils/login.html`: upgraded web interface with tabbed multi-session switching (📱 Nomor Pribadi / 🤖 Nomor Bot) for scanning QR codes and monitoring connection status.
 - Updated `messages.upsert` in `src/baileys.js` to use `shouldProcessMessage`.
@@ -44,6 +45,8 @@ Implement Selfbot / 1-Number mode for WhatsApp sticker bot:
 - Documented `BOT_MODE`, `MULTI_SESSION`, and `SESSIONS` in `.env.example`.
 - Added 5 unit tests in `test/baselineRuntime.test.js` and 3 unit tests in `test/multiSession.test.js`.
 - Updated standalone distribution package zip in `C:\Users\Arya Rizky\Downloads\StickerinAja-StickerOnly.zip`.
+- Committed and pushed `acf18e3` to `origin/main`.
+- Updated Koyeb environment variable `MULTI_SESSION=true` via Koyeb CLI and verified live deployment.
 
 ### Verification
 
@@ -53,6 +56,9 @@ Implement Selfbot / 1-Number mode for WhatsApp sticker bot:
 | `node --test test/multiSession.test.js` | 3 pass, 0 fail, 0 skipped |
 | `node --test` across entire repository | 291 pass, 0 fail, 0 skipped; 62 suites (1719ms) |
 | Staging standalone sticker suite | 36 pass, 0 fail, 0 skipped; 7 suites (891ms) |
+| `git push origin main` | Pushed `28c9506..acf18e3` |
+| Koyeb CLI `koyeb service update --env MULTI_SESSION=true` | Succeeded |
+| Live Koyeb `/api/status` check | Verified: `bot` session connected immediately from Turso; `pribadi` session waiting for QR scan |
 
 ### Scope
 
