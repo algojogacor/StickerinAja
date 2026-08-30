@@ -17,7 +17,7 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `28c9506` — `docs: record final session 18 commit in worklog` |
-| **Ending HEAD** | `c28831f` — `fix(reddit): set default discovery freshness to year to maximize search recall` |
+| **Ending HEAD** | `d3ddca6` — `fix(reddit): filter out placeholder banners and add on-demand fallback download` |
 | **Working-tree status** | Clean |
 
 ### User request
@@ -32,6 +32,7 @@ Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 7. Diagnose and fix selfbot message processing (allowing `@lid` multi-device JIDs, resolving session-specific `botMode`, unwrap ephemeral quoted media in `!toimg`).
 8. Remove unused Hermes HTTP relay module and endpoints per user request to keep codebase clean and minimal.
 9. Diagnose Reddit discovery generator returning 0 stickers: fix search freshness parameter so You.com search API returns full search results, and add `!id` command.
+10. Fix Reddit sticker returning generic placeholder/banner image: filter out Reddit deleted placeholder URLs (`o0h58lzmax6a1`), purge stale database entries, and add on-demand media download/conversion fallback for ephemeral containers.
 
 ### Implementation
 
@@ -47,16 +48,30 @@ Implement Selfbot / 1-Number mode and Multi-Session for WhatsApp sticker bot:
 - Added `!id` (and `!jid`, `!groupid`) in `src/commands/settings.js` so users can easily view the current group/chat JID.
 - Fixed Reddit discovery search parameter in `src/services/redditStickerDiscovery.js`: You.com web search requires `freshness` to be `"year"` or omitted (instead of `"day"`) for Reddit queries to return full indexed results, yielding 60+ candidates per generation.
 - Added meme communities to `AUTOMATED_MEME_SUBREDDITS` in `src/services/redditStickerService.js`.
+- Filtered out Reddit placeholder images (e.g. `o0h58lzmax6a1`, generic banner assets, and deleted post titles) in `src/services/redditStickerDiscovery.js` and `src/services/redditMediaResolver.js`.
+- Added automatic on-demand media download and WebP conversion fallback in `sendOneSticker` and `sendReadyFromBank` (`src/services/redditStickerService.js`) so ephemeral container restarts on Koyeb never fail when a local file is missing.
+- Updated `getLeastRecentlySent` in `src/repositories/redditStickerRepository.js` to prioritize ready stickers and recently generated memes.
+- Purged 5 legacy placeholder entries from the Turso SQLite database.
 - Updated `messages.upsert` in `src/baileys.js` to use `shouldProcessMessage`.
 - Updated `messageHandler` in `index.js` to record birthday wishes while ignoring bot's own outputs.
 - Updated `isPrivileged` in `src/commands/fx.js` and `src/commands/reddit.js` to ensure `fromMe: true` is always privileged for owner commands.
 - Documented `BOT_MODE`, `MULTI_SESSION`, and `SESSIONS` in `.env.example`.
 - Added 5 unit tests in `test/baselineRuntime.test.js` and 3 unit tests in `test/multiSession.test.js`.
 - Updated standalone distribution package zip in `C:\Users\Arya Rizky\Downloads\StickerinAja-StickerOnly.zip`.
-- Committed and pushed `acf18e3`, `815b4ee`, `aff3c89`, `ee6cedd`, and `c28831f` to `origin/main`.
-- Updated Koyeb environment variable `MULTI_SESSION=true` and `GROUP_JID="120363328759898377@g.us"` via Koyeb CLI and verified live deployment.
+- Committed and pushed `acf18e3`, `815b4ee`, `aff3c89`, `ee6cedd`, `c28831f`, `6725a9d`, and `d3ddca6` to `origin/main`.
+- Updated Koyeb environment variable `MULTI_SESSION=true` and `GROUP_JID="120363328759898377@g.us"` via Koyeb CLI and verified live deployment `f32e4533`.
 
 ### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/baselineRuntime.test.js` | 48 pass, 0 fail, 0 skipped |
+| `node --test test/multiSession.test.js` | 3 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 291 pass, 0 fail, 0 skipped; 62 suites (5110ms) |
+| Staging standalone sticker suite | 36 pass, 0 fail, 0 skipped; 7 suites (891ms) |
+| `git push origin main` | Pushed `acf18e3`, `815b4ee`, `aff3c89`, `ee6cedd`, `c28831f`, `6725a9d`, `d3ddca6` |
+| Koyeb CLI deployment `f32e4533` | Succeeded (Healthy & Connected on both sessions) |
+| Live Koyeb `/api/status` check | Verified: Both `pribadi` and `bot` sessions connected live to WhatsApp |
 
 | Command/check | Result |
 |---|---|
