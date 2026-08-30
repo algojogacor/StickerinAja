@@ -206,4 +206,50 @@ describe("Per-user session state and 6h expiration", () => {
   });
 });
 
+describe("Bot Mode & Message Processing (shouldProcessMessage & getSenderJid)", () => {
+  const { shouldProcessMessage, getSenderJid } = require("../src/handler");
+
+  it("handles dual mode (processes both self and incoming messages)", () => {
+    assert.equal(shouldProcessMessage({ key: { fromMe: true }, message: { conversation: "!s" } }, "dual"), true);
+    assert.equal(shouldProcessMessage({ key: { fromMe: false }, message: { conversation: "!s" } }, "dual"), true);
+  });
+
+  it("handles self mode (only processes messages sent by self)", () => {
+    assert.equal(shouldProcessMessage({ key: { fromMe: true }, message: { conversation: "!s" } }, "self"), true);
+    assert.equal(shouldProcessMessage({ key: { fromMe: false }, message: { conversation: "!s" } }, "self"), false);
+  });
+
+  it("handles public mode (only processes messages sent by others)", () => {
+    assert.equal(shouldProcessMessage({ key: { fromMe: true }, message: { conversation: "!s" } }, "public"), false);
+    assert.equal(shouldProcessMessage({ key: { fromMe: false }, message: { conversation: "!s" } }, "public"), true);
+  });
+
+  it("ignores messages without a message payload", () => {
+    assert.equal(shouldProcessMessage(null, "dual"), false);
+    assert.equal(shouldProcessMessage({}, "dual"), false);
+    assert.equal(shouldProcessMessage({ key: { fromMe: true } }, "dual"), false);
+  });
+
+  it("correctly extracts senderJid for selfbot and regular messages", () => {
+    const mockSock = { user: { id: "6289505630895:1@s.whatsapp.net" } };
+
+    // fromMe in group
+    const msgFromMeGroup = { key: { fromMe: true, remoteJid: "12345@g.us" } };
+    assert.equal(getSenderJid(msgFromMeGroup, mockSock), "6289505630895@s.whatsapp.net");
+
+    // fromMe in self-chat without sock.user fallback
+    const msgFromMeSelf = { key: { fromMe: true, remoteJid: "6289505630895@s.whatsapp.net" } };
+    assert.equal(getSenderJid(msgFromMeSelf, null), "6289505630895@s.whatsapp.net");
+
+    // regular incoming group message
+    const msgGroupOther = { key: { fromMe: false, remoteJid: "12345@g.us", participant: "628111111111@s.whatsapp.net" } };
+    assert.equal(getSenderJid(msgGroupOther, mockSock), "628111111111@s.whatsapp.net");
+
+    // regular incoming DM
+    const msgDmOther = { key: { fromMe: false, remoteJid: "628222222222@s.whatsapp.net" } };
+    assert.equal(getSenderJid(msgDmOther, mockSock), "628222222222@s.whatsapp.net");
+  });
+});
+
+
 

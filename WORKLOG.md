@@ -6,6 +6,62 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 19 — Implement Selfbot / Dual Mode (1-number & 2-number bot mode)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-08-30 |
+| **Start time** | 15:00 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `28c9506` — `docs: record final session 18 commit in worklog` |
+| **Ending HEAD** | `28c9506` (uncommitted / ready for review) |
+| **Working-tree status** | Modified |
+
+### User request
+
+Implement Selfbot / 1-Number mode for WhatsApp sticker bot:
+1. Add `BOT_MODE` configuration (`public`, `self`, `dual` / default `dual`).
+2. Update `messages.upsert` and handler filtering to support `fromMe === true` according to mode.
+3. Prevent infinite loops (require prefix validation before command execution, avoid processing automated bot outputs).
+4. Ensure target JID and media download (including quoted messages & direct captions) work seamlessly when triggered by own number.
+5. Validate all commands and run tests.
+
+### Implementation
+
+- Added `shouldProcessMessage(msg, botMode)` in `src/handler.js` to filter incoming/outgoing messages according to `BOT_MODE` (`dual`, `self`, `public`).
+- Added `getSenderJid(msg, sock)` in `src/handler.js` to normalize sender JID when `fromMe === true` (using `sock.user.id` without device suffix, or falling back to `msg.key.participant` / `msg.key.remoteJid`).
+- Implemented Multi-Session WhatsApp architecture:
+  - `src/core/socket.js`: supports managing multiple named sockets (`setSock`, `getSock`, `clearSock`, `getAllSocks`) so disconnecting one socket never touches or clears other active sessions.
+  - `src/baileys.js`: added `startSession` and `startBot({ sessions })` allowing multiple Baileys connections in parallel with isolated reconnect loops and auth storage.
+  - `index.js`: parses `MULTI_SESSION=true` or `SESSIONS=pribadi:self,bot:public` into isolated sessions and exposes session-aware API endpoints (`/api/status`, `/api/qr?session=...`, `/qr-string?session=...`).
+  - `src/utils/login.html`: upgraded web interface with tabbed multi-session switching (📱 Nomor Pribadi / 🤖 Nomor Bot) for scanning QR codes and monitoring connection status.
+- Updated `messages.upsert` in `src/baileys.js` to use `shouldProcessMessage`.
+- Updated `hermesAwareHandler` in `index.js` to use `extractMessageContent` and `shouldProcessMessage`, and ignore bot's own non-command outputs from being pushed to Hermes or triggering birthday takeover wishes.
+- Updated `isPrivileged` in `src/commands/fx.js` and `src/commands/reddit.js` to ensure `fromMe: true` is always privileged for owner commands.
+- Documented `BOT_MODE`, `MULTI_SESSION`, and `SESSIONS` in `.env.example`.
+- Added 5 unit tests in `test/baselineRuntime.test.js` and 3 unit tests in `test/multiSession.test.js`.
+- Updated standalone distribution package zip in `C:\Users\Arya Rizky\Downloads\StickerinAja-StickerOnly.zip`.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/baselineRuntime.test.js` | 48 pass, 0 fail, 0 skipped |
+| `node --test test/multiSession.test.js` | 3 pass, 0 fail, 0 skipped |
+| `node --test` across entire repository | 291 pass, 0 fail, 0 skipped; 62 suites (1719ms) |
+| Staging standalone sticker suite | 36 pass, 0 fail, 0 skipped; 7 suites (891ms) |
+
+### Scope
+
+- Files modified/created: `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `index.js`, `src/utils/login.html`, `src/commands/fx.js`, `src/commands/reddit.js`, `.env.example`, `test/baselineRuntime.test.js`, `test/multiSession.test.js`, `PROJECT_STATE.md`, `WORKLOG.md`.
+
+**Status: Completed**
+
+---
+
 ## Session 18 — Implement per-user 6-hour expiring session customization for pack name, author, and bot name
 
 | Field | Value |

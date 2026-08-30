@@ -11,6 +11,8 @@ const fxCron = require("../scheduler/fxCron");
 function isPrivileged(remoteJid, msg) {
   const OWNER_JID = process.env.OWNER_JID || "";
 
+  if (msg?.key?.fromMe) return true;
+
   // If OWNER_JID is not configured, admin commands require group admin
   // (bot must be group admin — msg.key.fromMe check).
   // This prevents random members from abusing admin commands.

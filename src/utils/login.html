@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stickerin Bot - WhatsApp Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-bg: rgba(30, 41, 59, 0.75);
             --primary: #10b981;
-            --primary-glow: rgba(16, 185, 129, 0.4);
+            --primary-glow: rgba(16, 185, 129, 0.35);
+            --amber: #f59e0b;
+            --amber-glow: rgba(245, 158, 11, 0.35);
+            --blue: #3b82f6;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
         }
@@ -31,84 +34,179 @@
         }
         .container {
             background: var(--card-bg);
-            backdrop-filter: blur(16px);
+            backdrop-filter: blur(18px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 24px;
-            padding: 40px;
+            border-radius: 28px;
+            padding: 36px 32px;
             width: 100%;
-            max-width: 450px;
+            max-width: 480px;
             text-align: center;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
             transition: all 0.3s ease;
         }
-        h1 {
-            font-size: 28px;
+        .app-title {
+            font-size: 26px;
             font-weight: 800;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             background: linear-gradient(135deg, #34d399 0%, #059669 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        p {
+        .app-subtitle {
             color: var(--text-muted);
-            font-size: 15px;
-            line-height: 1.5;
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 6px;
+            border-radius: 16px;
             margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px 14px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .tab-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        .tab-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .tab-dot.connected {
+            background: var(--primary);
+            box-shadow: 0 0 6px var(--primary);
+        }
+        .tab-dot.qr {
+            background: var(--amber);
+            box-shadow: 0 0 6px var(--amber);
         }
         .qr-wrapper {
             background: white;
             padding: 16px;
-            border-radius: 16px;
-            display: inline-block;
-            box-shadow: 0 8px 30px var(--primary-glow);
-            margin-bottom: 24px;
-        }
-        .qr-wrapper img {
-            display: block;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px var(--primary-glow);
+            margin: 16px 0 20px 0;
             width: 250px;
             height: 250px;
+            overflow: hidden;
+        }
+        .qr-wrapper svg, .qr-wrapper img {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
         .status-badge {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 100px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            background: rgba(16, 185, 129, 0.1);
+            margin-bottom: 12px;
+        }
+        .status-badge.connected {
+            background: rgba(16, 185, 129, 0.12);
             color: var(--primary);
-            margin-bottom: 16px;
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+        .status-badge.qr {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--amber);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        .status-badge.connecting {
+            background: rgba(59, 130, 246, 0.12);
+            color: var(--blue);
+            border: 1px solid rgba(59, 130, 246, 0.25);
         }
         .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
+        }
+        .status-dot.connected {
             background: var(--primary);
             box-shadow: 0 0 8px var(--primary);
-            animation: pulse 1.5s infinite;
+            animation: pulse-green 1.5s infinite;
         }
-        @keyframes pulse {
+        .status-dot.qr {
+            background: var(--amber);
+            box-shadow: 0 0 8px var(--amber);
+            animation: pulse-amber 1.5s infinite;
+        }
+        .status-dot.connecting {
+            background: var(--blue);
+            box-shadow: 0 0 8px var(--blue);
+            animation: pulse-blue 1.5s infinite;
+        }
+        @keyframes pulse-green {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
-        .loading {
-            width: 50px;
-            height: 50px;
+        @keyframes pulse-amber {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+        @keyframes pulse-blue {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .mode-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            margin-bottom: 12px;
+        }
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 1s infinite linear;
-            margin: 40px auto;
+            margin: 36px auto;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
         .footer {
-            margin-top: 16px;
+            margin-top: 24px;
             font-size: 12px;
             color: rgba(255, 255, 255, 0.3);
         }
@@ -116,62 +214,139 @@
 </head>
 <body>
     <div class="container">
-        <div id="app">
-            <div class="loading"></div>
-            <p>Menghubungkan ke bot...</p>
+        <h1 class="app-title">Stickerin Bot</h1>
+        <p class="app-subtitle">WhatsApp Multi-Session Dashboard</p>
+
+        <div id="tabs-container"></div>
+        <div id="session-card">
+            <div class="loading-spinner"></div>
+            <p style="color: var(--text-muted); font-size: 14px;">Menghubungkan ke server...</p>
         </div>
-        <div class="footer">Stickerin Bot &copy; 2026</div>
+
+        <div class="footer">Stickerin Bot &copy; 2026 — Koyeb Multi-Session</div>
     </div>
+
     <script>
-        async function checkStatus() {
+        let selectedSessionId = null;
+        let lastSessionsData = null;
+
+        function renderTabs(sessions) {
+            const tabsContainer = document.getElementById('tabs-container');
+            const sessionKeys = Object.keys(sessions);
+
+            if (sessionKeys.length <= 1) {
+                tabsContainer.innerHTML = '';
+                return;
+            }
+
+            if (!selectedSessionId || !sessions[selectedSessionId]) {
+                selectedSessionId = sessionKeys[0];
+            }
+
+            let tabsHtml = '<div class="tabs">';
+            for (const key of sessionKeys) {
+                const s = sessions[key];
+                const isActive = key === selectedSessionId;
+                const dotClass = s.status === 'connected' ? 'connected' : (s.status === 'qr' ? 'qr' : '');
+                tabsHtml += `
+                    <button class="tab-btn ${isActive ? 'active' : ''}" onclick="selectSession('${key}')">
+                        <span class="tab-dot ${dotClass}"></span>
+                        ${s.name || key}
+                    </button>
+                `;
+            }
+            tabsHtml += '</div>';
+            tabsContainer.innerHTML = tabsHtml;
+        }
+
+        function selectSession(sessionId) {
+            selectedSessionId = sessionId;
+            if (lastSessionsData) {
+                renderTabs(lastSessionsData);
+                renderCard(lastSessionsData[sessionId]);
+            }
+        }
+
+        function renderCard(session) {
+            const card = document.getElementById('session-card');
+            if (!session) return;
+
+            const modeLabel = session.botMode === 'self'
+                ? 'Mode: Selfbot (1-Nomor / Pribadi)'
+                : (session.botMode === 'public' ? 'Mode: Publik (Nomor Bot)' : 'Mode: Dual (Pribadi & Publik)');
+
+            if (session.status === 'connected') {
+                card.innerHTML = `
+                    <div class="status-badge connected">
+                        <span class="status-dot connected"></span>
+                        Terhubung
+                    </div>
+                    <div><span class="mode-pill">${modeLabel}</span></div>
+                    <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">WhatsApp Aktif!</h2>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">
+                        Masuk sebagai: <b style="color: var(--text-main);">${session.user?.name || session.user?.id || 'WhatsApp User'}</b>
+                    </p>
+                    <p style="font-size: 13px; color: #64748b;">Sesi ini siap memproses perintah stiker WhatsApp.</p>
+                `;
+            } else if (session.status === 'qr' && (session.qrSvg || session.qr)) {
+                card.innerHTML = `
+                    <div class="status-badge qr">
+                        <span class="status-dot qr"></span>
+                        Menunggu Pemindaian
+                    </div>
+                    <div><span class="mode-pill">${modeLabel}</span></div>
+                    <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">Pindai Kode QR</h2>
+                    <p style="color: var(--text-muted); font-size: 13px;">Buka WhatsApp &gt; Perangkat Tertaut &gt; Tautkan Perangkat</p>
+                    <div class="qr-wrapper">
+                        ${session.qrSvg ? session.qrSvg : '<img src="/api/qr.svg?session=' + session.id + '&t=' + Date.now() + '" alt="QR Code" />'}
+                    </div>
+                    <p style="font-size: 12px; color: #64748b;">Kode QR diperbarui otomatis setiap beberapa detik.</p>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="status-badge connecting">
+                        <span class="status-dot connecting"></span>
+                        Menghubungkan
+                    </div>
+                    <div><span class="mode-pill">${modeLabel}</span></div>
+                    <div class="loading-spinner"></div>
+                    <p style="color: var(--text-muted); font-size: 14px;">Menyiapkan koneksi WhatsApp...</p>
+                `;
+            }
+        }
+
+        async function fetchStatus() {
             try {
                 const res = await fetch('/api/status');
                 const data = await res.json();
-                const app = document.getElementById('app');
-                
-                if (data.status === 'connected') {
-                    app.innerHTML = `
-                        <div class="status-badge">
-                            <span class="status-dot"></span>
-                            Terhubung
-                        </div>
-                        <h1>WhatsApp Terhubung!</h1>
-                        <p style="margin-top: 10px;">Bot sudah siap digunakan sebagai <b>${data.user?.name || data.user?.id || 'Stickerin Bot'}</b>.</p>
-                        <p>Anda bisa menutup halaman ini sekarang.</p>
-                    `;
-                } else if (data.status === 'qr' && (data.qrSvg || data.qr)) {
-                    app.innerHTML = `
-                        <div class="status-badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2);">
-                            <span class="status-dot" style="background: #f59e0b; box-shadow: 0 0 8px #f59e0b; animation-name: pulse-orange;"></span>
-                            Menunggu Pemindaian
-                        </div>
-                        <h1>Pindai Kode QR</h1>
-                        <p>Buka WhatsApp -> Perangkat Tertaut -> Tautkan Perangkat, lalu arahkan kamera ke kode di bawah ini.</p>
-                        <div class="qr-wrapper" style="width: 250px; height: 250px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;">
-                            ${data.qrSvg ? data.qrSvg : '<img src="/api/qr.svg?t=' + Date.now() + '" alt="QR Code" style="width: 100%; height: 100%;" />'}
-                        </div>
-                        <p style="font-size: 13px; color: #64748b;">Kode QR akan diperbarui secara otomatis setiap beberapa detik.</p>
-                    `;
+
+                if (data.sessions && Object.keys(data.sessions).length > 0) {
+                    lastSessionsData = data.sessions;
+                    renderTabs(data.sessions);
+                    if (!selectedSessionId || !data.sessions[selectedSessionId]) {
+                        selectedSessionId = Object.keys(data.sessions)[0];
+                    }
+                    renderCard(data.sessions[selectedSessionId]);
                 } else {
-                    app.innerHTML = `
-                        <div class="loading"></div>
-                        <h1>Menghubungkan...</h1>
-                        <p>Sedang menyiapkan koneksi WhatsApp. Silakan tunggu.</p>
-                    `;
+                    // Single session fallback
+                    const single = {
+                        id: 'default',
+                        name: 'WhatsApp Session',
+                        status: data.status,
+                        user: data.user,
+                        qr: data.qr,
+                        qrSvg: data.qrSvg,
+                        botMode: 'dual'
+                    };
+                    renderCard(single);
                 }
             } catch (err) {
-                console.error(err);
+                console.error('Failed to fetch status:', err);
             }
         }
-        setInterval(checkStatus, 3000);
-        checkStatus();
+
+        setInterval(fetchStatus, 2500);
+        fetchStatus();
     </script>
-    <style>
-        @keyframes pulse-orange {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-    </style>
 </body>
 </html>

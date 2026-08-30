@@ -20,10 +20,46 @@ const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 // Shared state across commands (per-user pack/author settings)
 const state = new Map();
 
+function shouldProcessMessage(msg, botMode = process.env.BOT_MODE || 'dual') {
+    if (!msg || !msg.message) return false;
+
+    const fromMe = Boolean(msg.key?.fromMe);
+    const mode = String(botMode || 'dual').toLowerCase().trim();
+
+    if (mode === 'self') {
+        return fromMe;
+    }
+    if (mode === 'public') {
+        return !fromMe;
+    }
+    // 'dual' or default fallback: process both fromMe and !fromMe
+    return true;
+}
+
+function getSenderJid(msg, sock) {
+    if (msg?.key?.fromMe) {
+        if (sock?.user?.id) {
+            return sock.user.id.replace(/:.*@/, '@');
+        }
+        return msg?.key?.participant || msg?.key?.remoteJid;
+    }
+    return msg?.key?.participant || msg?.key?.remoteJid;
+}
+
 function getSession(userJid) {
     const now = Date.now();
     const defaultPack = process.env.STICKERIN_BOT_NAME || 'Stikerin Aja';
     const defaultAuthor = process.env.STICKERIN_AUTHOR || 'Bot';
+
+    if (!userJid) {
+        return {
+            pack: defaultPack,
+            author: defaultAuthor,
+            quality: 80,
+            type: 'default',
+            customExpiresAt: null
+        };
+    }
 
     if (!state.has(userJid)) {
         state.set(userJid, {
@@ -79,8 +115,10 @@ async function handler(sock, msg, logger) {
     const remoteJid = msg.key?.remoteJid;
     if (!remoteJid) return;
 
-    // Per-user session tracking (in groups, participant is user's direct JID)
-    const senderJid = msg.key?.participant || remoteJid;
+    if (!shouldProcessMessage(msg, process.env.BOT_MODE || 'dual')) return;
+
+    // Per-user session tracking (in groups, participant is user's direct JID; for fromMe, use bot user JID)
+    const senderJid = getSenderJid(msg, sock);
 
     const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
     if (!messageText || !messageText.startsWith(PREFIX)) return;
@@ -91,7 +129,7 @@ async function handler(sock, msg, logger) {
     const cmd = commands.get(cmdName);
     if (!cmd) return;
 
-    logger.info({ cmd: cmdName, chat: remoteJid, sender: senderJid }, `→ ${cmdName}`);
+    logger.info({ cmd: cmdName, chat: remoteJid, sender: senderJid, fromMe: Boolean(msg.key?.fromMe) }, `→ ${cmdName}`);
 
     try {
         await cmd.execute({
@@ -107,4 +145,11 @@ async function handler(sock, msg, logger) {
     }
 }
 
-module.exports = { handler, commands, getSession, extractMessageContent };
+module.exports = {
+    handler,
+    commands,
+    getSession,
+    getSenderJid,
+    shouldProcessMessage,
+    extractMessageContent
+};

@@ -73,7 +73,7 @@ module.exports = {
       (remoteJid === OWNER_JID || msg.key.participant === OWNER_JID);
     const isGroup = remoteJid.endsWith("@g.us");
     const isAdmin = isGroup && msg.key.fromMe;
-    const isPrivileged = isOwner || isAdmin;
+    const isPrivileged = Boolean(msg.key?.fromMe || isOwner || isAdmin);
 
     // ── rbank / memebank ──────────────────────────────
     if (canonical === "rbank") {

@@ -12,7 +12,7 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
-const { handler } = require('./src/handler');
+const { handler, extractMessageContent, shouldProcessMessage } = require('./src/handler');
 const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
 const fs = require('fs');
@@ -66,16 +66,18 @@ const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
 async function hermesAwareHandler(sock, msg, logger) {
-    const messageText =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
-        msg.message.videoMessage?.caption ||
-        '';
+    if (!shouldProcessMessage(msg, process.env.BOT_MODE || 'dual')) return;
+
+    const { text: messageText } = extractMessageContent(msg);
 
     // If it looks like a sticker command, process normally
     if (messageText.startsWith(PREFIX)) {
         return handler(sock, msg, logger);
+    }
+
+    // Do not queue bot's own non-command outputs to Hermes or record as birthday wishes
+    if (msg.key?.fromMe) {
+        return;
     }
 
     // Birthday wishes are replies to the card message; persistence is best-effort.
@@ -85,7 +87,7 @@ async function hermesAwareHandler(sock, msg, logger) {
         logger.debug({ err: error }, '[Birthday] Failed to record wish');
     }
 
-    // Non-command message → queue for Hermes
+    // Non-command message from others → queue for Hermes
     pushToHermesQueue(msg);
 }
 
@@ -174,23 +176,51 @@ http.createServer(async (req, res) => {
     // ─── Existing endpoints ───
     if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()) }));
+        res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()), sessions: global.botSessions || undefined }));
     } else if (url.pathname === '/api/status') {
+        const sessionData = {};
+        if (global.botSessions) {
+            for (const [id, s] of Object.entries(global.botSessions)) {
+                sessionData[id] = {
+                    ...s,
+                    qrSvg: s.qr ? generateQrSvg(s.qr) : null
+                };
+            }
+        }
         const qrSvg = global.botState.qr ? generateQrSvg(global.botState.qr) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ...global.botState, qrSvg }));
+        res.end(JSON.stringify({
+            ...global.botState,
+            qrSvg,
+            sessions: Object.keys(sessionData).length > 0 ? sessionData : undefined
+        }));
     } else if (url.pathname === '/api/qr' || url.pathname === '/api/qr.svg') {
-        if (!global.botState.qr) {
+        const reqSession = url.searchParams.get('session');
+        let targetQr = null;
+        if (reqSession && global.botSessions?.[reqSession]) {
+            targetQr = global.botSessions[reqSession].qr;
+        } else {
+            targetQr = global.botState.qr;
+        }
+
+        if (!targetQr) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('No active QR code available.');
         } else {
-            const svg = generateQrSvg(global.botState.qr);
+            const svg = generateQrSvg(targetQr);
             res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
             res.end(svg);
         }
     } else if (url.pathname === '/qr-string') {
+        const reqSession = url.searchParams.get('session');
+        let targetQr = null;
+        if (reqSession && global.botSessions?.[reqSession]) {
+            targetQr = global.botSessions[reqSession].qr;
+        } else {
+            targetQr = global.botState.qr;
+        }
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end(global.botState.qr || 'No QR code available. Already connected or connecting...');
+        res.end(targetQr || 'No QR code available. Already connected or connecting...');
     } else if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(loginHtml);
@@ -246,8 +276,54 @@ async function initializeFx() {
   }
 }
 
+function resolveBotSessions() {
+    const isMulti = process.env.MULTI_SESSION === 'true' || Boolean(process.env.SESSIONS);
+    if (!isMulti) {
+        return null;
+    }
+
+    if (process.env.SESSIONS) {
+        return process.env.SESSIONS.split(',').map(s => {
+            const parts = s.trim().split(':');
+            const id = parts[0].trim();
+            const mode = parts[1] ? parts[1].trim() : (id === 'pribadi' ? 'self' : 'public');
+            const defaultName = id === 'pribadi' ? 'Nomor Pribadi (Selfbot)' : (id === 'bot' ? 'Nomor Bot (Publik)' : `Sesi ${id}`);
+            const defaultTursoId = id === 'bot'
+                ? (process.env.TURSO_AUTH_SESSION_ID_BOT || process.env.TURSO_AUTH_SESSION_ID || 'default')
+                : (process.env.TURSO_AUTH_SESSION_ID_PRIBADI || id);
+            return {
+                sessionId: id,
+                sessionName: process.env[`SESSION_NAME_${id.toUpperCase()}`] || defaultName,
+                authDir: process.env[`AUTH_DIR_${id.toUpperCase()}`] || `./auth/${id}`,
+                botMode: process.env[`BOT_MODE_${id.toUpperCase()}`] || mode,
+                tursoSessionId: process.env[`TURSO_AUTH_SESSION_ID_${id.toUpperCase()}`] || defaultTursoId
+            };
+        });
+    }
+
+    // Standard 2-session preset when MULTI_SESSION=true
+    return [
+        {
+            sessionId: 'pribadi',
+            sessionName: process.env.SESSION_NAME_PRIBADI || 'Nomor Pribadi (Selfbot)',
+            authDir: process.env.AUTH_DIR_PRIBADI || './auth/pribadi',
+            botMode: process.env.BOT_MODE_PRIBADI || 'self',
+            tursoSessionId: process.env.TURSO_AUTH_SESSION_ID_PRIBADI || 'pribadi'
+        },
+        {
+            sessionId: 'bot',
+            sessionName: process.env.SESSION_NAME_BOT || 'Nomor Bot (Publik)',
+            authDir: process.env.AUTH_DIR_BOT || './auth/bot',
+            botMode: process.env.BOT_MODE_BOT || 'public',
+            tursoSessionId: process.env.TURSO_AUTH_SESSION_ID_BOT || process.env.TURSO_AUTH_SESSION_ID || 'default'
+        }
+    ];
+}
+
 startBot({
+    sessions: resolveBotSessions(),
     authDir: process.env.AUTH_DIR || './auth',
+    botMode: process.env.BOT_MODE || 'dual',
     logger,
     onMessage: (sock, msg) => hermesAwareHandler(sock, msg, logger),
     onConnectionOpen: async () => {
