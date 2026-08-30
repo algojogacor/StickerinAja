@@ -24,16 +24,20 @@ function parseTime(time) {
   return { hour, minute, totalMinutes: hour * 60 + minute };
 }
 
-function normalizeDailySlots(slots) {
+function normalizeDailySlots(slots, { allow24Hours = false } = {}) {
   if (!Array.isArray(slots) || slots.length === 0) {
     throw new Error("Windowed scheduler requires at least one daily slot");
   }
+
+  const is24h = allow24Hours || process.env.SCHEDULER_ALLOW_24_HOURS === "true" || process.env.SCHEDULER_24_HOURS === "true";
+  const startMin = is24h ? 0 : WINDOW_START_MINUTES;
+  const endMin = is24h ? 23 * 60 + 59 : WINDOW_END_MINUTES;
 
   const seen = new Set();
   return slots.map((slot) => {
     if (!slot?.id) throw new Error("Every scheduler slot requires an id");
     const parsed = parseTime(slot.time);
-    if (parsed.totalMinutes < WINDOW_START_MINUTES || parsed.totalMinutes > WINDOW_END_MINUTES) {
+    if (parsed.totalMinutes < startMin || parsed.totalMinutes > endMin) {
       throw new Error(`Scheduler slot ${slot.id}@${slot.time} is outside 07:00-22:00 WIB`);
     }
 
@@ -64,8 +68,8 @@ function toUtcFromJakarta(localDate, hour, minute) {
   ));
 }
 
-function getNextJakartaSlot(slots, currentTime = new Date()) {
-  const normalized = normalizeDailySlots(slots);
+function getNextJakartaSlot(slots, currentTime = new Date(), { allow24Hours = false } = {}) {
+  const normalized = normalizeDailySlots(slots, { allow24Hours });
   const now = currentTime instanceof Date ? currentTime : new Date(currentTime);
   if (Number.isNaN(now.getTime())) throw new Error("Invalid current scheduler time");
 
@@ -86,7 +90,9 @@ function getNextJakartaSlot(slots, currentTime = new Date()) {
   return { ...slot, date, key: `${date}:${slot.id}`, runAt };
 }
 
-function isInsideJakartaRuntimeWindow(currentTime = new Date()) {
+function isInsideJakartaRuntimeWindow(currentTime = new Date(), { allow24Hours = false } = {}) {
+  const is24h = allow24Hours || process.env.SCHEDULER_ALLOW_24_HOURS === "true" || process.env.SCHEDULER_24_HOURS === "true";
+  if (is24h) return true;
   const now = currentTime instanceof Date ? currentTime : new Date(currentTime);
   if (Number.isNaN(now.getTime())) return false;
   const jakartaNow = new Date(now.getTime() + JAKARTA_OFFSET_MS);
@@ -115,13 +121,15 @@ function createWindowedScheduler({
   slots,
   task,
   logger,
+  allow24Hours = false,
   now = () => new Date(),
   setTimer = setTimeout,
   clearTimer = clearTimeout,
   testIntervalMinutes = getTestIntervalMinutes(),
 }) {
   if (typeof task !== "function") throw new Error("Windowed scheduler requires a task function");
-  const normalizedSlots = normalizeDailySlots(slots);
+  const is24h = allow24Hours || process.env.SCHEDULER_ALLOW_24_HOURS === "true" || process.env.SCHEDULER_24_HOURS === "true";
+  const normalizedSlots = normalizeDailySlots(slots, { allow24Hours: is24h });
   const testIntervalMs = Number.isInteger(testIntervalMinutes)
     && testIntervalMinutes >= 1
     && testIntervalMinutes <= 60
@@ -172,7 +180,7 @@ function createWindowedScheduler({
       testSlotIndex += 1;
       nextSlot = buildTestSlot(baseSlot, testNextRunAt);
     } else {
-      nextSlot = getNextJakartaSlot(normalizedSlots, now());
+      nextSlot = getNextJakartaSlot(normalizedSlots, now(), { allow24Hours: is24h });
     }
     const delay = Math.max(0, nextSlot.runAt.getTime() - now().getTime());
     const scheduledSlot = nextSlot;
@@ -181,7 +189,7 @@ function createWindowedScheduler({
       timer = null;
       nextSlot = null;
       pendingSlot = scheduledSlot;
-      if (isInsideJakartaRuntimeWindow(now())) {
+      if (isInsideJakartaRuntimeWindow(now(), { allow24Hours: is24h })) {
         await executePending("scheduled");
       } else {
         logger?.warn({ slot: scheduledSlot.key }, `[${name}] Delayed slot retained outside the active WIB window`);
@@ -220,7 +228,7 @@ function createWindowedScheduler({
   }
 
   async function resume() {
-    if (!isInsideJakartaRuntimeWindow(now())) {
+    if (!isInsideJakartaRuntimeWindow(now(), { allow24Hours: is24h })) {
       logger?.info(`[${name}] Pending slot retained outside the 07:00-22:29 WIB runtime window`);
       return false;
     }

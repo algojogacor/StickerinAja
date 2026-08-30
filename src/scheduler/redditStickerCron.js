@@ -11,7 +11,12 @@ const DEFAULT_SENDER_TIMES = [
   "15:47", "17:20", "18:53", "20:27", "22:00",
 ];
 
+function is24HoursActive() {
+  return process.env.SCHEDULER_ALLOW_24_HOURS === "true" || process.env.SCHEDULER_24_HOURS === "true";
+}
+
 function parseScheduleTimes(value) {
+  const is24h = is24HoursActive();
   return String(value || "")
     .split(/[\s,]+/)
     .map((time) => time.trim())
@@ -21,7 +26,9 @@ function parseScheduleTimes(value) {
       if (!match) return false;
       const hour = Number(match[1]);
       const minute = Number(match[2]);
-      return hour >= 7 && hour <= 22 && minute >= 0 && minute <= 59;
+      const minHour = is24h ? 0 : 7;
+      const maxHour = is24h ? 23 : 22;
+      return hour >= minHour && hour <= maxHour && minute >= 0 && minute <= 59;
     });
 }
 
@@ -61,22 +68,24 @@ function buildSchedules(prefix, {
 }
 
 function getConfiguredGeneratorSchedules() {
+  const is24h = is24HoursActive();
   return buildSchedules("generate", {
     timesEnv: "REDDIT_STICKER_GENERATE_TIMES",
     countEnv: "REDDIT_STICKER_GENERATIONS_PER_DAY",
-    fallbackTimes: DEFAULT_GENERATOR_TIMES,
-    startMinutes: 7 * 60,
-    endMinutes: 21 * 60,
+    fallbackTimes: is24h ? ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"] : DEFAULT_GENERATOR_TIMES,
+    startMinutes: is24h ? 0 : 7 * 60,
+    endMinutes: is24h ? 20 * 60 : 21 * 60,
   });
 }
 
 function getConfiguredSenderSchedules() {
+  const is24h = is24HoursActive();
   return buildSchedules("send", {
     timesEnv: "REDDIT_STICKER_SEND_TIMES",
     countEnv: "REDDIT_STICKER_SENDS_PER_DAY",
     fallbackTimes: DEFAULT_SENDER_TIMES,
-    startMinutes: 8 * 60,
-    endMinutes: 22 * 60,
+    startMinutes: is24h ? 0 : 8 * 60,
+    endMinutes: is24h ? 23 * 60 : 22 * 60,
   });
 }
 
@@ -120,6 +129,7 @@ function start({ logger: log, groupJid: gid } = {}) {
       name: "Reddit Generator",
       slots: generatorSchedules,
       task: runGenerator,
+      allow24Hours: true,
       logger,
     });
     generatorScheduler.start();
@@ -130,6 +140,7 @@ function start({ logger: log, groupJid: gid } = {}) {
       name: "Reddit Sender",
       slots: senderSchedules,
       task: sendSticker,
+      allow24Hours: true,
       logger,
     });
     senderScheduler.start();
