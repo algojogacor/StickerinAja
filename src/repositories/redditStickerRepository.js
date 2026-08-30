@@ -214,7 +214,7 @@ async function getReadyStickers(limit = 10) {
   if (!ready || !client) return getReadyStickersMemory(limit);
   try {
     const result = await client.execute({
-      sql: `SELECT * FROM reddit_stickers WHERE status = 'ready' ORDER BY last_sent_at ASC NULLS FIRST, generated_at DESC LIMIT ?`,
+      sql: `SELECT * FROM reddit_stickers WHERE status = 'ready' AND (sent_count = 0 OR sent_count IS NULL) ORDER BY generated_at DESC LIMIT ?`,
       args: [limit],
     });
     return result.rows.map(rowToSticker);
@@ -227,7 +227,7 @@ async function getLeastRecentlySent(limit = 1) {
   if (!ready || !client) return getLeastRecentlySentMemory(limit);
   try {
     const result = await client.execute({
-      sql: `SELECT * FROM reddit_stickers WHERE status IN ('ready','sent') ORDER BY (status = 'ready') DESC, last_sent_at ASC NULLS FIRST, generated_at DESC LIMIT ?`,
+      sql: `SELECT * FROM reddit_stickers WHERE status = 'ready' AND (sent_count = 0 OR sent_count IS NULL) ORDER BY generated_at DESC LIMIT ?`,
       args: [limit],
     });
     return result.rows.map(rowToSticker);
@@ -346,21 +346,15 @@ function markStickerSentMemory(id) {
 
 function getReadyStickersMemory(limit) {
   return Array.from(stickerMemory.values())
-    .filter((s) => s.status === "ready")
-    .sort(
-      (a, b) =>
-        (a.lastSentAt || "").localeCompare(b.lastSentAt || "") ||
-        (b.generatedAt || "").localeCompare(a.generatedAt || "")
-    )
+    .filter((s) => s.status === "ready" && (s.sentCount === 0 || !s.sentCount))
+    .sort((a, b) => new Date(b.generatedAt || 0) - new Date(a.generatedAt || 0))
     .slice(0, limit);
 }
 
 function getLeastRecentlySentMemory(limit) {
   return Array.from(stickerMemory.values())
-    .filter((s) => s.status === "ready" || s.status === "sent")
-    .sort((a, b) =>
-      (a.lastSentAt || "").localeCompare(b.lastSentAt || "")
-    )
+    .filter((s) => s.status === "ready" && (s.sentCount === 0 || !s.sentCount))
+    .sort((a, b) => new Date(b.generatedAt || 0) - new Date(a.generatedAt || 0))
     .slice(0, limit);
 }
 

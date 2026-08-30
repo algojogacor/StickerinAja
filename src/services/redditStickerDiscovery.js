@@ -466,27 +466,6 @@ async function discoverTrendingPosts({ logger } = {}) {
     logger?.warn({ err: e.message }, "[Discovery] GIPHY fetch error");
   }
 
-  // 3. Fallback to You.com search if candidates are still low
-  if (candidates.length < 5 && YDC_API_KEY()) {
-    try {
-      const queries = DISCOVERY_QUERIES().slice(0, MAX_QUERIES());
-      const allResults = await Promise.allSettled(
-        queries.map((q) => searchReddit(q, { logger, freshness: FRESHNESS() }))
-      );
-      for (const result of allResults) {
-        if (result.status !== "fulfilled") continue;
-        for (const candidate of result.value) {
-          if (!seen.has(candidate.id)) {
-            seen.add(candidate.id);
-            candidates.push(candidate);
-          }
-        }
-      }
-    } catch (e) {
-      logger?.warn({ err: e.message }, "[Discovery] You.com fallback error");
-    }
-  }
-
   logger?.info({ total: candidates.length }, `[Discovery] Total ${candidates.length} candidates gathered`);
   return candidates;
 }

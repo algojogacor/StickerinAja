@@ -186,20 +186,20 @@ async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
 }
 
 async function handleSendFromBank(sock, msg, remoteJid, logger) {
-  await sock.sendMessage(remoteJid, { text: "🎭 Mencari stiker Reddit..." }, { quoted: msg });
+  await sock.sendMessage(remoteJid, { text: "🎭 Mencari meme terbaru..." }, { quoted: msg });
 
   try {
     const result = await sendReadyFromBank(sock, remoteJid, { logger });
     if (!result.success) {
       await sock.sendMessage(remoteJid, {
-        text: "🎭 Sticker Bank kosong. Gunakan *!reddit <keyword>* untuk mencari, atau tunggu scheduler mengisi ulang.",
+        text: "🎭 Sedang tidak ada meme baru yang tersedia. Coba ketik *!gif <kata kunci>* atau coba lagi sebentar.",
       }, { quoted: msg });
     }
-    logger?.info({ chat: remoteJid, postId: result.postId }, "✅ Bank sticker sent");
+    logger?.info({ chat: remoteJid, postId: result.postId }, "✅ Fresh meme sticker sent");
   } catch (err) {
-    logger?.error({ err }, "Bank sticker error");
+    logger?.error({ err }, "Fresh meme sticker error");
     await sock.sendMessage(remoteJid, {
-      text: "❌ Gagal mengirim stiker dari bank.",
+      text: "❌ Gagal mengambil meme baru. Coba lagi.",
     }, { quoted: msg });
   }
 }

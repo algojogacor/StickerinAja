@@ -613,30 +613,48 @@ async function importFromUrl(urlStr, sock, remoteJid, { logger } = {}) {
   return { success: false, reason: "file_missing" };
 }
 
-// ── Send sticker from bank ───────────────────────────────────
+// ── Send fresh sticker (on-demand or bank) ───────────────────
 
 async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
-  const stickers = await getLeastRecentlySent(1);
-  if (stickers.length === 0) {
-    // Auto-generate 1 on-demand
-    await generateStickers({ logger, count: 2 });
-    const fresh = await getLeastRecentlySent(1);
-    if (fresh.length === 0) {
-      return { success: false, reason: "bank_empty" };
+  // 1. Check for any un-sent ready stickers in bank first
+  const ready = await getReadyStickers(5);
+  const unSent = (ready || []).filter((s) => s.status === "ready" && (!s.sentCount || s.sentCount === 0));
+
+  let stickerToSend = null;
+
+  if (unSent.length > 0) {
+    stickerToSend = unSent[Math.floor(Math.random() * unSent.length)];
+  } else {
+    // 2. Bank has no un-sent stickers -> generate brand new ones directly from Meme-API & GIPHY!
+    logger?.info("[Fresh Meme] Fetching brand new meme candidates on-demand");
+    const candidates = await discoverTrendingPosts({ logger });
+    const eligible = filterAndRankPosts(candidates);
+
+    for (const post of eligible) {
+      const res = await processPost(post, { logger });
+      if (res.success) {
+        const fresh = await getStickerById(res.stickerId);
+        if (fresh) {
+          stickerToSend = fresh;
+          break;
+        }
+      }
     }
-    stickers.push(fresh[0]);
   }
 
-  const sticker = stickers[0];
+  if (!stickerToSend) {
+    return { success: false, reason: "no_fresh_candidates" };
+  }
+
   try {
     const fs = require("fs");
     let buffer = null;
-    if (sticker.localPath && fs.existsSync(sticker.localPath)) {
-      buffer = fs.readFileSync(sticker.localPath);
-    } else if (sticker.mediaUrl) {
+    if (stickerToSend.localPath && fs.existsSync(stickerToSend.localPath)) {
+      buffer = fs.readFileSync(stickerToSend.localPath);
+    } else if (stickerToSend.mediaUrl) {
       try {
-        const dl = await downloadMedia(sticker.mediaUrl);
-        const isAnim = isAnimatedMedia(sticker.mediaType);
+        const dl = await downloadMedia(stickerToSend.mediaUrl);
+        const isAnim = isAnimatedMedia(stickerToSend.mediaType);
         const conv = isAnim
           ? await convertAnimatedSticker(dl.filePath)
           : await convertStaticSticker(dl.filePath);
@@ -645,33 +663,33 @@ async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
           buffer = fs.readFileSync(conv.filePath);
         }
       } catch (dlErr) {
-        logger?.warn({ err: String(dlErr.message) }, "[Reddit Sticker] Fallback download for bank sticker failed");
+        logger?.warn({ err: String(dlErr.message) }, "[Fresh Meme] Fallback download failed");
       }
     }
 
     if (!buffer) {
-      await updateStickerStatus(sticker.id, "failed", "file_missing");
+      await updateStickerStatus(stickerToSend.id, "failed", "file_missing");
       return { success: false, reason: "file_missing" };
     }
 
     await sock.sendMessage(remoteJid, { sticker: buffer });
-    await markStickerSent(sticker.id);
+    await markStickerSent(stickerToSend.id);
 
     logger?.info({
       feature: "reddit_sticker",
-      redditPostId: sticker.redditPostId,
-      subreddit: sticker.subreddit,
-    }, `Sent bank sticker: ${sticker.redditPostId}`);
+      redditPostId: stickerToSend.redditPostId,
+      subreddit: stickerToSend.subreddit,
+    }, `Sent fresh sticker: ${stickerToSend.redditPostId}`);
 
     return {
       success: true,
-      postId: sticker.redditPostId,
-      subreddit: sticker.subreddit,
-      title: sticker.title,
-      stickerId: sticker.id,
+      postId: stickerToSend.redditPostId,
+      subreddit: stickerToSend.subreddit,
+      title: stickerToSend.title,
+      stickerId: stickerToSend.id,
     };
   } catch (err) {
-    logger?.warn({ error: String(err.message).slice(0, 100) }, "[Reddit Sticker] Failed to send bank sticker");
+    logger?.warn({ error: String(err.message).slice(0, 100) }, "[Fresh Meme] Failed to send sticker");
     return { success: false, reason: "send_failed" };
   }
 }
