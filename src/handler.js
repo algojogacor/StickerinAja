@@ -111,11 +111,12 @@ function extractMessageContent(msg) {
     return { text, quotedMsg, quotedStanza };
 }
 
-async function handler(sock, msg, logger) {
+async function handler(sock, msg, logger, sessionId = null, botMode = null) {
     const remoteJid = msg.key?.remoteJid;
     if (!remoteJid) return;
 
-    if (!shouldProcessMessage(msg, process.env.BOT_MODE || 'dual')) return;
+    const resolvedMode = botMode || (sessionId && global.botSessions?.[sessionId]?.botMode) || process.env.BOT_MODE || 'dual';
+    if (!shouldProcessMessage(msg, resolvedMode)) return;
 
     // Per-user session tracking (in groups, participant is user's direct JID; for fromMe, use bot user JID)
     const senderJid = getSenderJid(msg, sock);

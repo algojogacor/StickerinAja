@@ -65,14 +65,16 @@ function checkHermesAuth(req, res) {
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
-async function hermesAwareHandler(sock, msg, logger) {
-    if (!shouldProcessMessage(msg, process.env.BOT_MODE || 'dual')) return;
+async function hermesAwareHandler(sock, msg, logger, sessionId) {
+    const sessionConfig = sessionId && global.botSessions?.[sessionId];
+    const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
+    if (!shouldProcessMessage(msg, botMode)) return;
 
     const { text: messageText } = extractMessageContent(msg);
 
     // If it looks like a sticker command, process normally
     if (messageText.startsWith(PREFIX)) {
-        return handler(sock, msg, logger);
+        return handler(sock, msg, logger, sessionId, botMode);
     }
 
     // Do not queue bot's own non-command outputs to Hermes or record as birthday wishes
@@ -325,7 +327,7 @@ startBot({
     authDir: process.env.AUTH_DIR || './auth',
     botMode: process.env.BOT_MODE || 'dual',
     logger,
-    onMessage: (sock, msg) => hermesAwareHandler(sock, msg, logger),
+    onMessage: (sock, msg, sessionId) => hermesAwareHandler(sock, msg, logger, sessionId),
     onConnectionOpen: async () => {
         await Promise.all([
             newsScheduler.resume(),

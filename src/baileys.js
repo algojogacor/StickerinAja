@@ -105,7 +105,7 @@ function startSession({
                 markOnlineOnConnect: false,
                 logger: sessionLogger.child({ module: 'baileys' }),
                 generateHighQualityLinkPreview: false,
-                shouldIgnoreJid: jid => !jid.endsWith('@g.us') && !jid.endsWith('@s.whatsapp.net')
+                shouldIgnoreJid: jid => !jid || jid.endsWith('@broadcast') || jid === 'status@broadcast' || jid.endsWith('@newsletter')
             });
 
             sock.ev.on('connection.update', (update) => {

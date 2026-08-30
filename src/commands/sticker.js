@@ -133,13 +133,31 @@ module.exports = {
     async download(sock, msg, quotedMsg, quotedStanza) {
         try {
             if (quotedMsg) {
+                const contextInfo =
+                    msg.message?.extendedTextMessage?.contextInfo ||
+                    msg.message?.imageMessage?.contextInfo ||
+                    msg.message?.videoMessage?.contextInfo ||
+                    msg.message?.documentMessage?.contextInfo;
+
+                const participant = contextInfo?.participant || msg.key.participant || msg.key.remoteJid;
                 return await downloadMediaMessage(
-                    { key: { id: quotedStanza, remoteJid: msg.key.remoteJid }, message: quotedMsg },
-                    'buffer', {}, { logger: console }
+                    {
+                        key: {
+                            id: quotedStanza,
+                            remoteJid: msg.key.remoteJid,
+                            fromMe: Boolean(contextInfo?.participant ? false : msg.key.fromMe),
+                            participant
+                        },
+                        message: quotedMsg
+                    },
+                    'buffer',
+                    {},
+                    { logger: console }
                 );
             }
             return await downloadMediaMessage(msg, 'buffer', {}, { logger: console });
-        } catch {
+        } catch (err) {
+            console.error('[Download error]', err);
             return null;
         }
     },

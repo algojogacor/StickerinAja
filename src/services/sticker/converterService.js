@@ -7,10 +7,20 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const { ffmpegQueue } = require('../../utils/cache');
 
+function unwrapMessage(m) {
+    if (!m) return null;
+    if (m.ephemeralMessage?.message) return unwrapMessage(m.ephemeralMessage.message);
+    if (m.viewOnceMessage?.message) return unwrapMessage(m.viewOnceMessage.message);
+    if (m.viewOnceMessageV2?.message) return unwrapMessage(m.viewOnceMessageV2.message);
+    if (m.documentWithCaptionMessage?.message) return unwrapMessage(m.documentWithCaptionMessage.message);
+    return m;
+}
+
 function getMediaKind(message) {
-    if (message?.stickerMessage) return 'sticker';
-    if (message?.imageMessage) return 'image';
-    if (message?.videoMessage) return message.videoMessage.gifPlayback ? 'gif/video' : 'video';
+    const m = unwrapMessage(message);
+    if (m?.stickerMessage) return 'sticker';
+    if (m?.imageMessage) return 'image';
+    if (m?.videoMessage) return m.videoMessage.gifPlayback ? 'gif/video' : 'video';
     return 'unknown';
 }
 
@@ -28,7 +38,7 @@ async function ffprobeFile(filePath) {
 }
 
 async function stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn, TEMP_DIR }) {
-    const target = quotedMsg || msg.message;
+    const target = unwrapMessage(quotedMsg) || unwrapMessage(msg.message);
     const kind = getMediaKind(target);
     if (kind === 'unknown') {
         return sock.sendMessage(remoteJid, { text: 'Reply gambar/video/GIF/stiker lalu ketik *!sinfo*.' }, { quoted: msg });
@@ -72,7 +82,8 @@ async function stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logg
 }
 
 async function toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn, TEMP_DIR }) {
-    if (!quotedMsg?.stickerMessage) {
+    const unwrappedQuoted = unwrapMessage(quotedMsg);
+    if (!unwrappedQuoted?.stickerMessage) {
         return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker dengan *!toimg*' }, { quoted: msg });
     }
 
@@ -106,7 +117,8 @@ async function toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, 
 }
 
 async function toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn, TEMP_DIR }) {
-    if (!quotedMsg?.stickerMessage) {
+    const unwrappedQuoted = unwrapMessage(quotedMsg);
+    if (!unwrappedQuoted?.stickerMessage) {
         return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker animasi dengan *!togif*' }, { quoted: msg });
     }
 
@@ -151,7 +163,8 @@ async function toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
 }
 
 async function toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn, TEMP_DIR }) {
-    if (!quotedMsg?.stickerMessage) {
+    const unwrappedQuoted = unwrapMessage(quotedMsg);
+    if (!unwrappedQuoted?.stickerMessage) {
         return sock.sendMessage(remoteJid, { text: '⚠️ Balas stiker animasi dengan *!tomp4*' }, { quoted: msg });
     }
 
