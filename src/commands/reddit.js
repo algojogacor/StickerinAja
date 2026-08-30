@@ -14,6 +14,7 @@
 const {
   sendReadyFromBank,
   searchAndSend,
+  searchAndSendGiphy,
   importFromUrl,
   getBankStats,
   getStickerSource,
@@ -35,6 +36,8 @@ function toggleCronSender(enable) {
 // All command names are normalized to canonical names for routing
 const CANONICAL_MAP = {
   reddit: "reddit", meme: "reddit",
+  gif: "gif", giphy: "gif",
+  sgif: "sgif",
   rbank: "rbank", memebank: "rbank",
   rrefresh: "rrefresh", memerefresh: "rrefresh",
   rmode: "rmode", mememode: "rmode",
@@ -45,6 +48,7 @@ const CANONICAL_MAP = {
 module.exports = {
   names: [
     "reddit", "meme",
+    "gif", "giphy", "sgif",
     "rbank", "memebank",
     "rrefresh", "memerefresh",
     "rmode", "mememode",
@@ -123,6 +127,19 @@ module.exports = {
       return;
     }
 
+    // ── gif / giphy / sgif (GIPHY commands) ───────────
+    if (canonical === "gif" || canonical === "sgif") {
+      const query = args.join(" ").trim();
+      if (!query) {
+        await sock.sendMessage(remoteJid, {
+          text: `⚠️ Contoh penggunaan: *${PREFIX || "!"}${cmdName} funny cat*`,
+        }, { quoted: msg });
+        return;
+      }
+      await handleGiphySearch(query, canonical === "sgif" ? "stickers" : "gifs", sock, msg, remoteJid, logger);
+      return;
+    }
+
     // ── reddit / meme (main command) ────────────────────
     const input = args.join(" ").trim();
 
@@ -144,6 +161,29 @@ module.exports = {
 };
 
 // ── Command handlers ─────────────────────────────────────
+
+async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
+  const typeLabel = type === "stickers" ? "stiker transparan" : "animasi GIF";
+  await sock.sendMessage(remoteJid, {
+    text: `🔍 Mencari ${typeLabel} "${keyword}" di GIPHY...`,
+  }, { quoted: msg });
+
+  try {
+    const result = await searchAndSendGiphy(keyword, sock, remoteJid, { type, logger });
+    if (!result.success) {
+      await sock.sendMessage(remoteJid, {
+        text: `❌ Tidak ditemukan ${typeLabel} untuk "${keyword}". Coba kata kunci lain.`,
+      }, { quoted: msg });
+    } else {
+      logger?.info({ chat: remoteJid, postId: result.postId, title: result.title }, "✅ GIPHY sticker sent");
+    }
+  } catch (err) {
+    logger?.error({ err }, "GIPHY sticker error");
+    await sock.sendMessage(remoteJid, {
+      text: "❌ Gagal mencari di GIPHY. Coba kata kunci lain.",
+    }, { quoted: msg });
+  }
+}
 
 async function handleSendFromBank(sock, msg, remoteJid, logger) {
   await sock.sendMessage(remoteJid, { text: "🎭 Mencari stiker Reddit..." }, { quoted: msg });

@@ -1,5 +1,5 @@
-// Reddit media downloader — downloads images, GIFs, and videos with SSRF protection.
-// Hostname allowlist is the primary defense. Only Reddit CDN hosts are permitted.
+// Reddit & GIPHY media downloader — downloads images, GIFs, and videos with SSRF protection.
+// Hostname allowlist is the primary defense. Only Reddit and GIPHY CDN hosts are permitted.
 
 const path = require("path");
 const crypto = require("crypto");
@@ -14,6 +14,14 @@ const ALLOWED_REDDIT_MEDIA_HOSTS = [
   "v.redd.it",
   "www.reddit.com",
   "reddit.com",
+  "media.giphy.com",
+  "media0.giphy.com",
+  "media1.giphy.com",
+  "media2.giphy.com",
+  "media3.giphy.com",
+  "media4.giphy.com",
+  "i.giphy.com",
+  "giphy.com",
 ];
 
 const PRIVATE_HOSTNAMES = ["localhost", "0.0.0.0", "[::]", "[::1]"];

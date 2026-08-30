@@ -20,6 +20,8 @@ module.exports = {
 │ ${p}menu gif       - video/GIF animasi
 │ ${p}menu text      - teks, quote, emoji
 │ ${p}menu meme      - meme sticker
+│ ${p}gif <kata>     - stiker animasi GIPHY
+│ ${p}sgif <kata>    - stiker transparan GIPHY
 │ ${p}menu template  - label/warning/bubble/poster
 │ ${p}menu convert   - toimg/togif/tomp4/sinfo
 │ ${p}menu preset    - preset efek cepat

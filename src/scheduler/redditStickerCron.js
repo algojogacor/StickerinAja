@@ -32,7 +32,7 @@ function formatScheduleMinute(totalMinutes) {
 }
 
 function distributeScheduleTimes(count, startMinutes = 8 * 60, endMinutes = 22 * 60) {
-  const safeCount = Math.max(1, Math.min(24, Number.parseInt(count, 10) || 1));
+  const safeCount = Math.max(1, Math.min(48, Number.parseInt(count, 10) || 1));
   if (safeCount === 1) return [formatScheduleMinute(endMinutes)];
   const step = (endMinutes - startMinutes) / (safeCount - 1);
   return Array.from({ length: safeCount }, (_, index) =>
@@ -44,7 +44,7 @@ function buildSchedules(prefix, {
   timesEnv,
   countEnv,
   fallbackTimes,
-  startMinutes,
+  startMinutes = 8 * 60,
   endMinutes = 22 * 60,
 } = {}) {
   const explicit = parseScheduleTimes(process.env[timesEnv]);
@@ -76,6 +76,7 @@ function getConfiguredSenderSchedules() {
     countEnv: "REDDIT_STICKER_SENDS_PER_DAY",
     fallbackTimes: DEFAULT_SENDER_TIMES,
     startMinutes: 8 * 60,
+    endMinutes: 22 * 60,
   });
 }
 

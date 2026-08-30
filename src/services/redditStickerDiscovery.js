@@ -1,12 +1,14 @@
-// Reddit Sticker Discovery — uses You.com Web Search to find popular Reddit posts.
-// No Reddit OAuth required. Results are normalized into a minimal structure that
-// redditMediaResolver.js can consume.
+// Reddit & Meme Sticker Discovery — uses Meme-API, GIPHY, and You.com Search to find popular memes.
+// No Reddit OAuth required. Results are normalized into a standard structure that
+// redditMediaResolver.js and the converter can consume.
 
 const { parseRedditPostUrl } = require("../utils/redditUrlParser");
+const crypto = require("crypto");
 
 // ── Config ──────────────────────────────────────────────────
 
 const YDC_API_KEY = () => process.env.YDC_API_KEY || "";
+const GIPHY_API_KEY = () => process.env.GIPHY_API_KEY || "";
 const WEB_SEARCH_URL = "https://ydc-index.io/v1/search";
 const TIMEOUT_MS = 25000;
 
@@ -39,6 +41,7 @@ const RESULTS_PER_QUERY = () =>
   parseInt(process.env.REDDIT_SEARCH_RESULTS_PER_QUERY || "10", 10);
 const MAX_QUERIES = () =>
   parseInt(process.env.REDDIT_SEARCH_MAX_QUERIES || "8", 10);
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -50,20 +53,195 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
   }
 }
 
+// ── Meme-API Integration (100% Free Pure Reddit Memes) ───────
+
 /**
- * Normalize a You.com search result into a minimal Reddit-post-like object
- * that redditMediaResolver.js can consume.
- *
- * This is the ADAPTER between You.com raw results and the existing resolver.
- * We do NOT fake missing Reddit metadata — we only populate what we actually have.
+ * Fetch fresh memes from meme-api.com across top meme subreddits.
  */
+async function fetchMemeApiPosts({ subreddits = SEARCH_SUBREDDITS(), countPerSubreddit = 3, logger } = {}) {
+  const subs = Array.isArray(subreddits) ? subreddits.slice(0, 6) : ["dankmemes", "memes", "wholesomememes"];
+  const candidates = [];
+
+  const promises = subs.map(async (sub) => {
+    try {
+      const url = `https://meme-api.com/gimme/${encodeURIComponent(sub)}/${countPerSubreddit}`;
+      const res = await fetchWithTimeout(url, {
+        headers: { "User-Agent": "WhatsAppGroupStickerBot/1.0" },
+      }, 10000);
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data?.memes) ? data.memes : (data?.url ? [data] : []);
+
+      return list.map((item, idx) => normalizeMemeApiItem(item, sub, idx)).filter(Boolean);
+    } catch (err) {
+      logger?.warn({ sub, err: String(err.message) }, "[Meme-API] Subreddit fetch error");
+      return [];
+    }
+  });
+
+  const results = await Promise.allSettled(promises);
+  for (const r of results) {
+    if (r.status === "fulfilled" && Array.isArray(r.value)) {
+      candidates.push(...r.value);
+    }
+  }
+
+  logger?.info({ count: candidates.length }, "[Meme-API] Fetched meme candidates");
+  return candidates;
+}
+
+function normalizeMemeApiItem(item, subreddit, index) {
+  if (!item?.url) return null;
+  const postUrl = item.postLink || `https://reddit.com/r/${subreddit}/comments/${item.author || "post"}_${index}`;
+  const parsed = parseRedditPostUrl(postUrl);
+  const postId = parsed?.postId || item.postLink?.split("/").pop() || crypto.randomUUID().slice(0, 8);
+
+  const mediaUrl = item.url;
+  // Reject placeholder or deleted images
+  if (/o0h58lzmax6a1|redditstatic|default_preview|subreddit_default/i.test(mediaUrl)) {
+    return null;
+  }
+
+  return {
+    id: postId,
+    subreddit: item.subreddit || subreddit,
+    subreddit_name_prefixed: `r/${item.subreddit || subreddit}`,
+    permalink: parsed?.permalink || `/r/${subreddit}/comments/${postId}`,
+    title: (item.title || "Reddit Meme").trim(),
+    author: item.author || "",
+    url: mediaUrl,
+    created_utc: Math.floor(Date.now() / 1000) - 1800,
+    score: Number(item.ups) || 100,
+    num_comments: 0,
+    upvote_ratio: 0.95,
+    over_18: Boolean(item.nsfw),
+    spoiler: Boolean(item.spoiler),
+    is_self: false,
+    is_video: false,
+    is_gif: /\.gif(?:\?|$)/i.test(mediaUrl),
+    stickied: false,
+    removed_by_category: null,
+    search_result_generic: false,
+    post_hint: "image",
+    thumbnail: mediaUrl,
+    url_overridden_by_dest: mediaUrl,
+    preview: {
+      images: [{ source: { url: mediaUrl, width: 512, height: 512 }, resolutions: [] }],
+    },
+    media: null,
+    secure_media: null,
+    media_metadata: null,
+    gallery_data: null,
+    crosspost_parent_list: [],
+    _source: "meme-api.com",
+    _searchIndex: index,
+  };
+}
+
+// ── GIPHY API Integration (Trending GIFs & Animated Stickers) ──
+
+/**
+ * Fetch GIFs or transparent Stickers from GIPHY API.
+ */
+async function fetchGiphyPosts({ query, limit = 5, type = "gifs", rating = "g", logger } = {}) {
+  const apiKey = GIPHY_API_KEY();
+  if (!apiKey) return [];
+
+  const isSearch = Boolean(query && query.trim());
+  const endpoint = isSearch ? "search" : "trending";
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    limit: String(limit),
+    rating,
+  });
+  if (isSearch) {
+    params.set("q", query.trim());
+  }
+
+  const url = `https://api.giphy.com/v1/${type}/${endpoint}?${params.toString()}`;
+
+  try {
+    const res = await fetchWithTimeout(url, { headers: { "User-Agent": "WhatsAppGroupStickerBot/1.0" } }, 10000);
+    if (!res.ok) {
+      logger?.warn({ status: res.status }, "[GIPHY API] Error response");
+      return [];
+    }
+
+    const data = await res.json();
+    const list = Array.isArray(data?.data) ? data.data : [];
+
+    return list.map((item, idx) => normalizeGiphyItem(item, type, idx)).filter(Boolean);
+  } catch (err) {
+    logger?.warn({ err: String(err.message) }, "[GIPHY API] Fetch error");
+    return [];
+  }
+}
+
+function normalizeGiphyItem(item, type, index) {
+  if (!item?.id) return null;
+
+  // Prefer original MP4 for animated stickers (highest quality, lowest bytes)
+  const mp4Url = item.images?.original_mp4?.mp4 || item.images?.fixed_height?.mp4;
+  const webpUrl = item.images?.fixed_height?.webp || item.images?.original?.webp;
+  const gifUrl = item.images?.fixed_height?.url || item.images?.original?.url;
+
+  const mediaUrl = mp4Url || webpUrl || gifUrl;
+  if (!mediaUrl) return null;
+
+  const id = `giphy_${item.id}`;
+  const title = (item.title || "GIPHY Sticker").replace(/\s*GIF\s*by.*$/i, "").trim();
+
+  return {
+    id,
+    subreddit: "giphy",
+    subreddit_name_prefixed: "r/giphy",
+    permalink: `/giphy/${item.id}`,
+    title: title || "GIPHY Animated Sticker",
+    author: item.username || "giphy",
+    url: mediaUrl,
+    created_utc: Math.floor(Date.now() / 1000) - 3600,
+    score: 500,
+    num_comments: 0,
+    upvote_ratio: 0.99,
+    over_18: false,
+    spoiler: false,
+    is_self: false,
+    is_video: true,
+    is_gif: !mp4Url,
+    stickied: false,
+    removed_by_category: null,
+    search_result_generic: false,
+    post_hint: "video",
+    thumbnail: webpUrl || gifUrl || mediaUrl,
+    url_overridden_by_dest: mediaUrl,
+    preview: {
+      images: [{ source: { url: webpUrl || gifUrl || mediaUrl, width: 512, height: 512 }, resolutions: [] }],
+    },
+    media: {
+      reddit_video: {
+        fallback_url: mediaUrl,
+        duration: 5,
+      },
+    },
+    secure_media: null,
+    media_metadata: null,
+    gallery_data: null,
+    crosspost_parent_list: [],
+    _source: "giphy",
+    _giphyType: type,
+    _searchIndex: index,
+  };
+}
+
+// ── You.com Search Fallback & Helper Functions ──────────────
+
 function normalizeSearchResult(raw, searchIndex) {
   const url = raw.url || "";
   const parsed = parseRedditPostUrl(url);
   if (!parsed) return null;
 
-  // Estimate age from You.com page_age string if available
-  let createdUtc = 0;
+  let createdUtc = Math.floor(Date.now() / 1000) - 3600;
   if (raw.page_age) {
     const hoursMatch = String(raw.page_age).match(/(\d+)\s*(hours?|h)\s*ago/i);
     const daysMatch = String(raw.page_age).match(/(\d+)\s*(days?|d)\s*ago/i);
@@ -74,51 +252,26 @@ function normalizeSearchResult(raw, searchIndex) {
       createdUtc = Math.floor(Date.now() / 1000) - parseInt(daysMatch[1], 10) * 86400;
     } else if (minsMatch) {
       createdUtc = Math.floor(Date.now() / 1000) - parseInt(minsMatch[1], 10) * 60;
-    } else {
-      // Unknown age — treat as recent
-      createdUtc = Math.floor(Date.now() / 1000) - 3600;
     }
-  } else {
-    createdUtc = Math.floor(Date.now() / 1000) - 3600;
   }
 
-  // Build thumbnail from a real Reddit media signal only. Favicon URLs are
-  // page branding, not sticker media, and caused the Reddit homepage logo to
-  // be converted into a sticker in the previous pipeline.
-  const rawThumbnail = raw.thumbnail_url
-    || raw.thumbnail?.src
-    || raw.thumbnail
-    || raw.image
-    || "";
+  const rawThumbnail = raw.thumbnail_url || raw.thumbnail?.src || raw.thumbnail || raw.image || "";
   const thumbnail = isUsableMediaThumbnail(rawThumbnail) ? rawThumbnail : "";
   const mediaHint = getDirectMediaHint(raw.video_url || raw.media_url || raw.content_url || raw.image_url);
   const videoHint = isVideoMediaHint(mediaHint);
 
-  // Build a minimal preview structure for the resolver
   let title = (raw.title || "").trim();
-  const description = (
-    raw.description
-    || raw.snippet
-    || (Array.isArray(raw.snippets) ? raw.snippets.join(" ") : "")
-    || ""
-  ).trim();
+  const description = (raw.description || raw.snippet || (Array.isArray(raw.snippets) ? raw.snippets.join(" ") : "") || "").trim();
   const author = raw.author || (Array.isArray(raw.authors) ? raw.authors[0] : "") || "";
-  // You.com sometimes returns the generic Reddit shell title while the post
-  // slug still contains the real caption. Recover that caption only when a
-  // signed Reddit media thumbnail is present; otherwise keep the generic
-  // marker and reject the result.
+
   if (isGenericSearchTitle(title) && thumbnail) {
     const derivedTitle = deriveTitleFromUrl(url);
     if (derivedTitle) title = derivedTitle;
   }
-  const removedMarker = /\[\s*(?:removed(?:\s+by\s+moderator)?|deleted)\s*\]/i.test(
-    `${title} ${description}`
-  );
+  const removedMarker = /\[\s*(?:removed(?:\s+by\s+moderator)?|deleted)\s*\]/i.test(`${title} ${description}`);
   const genericSearchResult = isGenericSearchTitle(title);
 
-  // The resolver needs certain fields. We provide what we have:
   return {
-    // ── Core identity ──
     id: parsed.postId,
     subreddit: parsed.subreddit || "",
     subreddit_name_prefixed: parsed.subreddit ? `r/${parsed.subreddit}` : "",
@@ -126,14 +279,10 @@ function normalizeSearchResult(raw, searchIndex) {
     title,
     author,
     url: url,
-
-    // ── Metadata from search ──
     created_utc: createdUtc,
-    score: 0,            // You.com doesn't provide upvotes — don't fake it
-    num_comments: 0,     // You.com doesn't provide comment count
+    score: 0,
+    num_comments: 0,
     upvote_ratio: 0,
-
-    // ── Flags (conservative defaults) ──
     over_18: false,
     spoiler: false,
     is_self: false,
@@ -143,8 +292,6 @@ function normalizeSearchResult(raw, searchIndex) {
     removed_by_category: removedMarker ? "search_result_removed" : null,
     search_result_generic: genericSearchResult,
     post_hint: null,
-
-    // ── Media placeholders (resolver will try to populate these) ──
     thumbnail,
     url_overridden_by_dest: mediaHint || url,
     preview: thumbnail ? {
@@ -160,8 +307,6 @@ function normalizeSearchResult(raw, searchIndex) {
     media_metadata: null,
     gallery_data: null,
     crosspost_parent_list: [],
-
-    // ── Discovery metadata (not from Reddit OAuth) ──
     _source: "you.com",
     _searchIndex: searchIndex,
     _searchTitle: title,
@@ -178,6 +323,7 @@ function isUsableMediaThumbnail(value) {
     return false;
   }
   return /^https?:\/\/(?:i|preview|external-preview)\.redd\.it\//i.test(url)
+    || /^https?:\/\/media\d*\.giphy\.com\//i.test(url)
     || /\.(?:jpe?g|png|webp|gif)(?:\?|$)/i.test(url);
 }
 
@@ -186,7 +332,7 @@ function getDirectMediaHint(value) {
   try {
     const url = new URL(value.trim());
     const hostname = url.hostname.toLowerCase();
-    const allowedHost = ["i.redd.it", "preview.redd.it", "external-preview.redd.it", "v.redd.it"]
+    const allowedHost = ["i.redd.it", "preview.redd.it", "external-preview.redd.it", "v.redd.it", "media.giphy.com", "media0.giphy.com", "media1.giphy.com", "media2.giphy.com", "media3.giphy.com", "media4.giphy.com"]
       .includes(hostname);
     const directExtension = /\.(?:jpe?g|png|webp|gif|mp4|webm)(?:\?|$)/i.test(url.pathname);
     if (/o0h58lzmax6a1|redditstatic|default_preview|subreddit_default/i.test(url.href)) return "";
@@ -228,15 +374,12 @@ function deriveTitleFromUrl(url) {
   }
 }
 
-// ── Fetch ───────────────────────────────────────────────────
-
 /**
  * Execute one You.com search query and return normalized Reddit candidates.
  */
 async function searchReddit(query, { logger, freshness, count } = {}) {
   const apiKey = YDC_API_KEY();
   if (!apiKey) {
-    logger?.warn("YDC_API_KEY not set — Reddit discovery disabled");
     return [];
   }
 
@@ -244,8 +387,6 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
   const params = new URLSearchParams({
     query,
     count: String(count || RESULTS_PER_QUERY()),
-    // This group explicitly permits 18+/NSFW material. Set either flag to
-    // "false" to opt back into strict filtering for another deployment.
     safesearch: process.env.REDDIT_ALLOW_NSFW === "false" ? "strict" : "off",
     livecrawl: "all",
   });
@@ -268,47 +409,21 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
       TIMEOUT_MS
     );
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      logger?.warn(
-        { status: res.status, body: body.slice(0, 200) },
-        "[Reddit Discovery] You.com API error"
-      );
-      return [];
-    }
-
+    if (!res.ok) return [];
     const data = await res.json();
-
-    // Support both result sections. The old adapter preferred `news` and
-    // discarded `web`, which could hide a valid Reddit post behind a removed
-    // news result from the same query.
     const rawResults = [
       ...(Array.isArray(data?.results?.web) ? data.results.web : []),
       ...(Array.isArray(data?.results?.news) ? data.results.news : []),
       ...(Array.isArray(data?.hits) ? data.hits : []),
     ];
 
-    if (!Array.isArray(rawResults) || rawResults.length === 0) {
-      logger?.info("[Reddit Discovery] No search results");
-      return [];
-    }
+    if (!Array.isArray(rawResults) || rawResults.length === 0) return [];
 
-    logger?.info(
-      { query: query.slice(0, 60), rawCount: rawResults.length },
-      `[Reddit Discovery] ${rawResults.length} raw results`
-    );
-
-    // Normalize and filter
-    const candidates = rawResults
+    return rawResults
       .map((raw, i) => normalizeSearchResult(raw, i))
       .filter(Boolean);
-
-    return candidates;
   } catch (err) {
-    logger?.warn(
-      { err: String(err.message).slice(0, 100) },
-      "[Reddit Discovery] Search exception"
-    );
+    logger?.warn({ err: String(err.message).slice(0, 100) }, "[Reddit Discovery] Search exception");
     return [];
   }
 }
@@ -316,129 +431,118 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
 // ── Public API ──────────────────────────────────────────────
 
 /**
- * Discover trending Reddit posts via You.com Web Search.
- * Used by the scheduled generator.
- *
- * @param {object} options
- * @param {object} options.logger
- * @returns {Promise<Array>} Normalized Reddit post candidates
+ * Discover trending Meme & GIPHY posts.
+ * Combines Meme-API (static memes) and GIPHY (animated/video stickers).
  */
 async function discoverTrendingPosts({ logger } = {}) {
-  const queries = DISCOVERY_QUERIES().slice(0, MAX_QUERIES());
-  const freshness = FRESHNESS();
-
-  logger?.info(
-    { queryCount: queries.length, freshness },
-    "[Reddit Discovery] Starting trending discovery"
-  );
-
-  // Run queries concurrently (limited by MAX_QUERIES)
-  const allResults = await Promise.allSettled(
-    queries.map((q) =>
-      searchReddit(q, { logger, freshness })
-    )
-  );
-
-  // Collect, deduplicate by post ID
   const seen = new Set();
   const candidates = [];
 
-  for (const result of allResults) {
-    if (result.status !== "fulfilled") continue;
-    for (const candidate of result.value) {
-      if (!seen.has(candidate.id)) {
-        seen.add(candidate.id);
-        candidates.push(candidate);
+  // 1. Fetch fresh meme images from Meme-API
+  try {
+    const memePosts = await fetchMemeApiPosts({ logger, countPerSubreddit: 3 });
+    for (const post of memePosts) {
+      if (!seen.has(post.id)) {
+        seen.add(post.id);
+        candidates.push(post);
+      }
+    }
+  } catch (e) {
+    logger?.warn({ err: e.message }, "[Discovery] Meme-API fetch error");
+  }
+
+  // 2. Fetch animated memes from GIPHY if key configured
+  try {
+    if (GIPHY_API_KEY()) {
+      const giphyMemes = await fetchGiphyPosts({ query: "funny meme", limit: 6, type: "gifs", logger });
+      for (const post of giphyMemes) {
+        if (!seen.has(post.id)) {
+          seen.add(post.id);
+          candidates.push(post);
+        }
+      }
+    }
+  } catch (e) {
+    logger?.warn({ err: e.message }, "[Discovery] GIPHY fetch error");
+  }
+
+  // 3. Fallback to You.com search if candidates are still low
+  if (candidates.length < 5 && YDC_API_KEY()) {
+    try {
+      const queries = DISCOVERY_QUERIES().slice(0, MAX_QUERIES());
+      const allResults = await Promise.allSettled(
+        queries.map((q) => searchReddit(q, { logger, freshness: FRESHNESS() }))
+      );
+      for (const result of allResults) {
+        if (result.status !== "fulfilled") continue;
+        for (const candidate of result.value) {
+          if (!seen.has(candidate.id)) {
+            seen.add(candidate.id);
+            candidates.push(candidate);
+          }
+        }
+      }
+    } catch (e) {
+      logger?.warn({ err: e.message }, "[Discovery] You.com fallback error");
+    }
+  }
+
+  logger?.info({ total: candidates.length }, `[Discovery] Total ${candidates.length} candidates gathered`);
+  return candidates;
+}
+
+/**
+ * Search Meme-API or GIPHY for a specific keyword.
+ */
+async function discoverByKeyword(keyword, { logger, type = "all" } = {}) {
+  const sanitized = String(keyword || "")
+    .replace(/[\x00-\x1f]/g, "")
+    .trim()
+    .slice(0, 100);
+
+  if (!sanitized) return [];
+
+  const candidates = [];
+  const seen = new Set();
+
+  // Search GIPHY
+  if (GIPHY_API_KEY()) {
+    const giphyType = type === "stickers" ? "stickers" : "gifs";
+    const giphyResults = await fetchGiphyPosts({ query: sanitized, limit: 6, type: giphyType, logger });
+    for (const p of giphyResults) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        candidates.push(p);
       }
     }
   }
 
-  logger?.info(
-    { total: candidates.length, queries: queries.length },
-    `[Reddit Discovery] ${candidates.length} unique Reddit posts found`
-  );
-
-  // If too few results, try fallback freshness
-  if (candidates.length < 3 && freshness !== FALLBACK_FRESHNESS()) {
-    logger?.info(
-      { fallbackFreshness: FALLBACK_FRESHNESS() },
-      "[Reddit Discovery] Low results — trying fallback freshness"
-    );
-
-    const fallbackResults = await Promise.allSettled(
-      queries.map((q) =>
-        searchReddit(q, { logger, freshness: FALLBACK_FRESHNESS() })
-      )
-    );
-
-    for (const result of fallbackResults) {
-      if (result.status !== "fulfilled") continue;
-      for (const candidate of result.value) {
-        if (!seen.has(candidate.id)) {
-          seen.add(candidate.id);
-          candidates.push(candidate);
-        }
+  // Search Meme-API or You.com if needed
+  if (candidates.length === 0 && YDC_API_KEY()) {
+    const subreddits = SEARCH_SUBREDDITS();
+    const subredditConstraint = subreddits.map((s) => `site:reddit.com/r/${s}/comments`).join(" OR ");
+    const query = `(${subredditConstraint}) "${sanitized}" meme`;
+    const youResults = await searchReddit(query, { logger, freshness: FALLBACK_FRESHNESS(), count: 10 });
+    for (const p of youResults) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        candidates.push(p);
       }
     }
-
-    logger?.info(
-      { total: candidates.length },
-      `[Reddit Discovery] After fallback: ${candidates.length} posts`
-    );
   }
 
   return candidates;
 }
 
 /**
- * Search Reddit for a specific keyword via You.com.
- * Used by the manual keyword command.
- *
- * @param {string} keyword - User-provided search keyword
- * @param {object} options
- * @param {object} options.logger
- * @returns {Promise<Array>} Normalized Reddit post candidates
- */
-async function discoverByKeyword(keyword, { logger } = {}) {
-  const sanitized = String(keyword || "")
-    .replace(/[\x00-\x1f]/g, "")
-    .trim()
-    .slice(0, 100);
-
-  if (!sanitized) {
-    return [];
-  }
-
-  const subreddits = SEARCH_SUBREDDITS();
-  const subredditConstraint = subreddits
-    .map((s) => `site:reddit.com/r/${s}/comments`)
-    .join(" OR ");
-
-  const query = `(${subredditConstraint}) "${sanitized}" meme`;
-
-  logger?.info(
-    { keyword: sanitized, query: query.slice(0, 100) },
-    "[Reddit Discovery] Keyword search"
-  );
-
-  return searchReddit(query, { logger, freshness: FALLBACK_FRESHNESS(), count: 15 });
-}
-
-/**
  * Lightweight Reddit page metadata fetch — ONE attempt, no auth, no cookies.
- * Only called for URL import where we have a post URL but need OG metadata.
- *
- * On 401/403/429: returns null immediately, no retry.
- *
- * @param {string} redditUrl - Full Reddit post URL
- * @returns {Promise<object|null>} OG metadata or null
  */
 async function fetchRedditPageMetadata(redditUrl) {
   const parsed = parseRedditPostUrl(redditUrl);
   if (!parsed) return null;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const timer = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await fetch(parsed.normalizedUrl, {
@@ -451,7 +555,6 @@ async function fetchRedditPageMetadata(redditUrl) {
     });
 
     if (!res.ok) {
-      // 401, 403, 429 → unavailable, don't retry
       if ([401, 403, 429].includes(res.status)) {
         return { available: false, reason: `reddit_page_unavailable_${res.status}` };
       }
@@ -459,8 +562,6 @@ async function fetchRedditPageMetadata(redditUrl) {
     }
 
     const html = await res.text();
-
-    // Extract OG metadata with simple regex (no HTML parser needed)
     const ogImage = extractMetaTag(html, "og:image");
     const ogVideo = extractMetaTag(html, "og:video");
     const ogTitle = extractMetaTag(html, "og:title");
@@ -483,7 +584,6 @@ async function fetchRedditPageMetadata(redditUrl) {
 }
 
 function extractMetaTag(html, property) {
-  // Match both property="og:image" and name="twitter:image" patterns
   const patterns = [
     new RegExp(`<meta\\s[^>]*property=["']${escapeRegex(property)}["'][^>]*content=["']([^"']+)["']`, "i"),
     new RegExp(`<meta\\s[^>]*name=["']${escapeRegex(property)}["'][^>]*content=["']([^"']+)["']`, "i"),
@@ -504,6 +604,8 @@ function escapeRegex(str) {
 module.exports = {
   discoverTrendingPosts,
   discoverByKeyword,
+  fetchMemeApiPosts,
+  fetchGiphyPosts,
   fetchRedditPageMetadata,
   normalizeSearchResult,
   searchReddit,

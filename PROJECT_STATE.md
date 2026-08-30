@@ -1,9 +1,8 @@
 # Project State — StickerinAja
 
-**Last updated:** 2026-07-15 WIB (+0700)
-**Repository baseline:** `c1e023b` — `feat: configure Reddit daily delivery slots`
-**Current implementation:** Birthday Takeover is committed on `main`; `.env` remains local/ignored
-**Last verified tests:** 267/267 pass across 56 suites; Birthday targeted 8/8 pass
+**Last updated:** 2026-08-30 WIB (+0700)
+**Current implementation:** Meme-API & GIPHY Sticker Bank + 48 Daily Sends + Multi-Session & Birthday Takeover committed on `main`; `.env` remains local/ignored
+**Last verified tests:** 295/295 pass across 63 test suites; GIPHY/Meme integration 4/4 pass
 
 ---
 
@@ -34,7 +33,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
-| Reddit Sticker Bank | Active; four daily You.com discovery slots, targeted multi-subreddit meme filtering, duplicate/removed/generic-result protection, image + short-video support, persistent ready-state upsert, and quality-gated scheduled delivery | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
+| Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), You.com search fallback, multi-subreddit meme filtering, duplicate/removed/generic-result protection, image + short-video support, persistent ready-state upsert, and quality-gated scheduled delivery (up to 48 sends/day: 1 photo + 1 animated video) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
 | Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |

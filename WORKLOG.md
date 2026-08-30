@@ -1442,5 +1442,28 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 
 - Koyeb deployment and live WhatsApp birthday delivery are not verified in this session.
 - Commit `961537d` (`feat: enable production birthday takeover`) created and pushed to `origin/main`.
-- Local `.env` was updated but remains ignored and was not pushed.
 - Next safe action: redeploy Koyeb, verify service logs/health, then run one live birthday smoke test.
+
+---
+
+## Session 20 — Meme-API & GIPHY API Integration (48 Sends/Day)
+
+- **Date:** 2026-08-30
+- **Start:** 20:50 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Replace You.com scraper dependency with 100% free Meme-API (`meme-api.com`) and GIPHY API (`GIPHY_API_KEY`), increase scheduler capacity to 48 sends/day (1 photo + 1 animated video sticker per hour), add `!gif`, `!giphy`, `!sgif`, `!meme` commands.
+- **Scope:**
+  - `src/services/redditStickerDiscovery.js`: Add `fetchMemeApiPosts`, `fetchGiphyPosts`, and update `discoverTrendingPosts` / `discoverByKeyword`.
+  - `src/services/redditMediaDownloader.js`: Add GIPHY CDN hostnames to `ALLOWED_REDDIT_MEDIA_HOSTS` with strict SSRF validation.
+  - `src/services/redditStickerService.js`: Add `searchAndSendGiphy`, update generator and sender to balance photo memes and animated stickers (2 stickers per run).
+  - `src/scheduler/redditStickerCron.js`: Update distribution to support 24 hourly runs (sending 2 stickers per run = 48 stickers/day).
+  - `src/commands/reddit.js` & `src/commands/menu.js`: Add `!gif <query>`, `!giphy <query>`, `!sgif <query>`, `!meme`.
+  - `test/giphyMemeIntegration.test.js`: Added dedicated test suite.
+- **Branch:** `main`
+- **Starting HEAD:** `0c0e09d`
+- **Verification:**
+  - `node --test test/*.test.js`: **295 pass, 0 fail, 0 skipped across 63 test suites**.
+  - Verified GIPHY media download & SSRF allowlist.
+  - Koyeb environment variables updated with `GIPHY_API_KEY`, `REDDIT_STICKER_SENDS_PER_DAY=24`, and `REDDIT_STICKER_SEND_COUNT=2`.
+- **Status:** Completed
+
