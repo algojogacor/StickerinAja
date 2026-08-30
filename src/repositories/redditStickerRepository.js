@@ -227,7 +227,7 @@ async function getLeastRecentlySent(limit = 1) {
   if (!ready || !client) return getLeastRecentlySentMemory(limit);
   try {
     const result = await client.execute({
-      sql: `SELECT * FROM reddit_stickers WHERE status IN ('ready','sent') ORDER BY last_sent_at ASC NULLS FIRST LIMIT ?`,
+      sql: `SELECT * FROM reddit_stickers WHERE status IN ('ready','sent') ORDER BY (status = 'ready') DESC, last_sent_at ASC NULLS FIRST, generated_at DESC LIMIT ?`,
       args: [limit],
     });
     return result.rows.map(rowToSticker);
@@ -281,8 +281,6 @@ async function getStats() {
     return getStatsMemory();
   }
 }
-
-// ── Dedup ────────────────────────────────────────────────
 
 async function isDuplicate({ redditPostId, originalPostId, contentHash }) {
   if (!ready || !client) {

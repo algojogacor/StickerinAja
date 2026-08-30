@@ -174,6 +174,9 @@ function normalizeSearchResult(raw, searchIndex) {
 function isUsableMediaThumbnail(value) {
   if (!value || typeof value !== "string") return false;
   const url = value.trim();
+  if (/o0h58lzmax6a1|redditstatic|default_preview|subreddit_default|favicon/i.test(url)) {
+    return false;
+  }
   return /^https?:\/\/(?:i|preview|external-preview)\.redd\.it\//i.test(url)
     || /\.(?:jpe?g|png|webp|gif)(?:\?|$)/i.test(url);
 }
@@ -186,6 +189,7 @@ function getDirectMediaHint(value) {
     const allowedHost = ["i.redd.it", "preview.redd.it", "external-preview.redd.it", "v.redd.it"]
       .includes(hostname);
     const directExtension = /\.(?:jpe?g|png|webp|gif|mp4|webm)(?:\?|$)/i.test(url.pathname);
+    if (/o0h58lzmax6a1|redditstatic|default_preview|subreddit_default/i.test(url.href)) return "";
     return allowedHost && directExtension ? url.href : "";
   } catch {
     return "";
@@ -203,7 +207,9 @@ function isGenericSearchTitle(title) {
     .toLowerCase();
   return normalized === "reddit"
     || normalized === "reddit - the heart of the internet"
-    || /^reddit\s*[-:]\s*the heart of the internet$/.test(normalized);
+    || normalized === "reddit - prove your humanity"
+    || normalized === "reddit - dive into anything"
+    || /^reddit\s*[-:]\s*(?:the heart of the internet|prove your humanity|dive into anything)$/.test(normalized);
 }
 
 function deriveTitleFromUrl(url) {

@@ -416,16 +416,33 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
   for (const sticker of stickers) {
     try {
       const fs = require("fs");
-      if (!sticker.localPath || !fs.existsSync(sticker.localPath)) {
+      let buffer = null;
+      if (sticker.localPath && fs.existsSync(sticker.localPath)) {
+        buffer = fs.readFileSync(sticker.localPath);
+      } else if (sticker.mediaUrl) {
+        try {
+          const dl = await downloadMedia(sticker.mediaUrl);
+          const isAnim = isAnimatedMedia(sticker.mediaType);
+          const conv = isAnim
+            ? await convertAnimatedSticker(dl.filePath)
+            : await convertStaticSticker(dl.filePath);
+          cleanupTempFile(dl.filePath);
+          if (conv?.filePath && fs.existsSync(conv.filePath)) {
+            buffer = fs.readFileSync(conv.filePath);
+          }
+        } catch (dlErr) {
+          logger?.warn({ err: String(dlErr.message) }, "[Reddit Sticker] Fallback download failed");
+        }
+      }
+
+      if (!buffer) {
         await updateStickerStatus(sticker.id, "failed", "file_missing");
         logger?.warn(
           { redditPostId: sticker.redditPostId },
-          "[Reddit Sticker] File missing"
+          "[Reddit Sticker] File missing and unable to download"
         );
         continue;
       }
-
-      const buffer = fs.readFileSync(sticker.localPath);
 
       await sock.sendMessage(groupJid, {
         sticker: buffer,
@@ -641,12 +658,30 @@ async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
   const sticker = stickers[0];
   try {
     const fs = require("fs");
-    if (!sticker.localPath || !fs.existsSync(sticker.localPath)) {
+    let buffer = null;
+    if (sticker.localPath && fs.existsSync(sticker.localPath)) {
+      buffer = fs.readFileSync(sticker.localPath);
+    } else if (sticker.mediaUrl) {
+      try {
+        const dl = await downloadMedia(sticker.mediaUrl);
+        const isAnim = isAnimatedMedia(sticker.mediaType);
+        const conv = isAnim
+          ? await convertAnimatedSticker(dl.filePath)
+          : await convertStaticSticker(dl.filePath);
+        cleanupTempFile(dl.filePath);
+        if (conv?.filePath && fs.existsSync(conv.filePath)) {
+          buffer = fs.readFileSync(conv.filePath);
+        }
+      } catch (dlErr) {
+        logger?.warn({ err: String(dlErr.message) }, "[Reddit Sticker] Fallback download for bank sticker failed");
+      }
+    }
+
+    if (!buffer) {
       await updateStickerStatus(sticker.id, "failed", "file_missing");
       return { success: false, reason: "file_missing" };
     }
 
-    const buffer = fs.readFileSync(sticker.localPath);
     await sock.sendMessage(remoteJid, { sticker: buffer });
     await markStickerSent(sticker.id);
 

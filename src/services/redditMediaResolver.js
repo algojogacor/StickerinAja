@@ -29,6 +29,14 @@ function isEligibleRedditPost(post) {
   if (post.is_self) return false;
   if (post.stickied) return false;
 
+  const textToCheck = `${post.title || ""} ${post.thumbnail || ""} ${post.url || ""} ${post.url_overridden_by_dest || ""}`;
+  if (/o0h58lzmax6a1|redditstatic|default_preview|subreddit_default/i.test(textToCheck)) {
+    return false;
+  }
+  if (/prove your humanity|removed by moderator|deleted by user/i.test(post.title || "")) {
+    return false;
+  }
+
   if (post.is_video) {
     const duration = Number(
       post.duration
