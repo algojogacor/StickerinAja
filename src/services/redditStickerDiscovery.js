@@ -33,8 +33,8 @@ const SEARCH_SUBREDDITS = () =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-const FRESHNESS = () => process.env.REDDIT_SEARCH_FRESHNESS || "day";
-const FALLBACK_FRESHNESS = () => process.env.REDDIT_SEARCH_FALLBACK_FRESHNESS || "week";
+const FRESHNESS = () => process.env.REDDIT_SEARCH_FRESHNESS || "year";
+const FALLBACK_FRESHNESS = () => process.env.REDDIT_SEARCH_FALLBACK_FRESHNESS || "";
 const RESULTS_PER_QUERY = () =>
   parseInt(process.env.REDDIT_SEARCH_RESULTS_PER_QUERY || "10", 10);
 const MAX_QUERIES = () =>
@@ -234,15 +234,18 @@ async function searchReddit(query, { logger, freshness, count } = {}) {
     return [];
   }
 
+  const activeFreshness = freshness !== undefined ? freshness : FRESHNESS();
   const params = new URLSearchParams({
     query,
-    freshness: freshness || FRESHNESS(),
     count: String(count || RESULTS_PER_QUERY()),
     // This group explicitly permits 18+/NSFW material. Set either flag to
     // "false" to opt back into strict filtering for another deployment.
     safesearch: process.env.REDDIT_ALLOW_NSFW === "false" ? "strict" : "off",
     livecrawl: "all",
   });
+  if (activeFreshness) {
+    params.set("freshness", activeFreshness);
+  }
 
   const searchUrl = `${WEB_SEARCH_URL}?${params.toString()}`;
 
