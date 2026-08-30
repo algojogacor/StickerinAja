@@ -11,7 +11,7 @@ const sharp = require('sharp');
 sharp.cache(false);
 sharp.concurrency(1);
 
-const { startBot, hermesGetMessages, hermesLongPoll, hermesSendMessage, hermesSendTyping, pushToHermesQueue } = require('./src/baileys');
+const { startBot } = require('./src/baileys');
 const { handler, extractMessageContent, shouldProcessMessage } = require('./src/handler');
 const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
@@ -48,24 +48,10 @@ const logger = pino({
     level: process.env.LOG_LEVEL || 'info'
 });
 
-// ─── Shared secret for Hermes relay auth ───
-const HERMES_SECRET = process.env.HERMES_RELAY_SECRET || '';
-
-function checkHermesAuth(req, res) {
-    if (!HERMES_SECRET) return true; // No secret configured = open
-    const auth = req.headers['authorization'] || '';
-    if (auth === `Bearer ${HERMES_SECRET}`) return true;
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unauthorized' }));
-    return false;
-}
-
-// ─── Hermes message wrapper for handler ───
-// Non-sticker-command messages → push to Hermes queue
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
-async function hermesAwareHandler(sock, msg, logger, sessionId) {
+async function messageHandler(sock, msg, logger, sessionId) {
     const sessionConfig = sessionId && global.botSessions?.[sessionId];
     const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
     if (!shouldProcessMessage(msg, botMode)) return;
@@ -77,23 +63,17 @@ async function hermesAwareHandler(sock, msg, logger, sessionId) {
         return handler(sock, msg, logger, sessionId, botMode);
     }
 
-    // Do not queue bot's own non-command outputs to Hermes or record as birthday wishes
-    if (msg.key?.fromMe) {
-        return;
-    }
-
     // Birthday wishes are replies to the card message; persistence is best-effort.
-    try {
-        await birthdayTakeover.recordWishFromMessage(msg);
-    } catch (error) {
-        logger.debug({ err: error }, '[Birthday] Failed to record wish');
+    if (!msg.key?.fromMe) {
+        try {
+            await birthdayTakeover.recordWishFromMessage(msg);
+        } catch (error) {
+            logger.debug({ err: error }, '[Birthday] Failed to record wish');
+        }
     }
-
-    // Non-command message from others → queue for Hermes
-    pushToHermesQueue(msg);
 }
 
-// Start a lightweight HTTP server for health checking, QR code serving, status, and Hermes relay
+// Start a lightweight HTTP server for health checking, QR code serving, and status dashboard
 const http = require('http');
 const PORT = process.env.PORT || 8000;
 
@@ -110,72 +90,7 @@ http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const method = req.method;
 
-    // ─── Hermes Relay Endpoints ───
-    if (url.pathname === '/hermes/send' && method === 'POST') {
-        if (!checkHermesAuth(req, res)) return;
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { chatId, message, replyTo } = JSON.parse(body);
-                if (!chatId || !message) throw new Error('chatId and message required');
-                const result = await hermesSendMessage(chatId, message, replyTo);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ ok: true, key: result?.key }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: e.message }));
-            }
-        });
-        return;
-    }
-
-    if (url.pathname === '/hermes/typing' && method === 'POST') {
-        if (!checkHermesAuth(req, res)) return;
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { chatId } = JSON.parse(body);
-                await hermesSendTyping(chatId);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ ok: true }));
-            } catch (e) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: e.message }));
-            }
-        });
-        return;
-    }
-
-    if (url.pathname === '/hermes/messages' && method === 'GET') {
-        if (!checkHermesAuth(req, res)) return;
-        const since = url.searchParams.get('since');
-        const longPoll = url.searchParams.get('poll') === '1';
-
-        if (longPoll) {
-            const msgs = await hermesLongPoll(25000);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ messages: msgs }));
-        } else {
-            const msgs = hermesGetMessages(since || undefined);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ messages: msgs }));
-        }
-        return;
-    }
-
-    if (url.pathname === '/hermes/health' && method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: global.botState.status,
-            connected: global.botState.status === 'connected',
-            user: global.botState.user?.name || null,
-        }));
-        return;
-    }
-
-    // ─── Existing endpoints ───
+    // ─── Endpoints ───
     if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', uptime: Math.floor(process.uptime()), sessions: global.botSessions || undefined }));
@@ -231,7 +146,7 @@ http.createServer(async (req, res) => {
         res.end();
     }
 }).listen(PORT, () => {
-    logger.info(`🌐 Server on port ${PORT} | Hermes relay: ${HERMES_SECRET ? '🔒 auth' : '⚠️ open'}`);
+    logger.info(`🌐 Server on port ${PORT} | Dashboard & Health ready`);
 });
 
 // ── Reddit Sticker Bank init ──
@@ -327,7 +242,7 @@ startBot({
     authDir: process.env.AUTH_DIR || './auth',
     botMode: process.env.BOT_MODE || 'dual',
     logger,
-    onMessage: (sock, msg, sessionId) => hermesAwareHandler(sock, msg, logger, sessionId),
+    onMessage: (sock, msg, sessionId) => messageHandler(sock, msg, logger, sessionId),
     onConnectionOpen: async () => {
         await Promise.all([
             newsScheduler.resume(),

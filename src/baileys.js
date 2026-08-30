@@ -7,31 +7,6 @@ const { useTursoAuthState } = require('./utils/tursoAuthState');
 const { setSock, getSock, clearSock } = require('./core/socket');
 const { shouldProcessMessage } = require('./handler');
 
-// ─── Hermes Relay Queue ───
-// Non-sticker-command messages are queued here for Hermes bridge to consume
-const HERMES_QUEUE_MAX = 200;
-const hermesMessageQueue = [];
-const hermesLongPollResolvers = [];
-
-function pushToHermesQueue(msg) {
-    const entry = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        timestamp: Date.now(),
-        chatId: msg.key.remoteJid,
-        senderId: msg.key.participant || msg.key.remoteJid,
-        message: msg.message,
-        key: msg.key,
-    };
-    hermesMessageQueue.push(entry);
-    if (hermesMessageQueue.length > HERMES_QUEUE_MAX) hermesMessageQueue.shift();
-
-    // Notify waiting long-pollers
-    while (hermesLongPollResolvers.length > 0) {
-        const resolve = hermesLongPollResolvers.shift();
-        resolve([entry]);
-    }
-}
-
 function initSessionState(sessionId, sessionName, botMode) {
     if (!global.botSessions) global.botSessions = {};
     global.botSessions[sessionId] = {
@@ -119,9 +94,6 @@ function startSession({
                 }
                 if (connection === 'open') {
                     setSock(sock, sessionId);
-                    if (!global.hermesSock || sessionId === 'default' || sessionId === 'bot') {
-                        global.hermesSock = sock;
-                    }
                     global.botSessions[sessionId].status = 'connected';
                     global.botSessions[sessionId].qr = null;
                     global.botSessions[sessionId].user = sock.user;
@@ -133,9 +105,6 @@ function startSession({
                 }
                 if (connection === 'close') {
                     const wasActiveSocket = clearSock(sock, sessionId);
-                    if (global.hermesSock === sock) {
-                        global.hermesSock = getSock();
-                    }
                     if (!wasActiveSocket && getSock(sessionId)) {
                         sessionLogger.info(`[${sessionName}] Ignoring close event from a stale WhatsApp socket`);
                         return;
@@ -212,65 +181,7 @@ function startBot(config) {
     }
 }
 
-// ─── Hermes Relay API (used by index.js HTTP server) ───
-function hermesGetMessages(since) {
-    if (since) {
-        const idx = hermesMessageQueue.findIndex(m => m.id === since);
-        const newMsgs = idx >= 0 ? hermesMessageQueue.slice(idx + 1) : hermesMessageQueue;
-        return newMsgs;
-    }
-    return hermesMessageQueue.slice(-50);
-}
-
-function hermesLongPoll(timeoutMs = 25000) {
-    return new Promise((resolve) => {
-        if (hermesMessageQueue.length > 0) {
-            resolve([hermesMessageQueue[hermesMessageQueue.length - 1]]);
-            return;
-        }
-        const timer = setTimeout(() => {
-            const idx = hermesLongPollResolvers.indexOf(resolve);
-            if (idx >= 0) hermesLongPollResolvers.splice(idx, 1);
-            resolve([]);
-        }, timeoutMs);
-        hermesLongPollResolvers.push((msgs) => {
-            clearTimeout(timer);
-            resolve(msgs);
-        });
-    });
-}
-
-function normalizeJid(jid) {
-    // Auto-append WA domain suffix if missing
-    if (jid.includes('@')) return jid;
-    // Group IDs are typically long (10+ digits with hyphens) → @g.us
-    // Phone numbers (shorter, may have country code) → @s.whatsapp.net
-    if (jid.match(/^\d{10,}[-@]/) || jid.length >= 15) return jid + '@g.us';
-    return jid + '@s.whatsapp.net';
-}
-
-async function hermesSendMessage(chatId, message, replyTo) {
-    const sock = global.hermesSock || getSock();
-    if (!sock) throw new Error('WhatsApp not connected');
-
-    const jid = normalizeJid(chatId);
-    const payload = { text: String(message || '') };
-    const opts = replyTo ? { quoted: { id: replyTo, remoteJid: jid, fromMe: true } } : {};
-    return sock.sendMessage(jid, payload, opts);
-}
-
-async function hermesSendTyping(chatId) {
-    const sock = global.hermesSock || getSock();
-    if (!sock) return;
-    await sock.sendPresenceUpdate('composing', chatId);
-}
-
 module.exports = {
     startBot,
-    startSession,
-    hermesGetMessages,
-    hermesLongPoll,
-    hermesSendMessage,
-    hermesSendTyping,
-    pushToHermesQueue,
+    startSession
 };
