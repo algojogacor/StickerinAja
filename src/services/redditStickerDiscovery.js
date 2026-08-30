@@ -28,7 +28,7 @@ const DISCOVERY_QUERIES = () => {
 };
 
 const SEARCH_SUBREDDITS = () =>
-  (process.env.REDDIT_SEARCH_SUBREDDITS || "memes,funny,starterpacks,lotrmemes,therewasanattempt,wholesomememes,ProgrammerHumor,mildlyinfuriating")
+  (process.env.REDDIT_SEARCH_SUBREDDITS || "memes,dankmemes,funny,starterpacks,lotrmemes,therewasanattempt,wholesomememes,ProgrammerHumor,me_irl,mildlyinfuriating,shitposting")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -39,9 +39,6 @@ const RESULTS_PER_QUERY = () =>
   parseInt(process.env.REDDIT_SEARCH_RESULTS_PER_QUERY || "10", 10);
 const MAX_QUERIES = () =>
   parseInt(process.env.REDDIT_SEARCH_MAX_QUERIES || "8", 10);
-
-// ── Helpers ─────────────────────────────────────────────────
-
 async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -66,6 +66,10 @@ const AUTOMATED_MEME_SUBREDDITS = new Set([
   "comedycemetery",
   "therewasanattempt",
   "dndmemes",
+  "shitposting",
+  "whenthe",
+  "indonesia",
+  "adviceanimals",
 ]);
 
 // ── Idempotency ─────────────────────────────────────────────

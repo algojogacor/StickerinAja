@@ -1,7 +1,7 @@
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
 module.exports = {
-    names: ['pack', 'botname', 'name', 'author', 'packpreset'],
+    names: ['pack', 'botname', 'name', 'author', 'packpreset', 'id', 'jid', 'groupid'],
 
     async execute({ sock, msg, args, cmdName, remoteJid, session, logger }) {
         const value = args.join(' ');
@@ -57,6 +57,21 @@ module.exports = {
                 text: `✅ Author diubah ke: *${value}*`
             }, { quoted: msg });
             logger.info(`Author changed: ${value}`);
+        }
+
+        if (['id', 'jid', 'groupid'].includes(cmdName)) {
+            const isGroup = remoteJid.endsWith('@g.us');
+            const sender = msg.key?.participant || msg.key?.remoteJid || '';
+            const lines = [
+                '📋 *Informasi WhatsApp Chat ID*',
+                '',
+                `• *Chat JID*: \`${remoteJid}\``,
+                `• *Tipe*: ${isGroup ? 'Grup WhatsApp' : 'Chat Pribadi'}`,
+                sender ? `• *Sender*: \`${sender}\`` : null
+            ].filter(Boolean);
+
+            await sock.sendMessage(remoteJid, { text: lines.join('\n') }, { quoted: msg });
+            return;
         }
     }
 };
