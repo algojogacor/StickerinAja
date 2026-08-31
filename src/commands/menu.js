@@ -27,6 +27,7 @@ module.exports = {
 │ ${p}tts <teks>     - text to speech voice note
 │ ${p}kbbi <kata>    - kamus besar bahasa indonesia
 │ ${p}libur [bulan]  - hari libur nasional & cuti bersama
+│ ${p}kalender [bln] - visual kalender bulanan & libur
 │ ${p}menu tools     - shortlink, QR, IP, password
 │ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
@@ -348,7 +349,25 @@ module.exports = {
 │ • ${p}libur 12
 │ • ${p}libur maret 2026
 │
-│ Alias: ${p}harilibur, ${p}kalender, ${p}holiday
+│ Alias: ${p}harilibur, ${p}holiday
+╰──────────────────`,
+
+            kalender: `╭──「 *KALENDER VISUAL* 」──
+│ Generate gambar kalender HD dengan highlight hari libur.
+│
+│ ${p}kalender
+│   Gambar kalender bulan ini.
+│ ${p}kalender <bulan>
+│   Gambar kalender bulan tertentu.
+│ ${p}kalender <bulan> <tahun>
+│   Gambar kalender bulan & tahun spesifik.
+│
+│ Contoh:
+│ • ${p}kalender
+│ • ${p}kalender september
+│ • ${p}kalender 12 2026
+│
+│ Alias: ${p}cal, ${p}calendar
 ╰──────────────────`
         };
 
@@ -391,8 +410,9 @@ module.exports = {
         menus.artikata = menus.kbbi;
         menus.arti = menus.kbbi;
         menus.harilibur = menus.libur;
-        menus.kalender = menus.libur;
         menus.holiday = menus.libur;
+        menus.cal = menus.kalender;
+        menus.calendar = menus.kalender;
 
         menus.all = `${menus.main}
 
@@ -415,6 +435,8 @@ ${menus.tts}
 ${menus.kbbi}
 
 ${menus.libur}
+
+${menus.kalender}
 
 ${menus.tools}
 

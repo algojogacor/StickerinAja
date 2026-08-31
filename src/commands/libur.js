@@ -162,7 +162,7 @@ function normalizeParams(sockOrOpts, msg, args, ctx) {
 }
 
 module.exports = {
-    names: ['libur', 'harilibur', 'kalender', 'holiday'],
+    names: ['libur', 'harilibur', 'holiday'],
     parseMonth,
     formatDateIndo,
     formatHolidays,

@@ -1709,6 +1709,26 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **322 pass, 0 fail, 0 skipped across 73 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 34 — Implement Production Visual Calendar Command (!kalender)
+
+- **Date:** 2026-08-31
+- **Start:** 23:15 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Implement `!kalender`, `!kalender <bulan>`, and `!kalender <bulan> <tahun>` sending HD image buffer using SVG Template + Sharp engine, highlighting today, national holidays, and cuti bersama with API fallback.
+- **Scope:**
+  - `src/commands/kalender.js`: Created visual calendar command module with SVG template engine, Sharp rasterization, month/year parsing, and fallback handling.
+  - `src/commands/libur.js`: Refined command aliases (`['libur', 'harilibur', 'holiday']`).
+  - `src/commands/menu.js`: Added `!kalender` to main menu, `kalender` submenu, and aliases (`cal`, `calendar`).
+  - `test/utilities.test.js`: Added unit tests for Kalender module exports, invalid month validation, PNG generation with holidays, and empty holiday fallback.
+  - Removed temporary POC file `scratch/test_calendar_poc.js`.
+- **Branch:** `main`
+- **Verification:**
+  - Verified visual calendar PNG generation (800px width, clean 7-col grid, today/holiday highlights, list footer).
+  - `node --test test/*.test.js`: **326 pass, 0 fail, 0 skipped across 74 test suites**.
+- **Status:** Completed
+
 
 
 

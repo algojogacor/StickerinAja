@@ -261,7 +261,6 @@ describe('Utility and Tools Command Suite', () => {
             assert.ok(Array.isArray(liburCmd.names));
             assert.ok(liburCmd.names.includes('libur'));
             assert.ok(liburCmd.names.includes('harilibur'));
-            assert.ok(liburCmd.names.includes('kalender'));
             assert.ok(liburCmd.names.includes('holiday'));
             assert.equal(typeof liburCmd.execute, 'function');
             assert.equal(typeof liburCmd.parseMonth, 'function');
@@ -295,9 +294,56 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('Kalender Module', () => {
+        const kalenderCmd = require('../src/commands/kalender');
+
+        it('exports required command names and generator function', () => {
+            assert.ok(Array.isArray(kalenderCmd.names));
+            assert.ok(kalenderCmd.names.includes('kalender'));
+            assert.ok(kalenderCmd.names.includes('cal'));
+            assert.ok(kalenderCmd.names.includes('calendar'));
+            assert.equal(typeof kalenderCmd.execute, 'function');
+            assert.equal(typeof kalenderCmd.generateCalendarPng, 'function');
+        });
+
+        it('replies with error message when month is invalid', async () => {
+            let sentMessage = null;
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessage = content;
+                    return { key: { id: 'test' } };
+                }
+            };
+            await kalenderCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, ['bulan_salah']);
+            assert.ok(sentMessage);
+            assert.equal(sentMessage.text, '❌ Bulan tidak valid.');
+        });
+
+        it('generates a valid PNG buffer with holidays and custom year/month', async () => {
+            const mockHolidays = [
+                { date: '2026-08-17', name: 'Proklamasi Kemerdekaan', isCutiBersama: false }
+            ];
+            const pngBuf = await kalenderCmd.generateCalendarPng(2026, 8, mockHolidays);
+            assert.ok(Buffer.isBuffer(pngBuf));
+            assert.ok(pngBuf.length > 1000);
+            // Verify PNG magic header: \x89PNG
+            assert.equal(pngBuf[0], 0x89);
+            assert.equal(pngBuf[1], 0x50);
+            assert.equal(pngBuf[2], 0x4E);
+            assert.equal(pngBuf[3], 0x47);
+        });
+
+        it('generates a valid PNG buffer even when holidays array is empty (API fallback)', async () => {
+            const pngBuf = await kalenderCmd.generateCalendarPng(2026, 9, []);
+            assert.ok(Buffer.isBuffer(pngBuf));
+            assert.ok(pngBuf.length > 1000);
+            assert.equal(pngBuf[0], 0x89);
+        });
+    });
+
     describe('Menu Submenus', () => {
-        it('renders downloader, tts, kbbi, libur, tools, cuaca, and pdf submenus', async () => {
-            const submenus = ['downloader', 'tts', 'kbbi', 'libur', 'tools', 'cuaca', 'pdf'];
+        it('renders downloader, tts, kbbi, libur, kalender, tools, cuaca, and pdf submenus', async () => {
+            const submenus = ['downloader', 'tts', 'kbbi', 'libur', 'kalender', 'tools', 'cuaca', 'pdf'];
             for (const sub of submenus) {
                 let sentText = '';
                 const mockSock = {
