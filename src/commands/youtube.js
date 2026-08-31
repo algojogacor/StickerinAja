@@ -177,7 +177,8 @@ module.exports = {
                     ? ['--cookies', cookieFile]
                     : ['--extractor-args', 'youtube:player_client=android,ios,mweb'];
 
-                logger?.info({ hasCookies: Boolean(cookieFile) }, '[YouTube] Extractor configuration');
+                const workerUrl = process.env.YT_WORKER_URL || 'https://vpn.aryariap.my.id/api/yt/download';
+                const workerKey = process.env.YT_WORKER_KEY || 'yt_korea_worker_sec_9941a84f3c7e01';
 
                 if (isVideo) {
                     // Download Video MP4 (480p/720p)
@@ -185,26 +186,55 @@ module.exports = {
                         text: `⏳ *Sedang mengunduh video MP4...*\n🎬 *Judul:* ${video.title}\n⏱️ *Durasi:* ${video.timestamp}`
                     }, { quoted: msg });
 
-                    const outPattern = path.join(tempDir, `vid_${uniqueId}_${safeTitle}.%(ext)s`);
-                    await ytdlp.execAsync([
-                        video.url,
-                        '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best[height<=720]/best',
-                        '--no-playlist',
-                        '--no-check-certificates',
-                        ...authArgs,
-                        '-o', outPattern
-                    ]);
+                    let videoBuffer = null;
 
-                    // Find generated file in temp directory
-                    const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`vid_${uniqueId}_`));
-                    if (!foundFiles.length) {
-                        throw new Error('Gagal menyimpan file video hasil download.');
+                    if (workerUrl) {
+                        try {
+                            logger?.info({ workerUrl }, '[YouTube] Requesting video from Korea worker');
+                            const res = await fetch(workerUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'x-api-key': workerKey
+                                },
+                                body: JSON.stringify({ url: video.url, type: 'mp4' }),
+                                signal: AbortSignal.timeout(180000)
+                            });
+
+                            if (res.ok) {
+                                const arr = await res.arrayBuffer();
+                                videoBuffer = Buffer.from(arr);
+                                logger?.info(`[YouTube] Received ${videoBuffer.length} bytes video from worker`);
+                            } else {
+                                const errTxt = await res.text();
+                                logger?.warn({ status: res.status, errTxt }, '[YouTube] Worker failed, fallback to local');
+                            }
+                        } catch (err) {
+                            logger?.warn({ err: err.message }, '[YouTube] Worker error, fallback to local');
+                        }
                     }
 
-                    const finalPath = path.join(tempDir, foundFiles[0]);
-                    downloadedFiles.push(finalPath);
+                    if (!videoBuffer) {
+                        const outPattern = path.join(tempDir, `vid_${uniqueId}_${safeTitle}.%(ext)s`);
+                        await ytdlp.execAsync([
+                            video.url,
+                            '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best[height<=720]/best',
+                            '--no-playlist',
+                            '--no-check-certificates',
+                            ...authArgs,
+                            '-o', outPattern
+                        ]);
 
-                    const videoBuffer = fs.readFileSync(finalPath);
+                        const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`vid_${uniqueId}_`));
+                        if (!foundFiles.length) {
+                            throw new Error('Gagal menyimpan file video hasil download.');
+                        }
+
+                        const finalPath = path.join(tempDir, foundFiles[0]);
+                        downloadedFiles.push(finalPath);
+                        videoBuffer = fs.readFileSync(finalPath);
+                    }
+
                     await sock.sendMessage(remoteJid, {
                         document: videoBuffer,
                         mimetype: 'video/mp4',
@@ -225,28 +255,57 @@ module.exports = {
                         text: `⏳ *Sedang mengunduh audio MP3...*\n🎵 *Judul:* ${video.title}\n⏱️ *Durasi:* ${video.timestamp}`
                     }, { quoted: msg });
 
-                    const outPattern = path.join(tempDir, `audio_${uniqueId}_${safeTitle}.%(ext)s`);
-                    await ytdlp.execAsync([
-                        video.url,
-                        '-x',
-                        '--audio-format', 'mp3',
-                        '--audio-quality', '0',
-                        '--no-playlist',
-                        '--no-check-certificates',
-                        ...authArgs,
-                        '-o', outPattern
-                    ]);
+                    let audioBuffer = null;
 
-                    // Find generated file in temp directory
-                    const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`audio_${uniqueId}_`));
-                    if (!foundFiles.length) {
-                        throw new Error('Gagal menyimpan file audio MP3 hasil download.');
+                    if (workerUrl) {
+                        try {
+                            logger?.info({ workerUrl }, '[YouTube] Requesting audio from Korea worker');
+                            const res = await fetch(workerUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'x-api-key': workerKey
+                                },
+                                body: JSON.stringify({ url: video.url, type: 'mp3' }),
+                                signal: AbortSignal.timeout(180000)
+                            });
+
+                            if (res.ok) {
+                                const arr = await res.arrayBuffer();
+                                audioBuffer = Buffer.from(arr);
+                                logger?.info(`[YouTube] Received ${audioBuffer.length} bytes audio from worker`);
+                            } else {
+                                const errTxt = await res.text();
+                                logger?.warn({ status: res.status, errTxt }, '[YouTube] Worker failed, fallback to local');
+                            }
+                        } catch (err) {
+                            logger?.warn({ err: err.message }, '[YouTube] Worker error, fallback to local');
+                        }
                     }
 
-                    const finalPath = path.join(tempDir, foundFiles[0]);
-                    downloadedFiles.push(finalPath);
+                    if (!audioBuffer) {
+                        const outPattern = path.join(tempDir, `audio_${uniqueId}_${safeTitle}.%(ext)s`);
+                        await ytdlp.execAsync([
+                            video.url,
+                            '-x',
+                            '--audio-format', 'mp3',
+                            '--audio-quality', '0',
+                            '--no-playlist',
+                            '--no-check-certificates',
+                            ...authArgs,
+                            '-o', outPattern
+                        ]);
 
-                    const audioBuffer = fs.readFileSync(finalPath);
+                        const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`audio_${uniqueId}_`));
+                        if (!foundFiles.length) {
+                            throw new Error('Gagal menyimpan file audio MP3 hasil download.');
+                        }
+
+                        const finalPath = path.join(tempDir, foundFiles[0]);
+                        downloadedFiles.push(finalPath);
+                        audioBuffer = fs.readFileSync(finalPath);
+                    }
+
                     await sock.sendMessage(remoteJid, {
                         document: audioBuffer,
                         mimetype: 'audio/mpeg',
