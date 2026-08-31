@@ -1491,4 +1491,26 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - Pushed to `origin/main` and updated Koyeb environment with `SCHEDULER_ALLOW_24_HOURS=true`.
 - **Status:** Completed
 
+---
+
+## Session 22 — Bot Socket Priority, EXIF Metadata Injection & Anti-Duplicate Group Response
+
+- **Date:** 2026-08-31
+- **Start:** 09:37 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:**
+  1. Fix scheduler sticker sending to prioritize the Bot number (`bot`) instead of the personal number (`pribadi`).
+  2. Inject Pack Name & Author metadata (`yg buat stiker femboy · rtl femboy`) into all automatic Meme & GIPHY stickers.
+  3. Prevent double command response when both personal number (selfbot) and bot number are in the same group.
+- **Scope:**
+  - `src/core/socket.js`: Update `setSock` and `getSock` to prioritize the `bot` session socket for schedulers and default lookup, falling back to other connected sessions if `bot` is disconnected.
+  - `src/services/redditStickerService.js` & `src/commands/reddit.js`: Add `prepareStickerWithExif` helper and apply `addExifToWebp` to all outgoing Meme and GIPHY stickers so pack name and author are preserved.
+  - `index.js`: Add `isDuplicateMessage` cache and group command delegation logic so that in shared group chats, the `bot` session takes precedence over `pribadi` without double responses.
+  - `test/multiSession.test.js`: Added unit test verifying `bot` socket priority and fallback in `getSock()`.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **296 pass, 0 fail, 0 skipped across 63 test suites**.
+- **Status:** Completed
+
+
 

@@ -7,7 +7,8 @@ const _socks = new Map();
 
 function setSock(sock, sessionId = 'default') {
   _socks.set(sessionId, sock);
-  if (sessionId === 'default' || !_defaultSock) {
+  const preferredId = process.env.SCHEDULER_SESSION_ID || 'bot';
+  if (sessionId === preferredId || sessionId === 'default' || !_defaultSock) {
     _defaultSock = sock;
   }
 }
@@ -15,6 +16,10 @@ function setSock(sock, sessionId = 'default') {
 function getSock(sessionId = null) {
   if (sessionId) {
     return _socks.get(sessionId) || null;
+  }
+  const preferredId = process.env.SCHEDULER_SESSION_ID || 'bot';
+  if (_socks.has(preferredId)) {
+    return _socks.get(preferredId);
   }
   if (_defaultSock) return _defaultSock;
   // Fallback to any connected socket

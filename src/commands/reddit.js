@@ -21,6 +21,7 @@ const {
   generateStickers,
 } = require("../services/redditStickerService");
 const { parseRedditPostUrl } = require("../utils/redditUrlParser");
+const { addExifToWebp } = require("../utils/exifHelper");
 
 // Scheduled-sender toggle — in-memory, resets on restart
 let cronSenderEnabled = process.env.REDDIT_STICKER_CRON_ENABLED !== "false";
@@ -437,7 +438,7 @@ async function handleTest(sock, msg, remoteJid, logger) {
       );
 
       // Send test sticker (does not count toward sent count)
-      await sock.sendMessage(remoteJid, { sticker: conv.buffer });
+      await sock.sendMessage(remoteJid, { sticker: addExifToWebp(conv.buffer) });
     } catch (err) {
       results.push(`❌ Static: ${String(err.message).slice(0, 50)}`);
     } finally {

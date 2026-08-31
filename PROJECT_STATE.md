@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-08-31 WIB (+0700)
-**Current implementation:** Meme-API & GIPHY Sticker Bank + 24-Hour Round-the-Clock Scheduler (48 Daily Sends) + Fresh On-Demand Delivery + Multi-Session & Birthday Takeover committed on `main`; `.env` remains local/ignored
-**Last verified tests:** 295/295 pass across 63 test suites; GIPHY/Meme integration 4/4 pass
+**Current implementation:** Meme-API & GIPHY Sticker Bank + 24-Hour Round-the-Clock Scheduler (48 Daily Sends) + Fresh On-Demand Delivery + EXIF Metadata Injection + Multi-Session Anti-Duplicate & Bot Priority committed on `main`; `.env` remains local/ignored
+**Last verified tests:** 296/296 pass across 63 test suites; GIPHY/Meme integration 4/4 pass
 
 ---
 
@@ -22,7 +22,7 @@ WhatsApp (Baileys) → Command Handler (auto-load src/commands/) → Services
 **Scheduler:** `src/scheduler/windowedScheduler.js`, fixed Asia/Jakarta offset, supports 24-hour round-the-clock scheduling (`SCHEDULER_ALLOW_24_HOURS=true`) or windowed 07:00-22:00 WIB
 **Logging:** Pino (`pino-pretty` in development, JSON in production)
 
-The scheduler uses one recursive `setTimeout` per active job. After each callback it recalculates the next absolute wall-clock slot, so runtime delay does not accumulate into long-term drift.
+The scheduler uses one recursive `setTimeout` per active job. After each callback it recalculates the next absolute wall-clock slot, so runtime delay does not accumulate into long-term drift. Schedulers prioritize the `bot` session socket for delivery.
 
 ---
 
@@ -31,9 +31,9 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Feature | Status | Files |
 |---|---|---|
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
-| Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `index.js` |
+| Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication and bot priority | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
-| Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
+| Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), EXIF metadata injection (`STICKERIN_BOT_NAME` & `STICKERIN_AUTHOR`), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour via bot session) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
 | Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |

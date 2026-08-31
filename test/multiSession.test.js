@@ -39,6 +39,23 @@ describe('Multi-Session Socket Manager', () => {
         assert.equal(getAllSocks().length, 1);
     });
 
+    it('prioritizes bot socket as default sender and falls back to pribadi', () => {
+        const mockPribadiSock = { id: 'sock-pribadi' };
+        const mockBotSock = { id: 'sock-bot' };
+
+        // Pribadi connects first
+        setSock(mockPribadiSock, 'pribadi');
+        assert.equal(getSock(), mockPribadiSock);
+
+        // Bot connects second -> getSock() prioritizes bot
+        setSock(mockBotSock, 'bot');
+        assert.equal(getSock(), mockBotSock);
+
+        // If bot disconnects -> getSock() falls back to pribadi
+        clearSock(mockBotSock, 'bot');
+        assert.equal(getSock(), mockPribadiSock);
+    });
+
     it('supports full socket clear on shutdown', () => {
         setSock({ id: 's1' }, 'pribadi');
         setSock({ id: 's2' }, 'bot');

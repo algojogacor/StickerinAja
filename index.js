@@ -51,6 +51,22 @@ const logger = pino({
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
+// In-memory message deduplication cache across sessions
+const processedMessageIds = new Map();
+
+function isDuplicateMessage(messageId) {
+    if (!messageId) return false;
+    const now = Date.now();
+    for (const [id, time] of processedMessageIds.entries()) {
+        if (now - time > 60_000) processedMessageIds.delete(id);
+    }
+    if (processedMessageIds.has(messageId)) {
+        return true;
+    }
+    processedMessageIds.set(messageId, now);
+    return false;
+}
+
 async function messageHandler(sock, msg, logger, sessionId) {
     const sessionConfig = sessionId && global.botSessions?.[sessionId];
     const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
@@ -60,6 +76,23 @@ async function messageHandler(sock, msg, logger, sessionId) {
 
     // If it looks like a sticker command, process normally
     if (messageText.startsWith(PREFIX)) {
+        const isGroup = Boolean(msg.key?.remoteJid?.endsWith('@g.us'));
+
+        // Prevent double response in shared group: prioritize bot session over pribadi
+        if (isGroup && sessionId === 'pribadi') {
+            const botSession = global.botSessions?.['bot'];
+            if (botSession?.status === 'connected') {
+                logger.debug({ msgId: msg.key?.id }, '[Multi-Session] Skipped group command on pribadi session in favor of connected bot session');
+                return;
+            }
+        }
+
+        // Deduplicate message ID across sessions
+        if (msg.key?.id && isDuplicateMessage(msg.key.id)) {
+            logger.debug({ msgId: msg.key?.id, sessionId }, '[Multi-Session] Message ID already claimed by another session — skipping');
+            return;
+        }
+
         return handler(sock, msg, logger, sessionId, botMode);
     }
 

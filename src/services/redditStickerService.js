@@ -37,6 +37,20 @@ const {
   isDuplicate,
   computeHash,
 } = require("../repositories/redditStickerRepository");
+const { addExifToWebp } = require("../utils/exifHelper");
+
+function prepareStickerWithExif(buffer) {
+  if (!buffer) return buffer;
+  try {
+    return addExifToWebp(
+      buffer,
+      process.env.STICKERIN_BOT_NAME || "yg buat stiker femboy",
+      process.env.STICKERIN_AUTHOR || "rtl femboy"
+    );
+  } catch {
+    return buffer;
+  }
+}
 
 // ── Config ──────────────────────────────────────────────────
 
@@ -408,7 +422,7 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
         continue;
       }
 
-      await sock.sendMessage(groupJid, { sticker: buffer });
+      await sock.sendMessage(groupJid, { sticker: prepareStickerWithExif(buffer) });
       await markStickerSent(sticker.id);
       sent++;
 
@@ -462,7 +476,7 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
         const fs = require("fs");
         if (fs.existsSync(sticker.localPath)) {
           const buffer = fs.readFileSync(sticker.localPath);
-          await sock.sendMessage(remoteJid, { sticker: buffer });
+          await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
           await markStickerSent(sticker.id);
           return {
             success: true,
@@ -504,7 +518,7 @@ async function searchAndSend(keyword, sock, remoteJid, { logger } = {}) {
         const fs = require("fs");
         if (fs.existsSync(sticker.localPath)) {
           const buffer = fs.readFileSync(sticker.localPath);
-          await sock.sendMessage(remoteJid, { sticker: buffer });
+          await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
           await markStickerSent(sticker.id);
           return {
             success: true,
@@ -602,7 +616,7 @@ async function importFromUrl(urlStr, sock, remoteJid, { logger } = {}) {
     const fs = require("fs");
     if (fs.existsSync(sticker.localPath)) {
       const buffer = fs.readFileSync(sticker.localPath);
-      await sock.sendMessage(remoteJid, { sticker: buffer });
+      await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
       await markStickerSent(sticker.id);
       return {
         success: true,
@@ -676,7 +690,7 @@ async function sendReadyFromBank(sock, remoteJid, { logger } = {}) {
       return { success: false, reason: "file_missing" };
     }
 
-    await sock.sendMessage(remoteJid, { sticker: buffer });
+    await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
     await markStickerSent(stickerToSend.id);
 
     logger?.info({
