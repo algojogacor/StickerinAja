@@ -1617,6 +1617,24 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **312 pass, 0 fail, 0 skipped across 70 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 29 — Port Image to PDF & Document Scanner from BOT-WA-1
+
+- **Date:** 2026-08-31
+- **Start:** 21:30 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Port PDF tools and document scanner features from `algojogacor/BOT-WA-1`.
+- **Scope:**
+  - `src/commands/pdf.js`: Built pure zero-dependency PDF-1.4 binary engine embedding JPEG DCTDecode streams. Supports single-image instant PDF (`!topdf`, `!pdf`), multi-image document session collection (`!topdf`, `!pdfdone`, `!pdfcancel`), and CamScanner B&W high-contrast document scanning mode (`!scan`).
+  - `src/commands/menu.js`: Added `pdf` submenu and aliases (`topdf`, `scan`, `document`, `dokumen`).
+  - `test/utilities.test.js`: Added unit tests for PDF binary generator and session lifecycle.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
+- **Status:** Completed
+
+
 
 
 

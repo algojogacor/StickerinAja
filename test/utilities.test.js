@@ -150,9 +150,54 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('PDF & Scanner Module', () => {
+        const pdfCmd = require('../src/commands/pdf');
+        const sharp = require('sharp');
+
+        it('exports required command names and helper functions', () => {
+            assert.ok(Array.isArray(pdfCmd.names));
+            assert.ok(pdfCmd.names.includes('pdf'));
+            assert.ok(pdfCmd.names.includes('topdf'));
+            assert.ok(pdfCmd.names.includes('scan'));
+            assert.ok(pdfCmd.names.includes('pdfdone'));
+            assert.equal(typeof pdfCmd.execute, 'function');
+            assert.equal(typeof pdfCmd.imagesToPdf, 'function');
+        });
+
+        it('generates valid PDF buffer from image buffers', async () => {
+            const img1 = await sharp({
+                create: { width: 100, height: 100, channels: 3, background: { r: 255, g: 0, b: 0 } }
+            }).jpeg().toBuffer();
+
+            const img2 = await sharp({
+                create: { width: 100, height: 100, channels: 3, background: { r: 0, g: 255, b: 0 } }
+            }).jpeg().toBuffer();
+
+            const pdfBuffer = await pdfCmd.imagesToPdf([img1, img2]);
+            assert.ok(Buffer.isBuffer(pdfBuffer));
+            assert.ok(pdfBuffer.length > 500);
+            assert.equal(pdfBuffer.slice(0, 5).toString('utf-8'), '%PDF-');
+        });
+
+        it('starts a new PDF session when triggered without media', async () => {
+            let sentMessage = null;
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessage = content;
+                    return { key: { id: 'test' } };
+                }
+            };
+            const args = [];
+            args._command = 'topdf';
+            await pdfCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net', participant: 'user1@s.whatsapp.net' } }, args);
+            assert.ok(sentMessage);
+            assert.match(sentMessage.text, /SESI PEMBUATAN PDF DIMULAI/);
+        });
+    });
+
     describe('Menu Submenus', () => {
-        it('renders downloader, tts, tools, and cuaca submenus', async () => {
-            const submenus = ['downloader', 'tts', 'tools', 'cuaca'];
+        it('renders downloader, tts, tools, cuaca, and pdf submenus', async () => {
+            const submenus = ['downloader', 'tts', 'tools', 'cuaca', 'pdf'];
             for (const sub of submenus) {
                 let sentText = '';
                 const mockSock = {

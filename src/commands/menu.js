@@ -291,6 +291,24 @@ module.exports = {
 │ • ${p}cuaca Bandung
 │
 │ Alias: ${p}weather, ${p}prakiraan
+╰──────────────────`,
+
+            pdf: `╭──「 *GAMBAR KE PDF & SCAN* 」──
+│ Konversi foto jadi dokumen PDF & Scanner.
+│
+│ *1 Gambar Cepat:*
+│ Reply foto lalu ketik:
+│ ${p}topdf
+│   Foto jadi dokumen PDF (Warna asli).
+│ ${p}scan
+│   Foto jadi dokumen Scan (B&W High Contrast).
+│
+│ *Banyak Gambar (Multi Halaman):*
+│ 1. Ketik \`${p}topdf\` atau \`${p}scan\` untuk mulai sesi.
+│ 2. Kirim foto-foto dokumen secara berurutan.
+│ 3. Ketik \`${p}pdfdone\` untuk download PDF!
+│
+│ Alias: ${p}topdf, ${p}scan, ${p}pdfdone, ${p}pdfcancel
 ╰──────────────────`
         };
 
@@ -318,6 +336,13 @@ module.exports = {
         menus.suara = menus.tts;
         menus.tool = menus.tools;
         menus.utilitas = menus.tools;
+        menus.util = menus.tools;
+        menus.weather = menus.cuaca;
+        menus.prakiraan = menus.cuaca;
+        menus.topdf = menus.pdf;
+        menus.scan = menus.pdf;
+        menus.document = menus.pdf;
+        menus.dokumen = menus.pdf;
         menus.util = menus.tools;
         menus.weather = menus.cuaca;
         menus.prakiraan = menus.cuaca;
