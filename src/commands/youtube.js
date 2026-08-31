@@ -9,6 +9,39 @@ const { heavyTaskQueue } = require('../utils/cache');
 const ytdlp = new YtDlp();
 const MAX_DURATION_SECONDS = 15 * 60; // Max 15 minutes limit to prevent OOM/slow downs
 
+function getCookiesFilePath() {
+    // 1. Direct local file
+    const localCookies = path.join(process.cwd(), 'cookies.txt');
+    if (fs.existsSync(localCookies)) {
+        return localCookies;
+    }
+
+    // 2. Base64 environment variable (ideal for Koyeb secrets/env)
+    if (process.env.YOUTUBE_COOKIES_BASE64) {
+        const tempCookiePath = path.join(os.tmpdir(), 'yt_cookies.txt');
+        try {
+            const decoded = Buffer.from(process.env.YOUTUBE_COOKIES_BASE64, 'base64').toString('utf-8');
+            fs.writeFileSync(tempCookiePath, decoded);
+            return tempCookiePath;
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    // 3. Raw text environment variable
+    if (process.env.YOUTUBE_COOKIES) {
+        const tempCookiePath = path.join(os.tmpdir(), 'yt_cookies.txt');
+        try {
+            fs.writeFileSync(tempCookiePath, process.env.YOUTUBE_COOKIES);
+            return tempCookiePath;
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    return null;
+}
+
 function isYouTubeUrl(input) {
     return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)/i.test(input);
 }
@@ -139,6 +172,8 @@ module.exports = {
 
                 const safeTitle = sanitizeFileName(video.title);
                 const uniqueId = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+                const cookieFile = getCookiesFilePath();
+                const cookieArgs = cookieFile ? ['--cookies', cookieFile] : [];
 
                 if (isVideo) {
                     // Download Video MP4 (480p/720p)
@@ -153,6 +188,7 @@ module.exports = {
                         '--extractor-args', 'youtube:player_client=android,ios,mweb',
                         '--no-playlist',
                         '--no-check-certificates',
+                        ...cookieArgs,
                         '-o', outPattern
                     ]);
 
@@ -195,6 +231,7 @@ module.exports = {
                         '--extractor-args', 'youtube:player_client=android,ios,mweb',
                         '--no-playlist',
                         '--no-check-certificates',
+                        ...cookieArgs,
                         '-o', outPattern
                     ]);
 

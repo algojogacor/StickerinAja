@@ -4,6 +4,8 @@ temp/
 data/
 .env
 *.log
+*cookies*.txt
+cookies/
 .jules/
 graphify-out/
 AGENTS.md
