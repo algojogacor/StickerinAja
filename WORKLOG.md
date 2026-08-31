@@ -1653,6 +1653,23 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 31 — Fix Command Parameter Normalization for Utility Suite
+
+- **Date:** 2026-08-31
+- **Start:** 22:58 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Fix runtime error `Cannot read properties of undefined (reading 'key')` when calling `!ip <domain>` or utility commands.
+- **Scope:**
+  - `src/commands/tools.js`, `src/commands/downloader.js`, `src/commands/tts.js`, `src/commands/weather.js`, `src/commands/pdf.js`: Added `normalizeParams(sockOrOpts, msg, args, ctx)` helper to gracefully handle both handler parameter signatures (options object `{ sock, msg, args, ... }` and positional arguments `(sock, msg, args, ctx)`).
+  - `test/utilities.test.js`: Updated assertions for Base64 testing.
+- **Branch:** `main`
+- **Verification:**
+  - Verified `!ip aryariap.my.id` through handler simulation returns target info.
+  - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
+- **Status:** Completed
+
 
 
 

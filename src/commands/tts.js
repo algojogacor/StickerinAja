@@ -27,10 +27,32 @@ async function fetchTTS(text, lang = 'id') {
     });
 }
 
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'tts',
+        remoteJid: msg?.key?.remoteJid,
+        logger: ctx?.logger
+    };
+}
+
 module.exports = {
     names: ['tts', 'vn', 'voicenote', 'suara'],
-    execute: async (sock, msg, args, ctx) => {
-        const remoteJid = msg.key?.remoteJid;
+    fetchTTS,
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, remoteJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
 
         if (args.length === 0) {
             return sock.sendMessage(remoteJid, {

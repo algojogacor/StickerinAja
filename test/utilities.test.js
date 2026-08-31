@@ -105,13 +105,13 @@ describe('Utility and Tools Command Suite', () => {
             const encodeArgs = ['encode', 'Halo Dunia'];
             encodeArgs._command = 'base64';
             await toolsCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, encodeArgs);
-            assert.match(encodeMsg.text, /HASIL BASE64 ENCODE/);
+            assert.match(encodeMsg.text, /BASE64 ENCODE/);
             assert.match(encodeMsg.text, /SGFsbyBEdW5pYQ==/);
 
             const decodeArgs = ['decode', 'SGFsbyBEdW5pYQ=='];
             decodeArgs._command = 'base64';
             await toolsCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, decodeArgs);
-            assert.match(decodeMsg.text, /HASIL BASE64 DECODE/);
+            assert.match(decodeMsg.text, /BASE64 DECODE/);
             assert.match(decodeMsg.text, /Halo Dunia/);
         });
 

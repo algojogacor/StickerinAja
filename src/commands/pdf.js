@@ -180,15 +180,38 @@ function getSender(msg, sock) {
     return msg?.key?.participant || msg?.key?.remoteJid;
 }
 
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            senderJid: sockOrOpts.senderJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'pdf',
+        remoteJid: msg?.key?.remoteJid,
+        senderJid: getSender(msg, sockOrOpts),
+        logger: ctx?.logger
+    };
+}
+
 module.exports = {
     names: ['pdf', 'topdf', 'scan', 'pdfdone', 'donepdf', 'pdfcancel'],
     imagesToPdf,
     autoCropDocument,
     applyMagicScan,
-    execute: async (sock, msg, args, ctx) => {
-        const remoteJid = msg.key?.remoteJid;
-        const sender = getSender(msg, sock);
-        const command = (args._command || 'pdf').toLowerCase();
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, cmdName, remoteJid, senderJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
+        const sender = senderJid || getSender(msg, sock);
+        const command = (cmdName || args._command || 'pdf').toLowerCase();
         const customTitle = args.join(' ').trim();
 
         // 1. CANCEL SESSION

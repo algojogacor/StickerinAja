@@ -29,10 +29,33 @@ function translateCondition(desc) {
     return map[key] || `${desc} 🌤️`;
 }
 
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'cuaca',
+        remoteJid: msg?.key?.remoteJid,
+        logger: ctx?.logger
+    };
+}
+
 module.exports = {
     names: ['cuaca', 'weather', 'prakiraan'],
-    execute: async (sock, msg, args, ctx) => {
-        const remoteJid = msg.key?.remoteJid;
+    getWeather,
+    translateCondition,
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, remoteJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
         const city = args.join(' ').trim();
 
         if (!city) {

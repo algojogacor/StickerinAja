@@ -52,14 +52,35 @@ async function getInstagramData(url) {
     throw new Error('Media Instagram tidak ditemukan. Pastikan link adalah postingan/reels dari akun publik.');
 }
 
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'download',
+        remoteJid: msg?.key?.remoteJid,
+        logger: ctx?.logger
+    };
+}
+
 module.exports = {
     names: ['tiktok', 'tt', 'ttdl', 'ttmp3', 'ig', 'igdl', 'instagram', 'reels', 'reel', 'download', 'dl'],
     getTikTokData,
     getInstagramData,
     fetchBuffer,
-    execute: async (sock, msg, args, ctx) => {
-        const remoteJid = msg.key?.remoteJid;
-        const command = (args._command || 'download').toLowerCase();
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, cmdName, remoteJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
+        const command = (cmdName || args._command || 'download').toLowerCase();
 
         // Extract URL
         const urlArg = args.find(a => a.startsWith('http://') || a.startsWith('https://'));

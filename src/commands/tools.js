@@ -37,6 +37,27 @@ function generatePassword(length = 16) {
     return pass;
 }
 
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'tools',
+        remoteJid: msg?.key?.remoteJid,
+        logger: ctx?.logger
+    };
+}
+
 module.exports = {
     names: [
         'short', 'shortlink', 'unshort', 'tinyurl',
@@ -46,9 +67,13 @@ module.exports = {
         'base64', 'encode', 'decode',
         'hash', 'md5', 'sha256'
     ],
-    execute: async (sock, msg, args, ctx) => {
-        const remoteJid = msg.key?.remoteJid;
-        const command = (args._command || 'tools').toLowerCase();
+    shortenUrl,
+    unshortenUrl,
+    lookupIp,
+    generatePassword,
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, cmdName, remoteJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
+        const command = (cmdName || args._command || 'tools').toLowerCase();
         const text = args.join(' ').trim();
 
         // 1. URL SHORTENER
@@ -93,94 +118,95 @@ module.exports = {
         if (['qr', 'qrcode'].includes(command)) {
             if (!text) {
                 return sock.sendMessage(remoteJid, {
-                    text: `📱 *QR CODE GENERATOR*\n\nBuat gambar QR Code dari link atau teks apapun!\n\n📌 *Format:* \`!qr <link atau teks>\`\n💡 *Contoh:* \`!qr https://wa.me/628123456789\``
+                    text: `📱 *QR CODE GENERATOR*\n\nBuat QR Code instan dari teks atau link.\n\n📌 *Format:* \`!qr <teks/link>\`\n💡 *Contoh:* \`!qr https://google.com\``
                 }, { quoted: msg });
             }
 
             try {
-                const svgString = generateQrSvg(text);
-                const pngBuffer = await sharp(Buffer.from(svgString))
-                    .resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+                const svg = generateQrSvg(text);
+                const pngBuffer = await sharp(Buffer.from(svg))
+                    .resize(512, 512)
                     .png()
                     .toBuffer();
 
                 return sock.sendMessage(remoteJid, {
                     image: pngBuffer,
-                    caption: `📱 *QR CODE BERHASIL DIBUAT*\n\n📄 *Isi:* \`${text}\``
+                    caption: `📱 *QR CODE SELESAI*\n\n📝 *Konten:* ${text}\n_Scan QR di atas untuk membuka konten._`
                 }, { quoted: msg });
             } catch (err) {
                 return sock.sendMessage(remoteJid, { text: `❌ *Gagal membuat QR Code:* ${err.message}` }, { quoted: msg });
             }
         }
 
-        // 4. PASSWORD GENERATOR
+        // 4. RANDOM PASSWORD GENERATOR
         if (['pass', 'password', 'passgen'].includes(command)) {
-            const length = Math.min(Math.max(parseInt(args[0]) || 16, 6), 64);
-            const pass = generatePassword(length);
+            let length = parseInt(args[0], 10);
+            if (isNaN(length) || length < 6 || length > 64) {
+                length = 16;
+            }
+            const password = generatePassword(length);
             return sock.sendMessage(remoteJid, {
                 text: `🔐 *RANDOM PASSWORD GENERATOR*\n\n` +
-                      `🔑 *Password:* \`${pass}\`\n` +
+                      `🔑 *Password:* \`${password}\`\n` +
                       `📏 *Panjang:* ${length} karakter\n\n` +
-                      `_Tips: Password mengandung kombinasi huruf besar, kecil, angka, dan simbol aman._`
+                      `_Tips: Salin password di atas dan simpan di tempat aman._`
             }, { quoted: msg });
         }
 
-        // 5. IP / DOMAIN LOOKUP
+        // 5. IP & DOMAIN LOOKUP
         if (['ip', 'ipinfo'].includes(command)) {
-            const query = args[0];
+            const query = args[0]?.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
             if (!query) {
                 return sock.sendMessage(remoteJid, {
-                    text: `🌐 *IP & DOMAIN LOOKUP*\n\nCek info detail IP address atau server website.\n\n📌 *Format:* \`!ip <ip atau domain>\`\n💡 *Contoh:* \`!ip google.com\` atau \`!ip 8.8.8.8\``
+                    text: `🌐 *IP & DOMAIN LOOKUP*\n\nCek detail lokasi server, ISP, dan IP publik.\n\n📌 *Format:* \`!ip <ip atau domain>\`\n💡 *Contoh:* \`!ip 8.8.8.8\` atau \`!ip google.com\``
                 }, { quoted: msg });
             }
 
             try {
                 const info = await lookupIp(query);
                 return sock.sendMessage(remoteJid, {
-                    text: `🌐 *INFORMASI IP / SERVER*\n\n` +
-                          `📌 *Query:* \`${info.query}\`\n` +
-                          `🏳️ *Negara:* ${info.country}\n` +
-                          `🏙️ *Kota/Region:* ${info.city}, ${info.regionName}\n` +
-                          `🏢 *ISP / Provider:* ${info.isp}\n` +
-                          `💼 *Organisasi:* ${info.org || '-'}\n` +
+                    text: `🌐 *INFORMASI IP / DOMAIN*\n\n` +
+                          `🎯 *Target:* ${info.query}\n` +
+                          `📍 *Lokasi:* ${info.city}, ${info.regionName}, ${info.country} (${info.zip || '-'})\n` +
+                          `🏢 *ISP:* ${info.isp}\n` +
+                          `🏢 *Organisasi:* ${info.org || info.as}\n` +
                           `⏰ *Timezone:* ${info.timezone}\n` +
-                          `📍 *Koordinat:* ${info.lat}, ${info.lon}\n` +
-                          `🔢 *ASN:* ${info.as || '-'}`
+                          `🗺️ *Koordinat:* ${info.lat}, ${info.lon}`
                 }, { quoted: msg });
             } catch (err) {
-                return sock.sendMessage(remoteJid, { text: `❌ *Gagal mengecek IP:* ${err.message}` }, { quoted: msg });
+                return sock.sendMessage(remoteJid, { text: `❌ *Gagal lookup IP:* ${err.message}` }, { quoted: msg });
             }
         }
 
         // 6. BASE64 ENCODE / DECODE
         if (['base64', 'encode', 'decode'].includes(command)) {
-            const isDecode = command === 'decode' || args[0]?.toLowerCase() === 'decode';
-            const isEncode = command === 'encode' || args[0]?.toLowerCase() === 'encode';
-            const rawContent = (isDecode || isEncode) ? args.slice(1).join(' ') : text;
+            const sub = command === 'base64' ? args[0]?.toLowerCase() : command;
+            const content = (command === 'base64' ? args.slice(1) : args).join(' ').trim();
 
-            if (!rawContent) {
+            if (!content || !['encode', 'decode'].includes(sub)) {
                 return sock.sendMessage(remoteJid, {
                     text: `🔤 *BASE64 ENCODER / DECODER*\n\n` +
                           `📌 *Format:*\n` +
-                          `• \`!base64 encode <teks>\` atau \`!encode <teks>\`\n` +
-                          `• \`!base64 decode <base64>\` atau \`!decode <base64>\``
+                          `• \`!base64 encode <teks>\`\n` +
+                          `• \`!base64 decode <teks base64>\`\n\n` +
+                          `💡 *Contoh:* \`!base64 encode Halo Dunia\``
                 }, { quoted: msg });
             }
 
-            if (isDecode) {
+            if (sub === 'encode') {
+                const encoded = Buffer.from(content, 'utf8').toString('base64');
+                return sock.sendMessage(remoteJid, {
+                    text: `🔤 *BASE64 ENCODE*\n\n📝 *Teks:* ${content}\n✨ *Hasil:* \`${encoded}\``
+                }, { quoted: msg });
+            } else {
                 try {
-                    const decoded = Buffer.from(rawContent, 'base64').toString('utf-8');
+                    const decoded = Buffer.from(content, 'base64').toString('utf8');
                     return sock.sendMessage(remoteJid, {
-                        text: `🔓 *HASIL BASE64 DECODE:*\n\n\`\`\`\n${decoded}\n\`\`\``
+                        text: `🔤 *BASE64 DECODE*\n\n📝 *Base64:* ${content}\n✨ *Hasil:* ${decoded}`
                     }, { quoted: msg });
                 } catch {
-                    return sock.sendMessage(remoteJid, { text: '❌ Input base64 tidak valid.' }, { quoted: msg });
+                    return sock.sendMessage(remoteJid, { text: '❌ *Teks bukan format Base64 yang valid!*' }, { quoted: msg });
                 }
-            } else {
-                const encoded = Buffer.from(rawContent, 'utf-8').toString('base64');
-                return sock.sendMessage(remoteJid, {
-                    text: `🔒 *HASIL BASE64 ENCODE:*\n\n\`\`\`\n${encoded}\n\`\`\``
-                }, { quoted: msg });
             }
         }
 
@@ -188,20 +214,20 @@ module.exports = {
         if (['hash', 'md5', 'sha256'].includes(command)) {
             if (!text) {
                 return sock.sendMessage(remoteJid, {
-                    text: `🔒 *HASH GENERATOR*\n\nGenerate hash MD5, SHA1, dan SHA256 dari teks.\n\n📌 *Format:* \`!hash <teks>\`\n💡 *Contoh:* \`!hash RahasiaKu123\``
+                    text: `🔒 *HASH GENERATOR*\n\nGenerate hash MD5, SHA1, dan SHA256 dari teks.\n\n📌 *Format:* \`!hash <teks>\`\n💡 *Contoh:* \`!hash rahasia123\``
                 }, { quoted: msg });
             }
 
-            const md5Hash = crypto.createHash('md5').update(text).digest('hex');
-            const sha1Hash = crypto.createHash('sha1').update(text).digest('hex');
-            const sha256Hash = crypto.createHash('sha256').update(text).digest('hex');
+            const md5 = crypto.createHash('md5').update(text).digest('hex');
+            const sha1 = crypto.createHash('sha1').update(text).digest('hex');
+            const sha256 = crypto.createHash('sha256').update(text).digest('hex');
 
             return sock.sendMessage(remoteJid, {
-                text: `🔒 *HASIL HASH DARI TEKS*\n\n` +
-                      `📝 *Input:* \`${text}\`\n\n` +
-                      `🔑 *MD5:*\n\`${md5Hash}\`\n\n` +
-                      `🔑 *SHA1:*\n\`${sha1Hash}\`\n\n` +
-                      `🔑 *SHA256:*\n\`${sha256Hash}\``
+                text: `🔒 *HASH RESULTS*\n\n` +
+                      `📝 *Input:* ${text}\n\n` +
+                      `🔑 *MD5:*\n\`${md5}\`\n\n` +
+                      `🔑 *SHA1:*\n\`${sha1}\`\n\n` +
+                      `🔑 *SHA256:*\n\`${sha256}\``
             }, { quoted: msg });
         }
     }
