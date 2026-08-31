@@ -1597,6 +1597,27 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **301 pass, 0 fail, 0 skipped across 64 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 28 — Port Utilities & Tools from BOT-WA-1 (TikTok Downloader, TTS, Tools, Weather)
+
+- **Date:** 2026-08-31
+- **Start:** 21:25 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Port top utility commands from user's previous bot (`algojogacor/BOT-WA-1`): TikTok downloader (no WM), Text to Speech Voice Note (`!tts`), Developer & URL Tools (`!short`, `!unshort`, `!qr`, `!pass`, `!ip`, `!base64`, `!hash`), and Realtime Weather (`!cuaca`).
+- **Scope:**
+  - `src/commands/downloader.js`: TikTok video/audio downloader without watermark via TikWM public API with `--sticker` support.
+  - `src/commands/tts.js`: Multi-language Google Translate TTS voice note generator (`!tts`, `!vn`).
+  - `src/commands/tools.js`: URL shortener/unshortener, QR code generator (PNG/WebP), password generator, IP lookup, base64 encode/decode, MD5/SHA256 hash generator.
+  - `src/commands/weather.js`: Live weather forecasting via wttr.in.
+  - `src/commands/menu.js`: Updated main menu and added dedicated submenus (`downloader`, `tts`, `tools`, `cuaca`).
+  - `test/utilities.test.js`: Added 11 unit tests covering all new modules and submenus.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **312 pass, 0 fail, 0 skipped across 70 test suites**.
+- **Status:** Completed
+
+
 
 
 

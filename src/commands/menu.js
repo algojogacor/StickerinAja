@@ -7,32 +7,35 @@ module.exports = {
 
         const menus = {
             main: `╭──「 *STICKERIN BOT* 」──
-│ Bot khusus bikin, edit, dan konversi stiker WhatsApp.
+│ Bot serba bisa: Stiker WA, AI Vision, Downloader & Utilitas.
 │
-│ *Cara dasar*
-│ 1. Reply foto/video/GIF/stiker.
-│ 2. Ketik command.
-│ 3. Opsi bisa digabung.
+│ *Fitur Utama*
+│ 1. Reply foto/video/GIF -> jadikan stiker otomatis.
+│ 2. AI Vision & Chat pintar (${p}ai).
+│ 3. TikTok Downloader tanpa watermark (${p}tiktok).
+│ 4. Voice Note Generator (${p}tts).
 │
-│ *Menu detail*
+│ *Daftar Menu*
 │ ${p}menu basic     - foto ke stiker
-│ ${p}menu efek      - efek gambar
+│ ${p}menu efek      - efek & filter gambar
 │ ${p}menu gif       - video/GIF animasi
-│ ${p}menu text      - teks, quote, emoji
+│ ${p}menu text      - stiker teks, quote, emoji
 │ ${p}menu meme      - meme sticker
 │ ${p}gif <kata>     - stiker animasi GIPHY
-│ ${p}sgif <kata>    - stiker transparan GIPHY
-│ ${p}ai <tanya>     - AI Vision & Chat (Groq)
+│ ${p}ai <tanya>     - Groq AI Vision & Chat
+│ ${p}tiktok <link>  - download video TikTok no WM
+│ ${p}tts <teks>     - text to speech voice note
+│ ${p}menu tools     - shortlink, QR, IP, password
+│ ${p}cuaca <kota>   - cek cuaca realtime
 │ ${p}menu template  - label/warning/bubble/poster
 │ ${p}menu convert   - toimg/togif/tomp4/sinfo
-│ ${p}menu preset    - preset efek cepat
 │ ${p}menu pack      - pack/author preset
-│ ${p}menu all       - semua ringkasan
+│ ${p}menu all       - tampilkan semua menu
 │
 │ *Status chat ini*
 │ Pack: *${session.pack}*
 │ Author: *${session.author}*
-│ Kualitas default: *${session.quality}%*
+│ Kualitas: *${session.quality}%*
 ╰──────────────────`,
 
             basic: `╭──「 *FOTO KE STIKER* 」──
@@ -226,6 +229,68 @@ module.exports = {
 │ ${p}ai <pertanyaan kamu>
 │ ${p}tanya <pertanyaan kamu>
 │ ${p}gpt <pertanyaan kamu>
+╰──────────────────`,
+
+            downloader: `╭──「 *SOCIAL DOWNLOADER* 」──
+│ Download media media sosial tanpa watermark.
+│
+│ *TikTok Video:*
+│ ${p}tiktok <link tiktok>
+│   Download video MP4 no-watermark.
+│ ${p}ttmp3 <link tiktok>
+│   Download audio lagu TikTok saja.
+│ ${p}tiktok <link> --sticker
+│   Langsung jadikan stiker animasi!
+│
+│ Alias: ${p}tt, ${p}ttdl, ${p}download, ${p}dl
+╰──────────────────`,
+
+            tts: `╭──「 *TEXT TO SPEECH (VN)* 」──
+│ Ubah teks jadi pesan suara WhatsApp.
+│
+│ ${p}tts <teks>
+│   Voice note bahasa Indonesia.
+│ ${p}tts en <teks>
+│   Voice note bahasa Inggris.
+│ ${p}tts ja <teks>
+│   Voice note bahasa Jepang.
+│ ${p}tts ar <teks>
+│   Voice note bahasa Arab.
+│
+│ Alias: ${p}vn, ${p}suara, ${p}voicenote
+╰──────────────────`,
+
+            tools: `╭──「 *UTILITAS & TOOLS* 」──
+│ Kumpulan tool praktis serba guna.
+│
+│ ${p}short <link>
+│   Perpendek URL panjang (TinyURL).
+│ ${p}unshort <shortlink>
+│   Cek dan buka link tujuan asli (keamanan).
+│ ${p}qr <teks/link>
+│   Buat gambar QR Code instan.
+│ ${p}pass <panjang>
+│   Generate password acak yang kuat (6-64 char).
+│ ${p}ip <ip/domain>
+│   Cek lokasi server, ISP, timezone & detail IP.
+│ ${p}base64 encode/decode <teks>
+│   Encode atau decode teks Base64.
+│ ${p}hash <teks>
+│   Generate MD5, SHA1, SHA256 dari teks.
+╰──────────────────`,
+
+            cuaca: `╭──「 *INFO CUACA REALTIME* 」──
+│ Cek prakiraan cuaca seluruh dunia.
+│
+│ ${p}cuaca <nama kota>
+│   Info suhu, kelembaban, angin & kondisi hari ini.
+│
+│ Contoh:
+│ • ${p}cuaca Jakarta
+│ • ${p}cuaca Surabaya
+│ • ${p}cuaca Bandung
+│
+│ Alias: ${p}weather, ${p}prakiraan
 ╰──────────────────`
         };
 
@@ -246,6 +311,16 @@ module.exports = {
         menus.vision = menus.ai;
         menus.tanya = menus.ai;
         menus.gpt = menus.ai;
+        menus.tiktok = menus.downloader;
+        menus.tt = menus.downloader;
+        menus.dl = menus.downloader;
+        menus.vn = menus.tts;
+        menus.suara = menus.tts;
+        menus.tool = menus.tools;
+        menus.utilitas = menus.tools;
+        menus.util = menus.tools;
+        menus.weather = menus.cuaca;
+        menus.prakiraan = menus.cuaca;
 
         menus.all = `${menus.main}
 
