@@ -6,6 +6,51 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 38 — Fix PDF & Document Scanner Multi-Image Session Capture
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 00:40 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell, Ubuntu 24.04 (Korea VM) |
+| **Branch** | `main` |
+| **Starting HEAD** | `c1cdf2f` — `docs: record session 37 in worklog` |
+| **Ending HEAD** | `2c2a1b4` — `fix(pdf): capture uncaptioned images in active PDF sessions and reply with page confirmations` |
+| **Working-tree status** | Clean |
+
+### User request
+
+User reported that scanning multiple photos into a PDF failed after sending images during an active `!scan` session (`❌ Belum ada gambar dalam sesi!` on `!pdfdone`).
+
+### Root cause
+
+`src/handler.js` immediately discarded any incoming message that did not start with `PREFIX` (`!`). When a user sent raw uncaptioned images after triggering `!scan`, `handler.js` ignored all image messages, preventing them from being captured into `pdfSessions`. When `!pdfdone` was called, `session.rawBuffers` remained empty (`0`).
+
+### Implementation
+
+- **Handler Active Session Interception (`src/handler.js`):**
+  - Added proactive check for active sessions (`pdfCmd.handleActiveSession`) before dropping non-prefix messages.
+  - Passes incoming messages containing images to `pdf.js` for session capture.
+- **PDF Active Session Dispatcher (`src/commands/pdf.js`):**
+  - Implemented `handleActiveSession` to extract image buffers from direct, view-once, ephemeral, or document image messages.
+  - Appends buffer to `session.rawBuffers`, updates `session.lastActive`, and replies with instant feedback: `✅ Halaman X Tersimpan!`.
+  - Added 15-minute TTL session expiration cleaner (`cleanExpiredSessions`).
+  - Added unit test suite covering session initialization, image capture, dual PDF generation (Auto-Crop & Full-Frame), and session cancellation.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node --test test/utilities.test.js` | 34 pass, 0 fail; 12 suites |
+| `node --test test/*.test.js` | 335 pass, 0 fail; 76 suites |
+| Git push to `origin/main` | Deployed commit `2c2a1b4` |
+
+**Status: Completed**
+
+---
+
 ## Session 37 — Neutralize Korea VM cryptominer and deploy high-speed YouTube downloader microservice
 
 | Field | Value |
