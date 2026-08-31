@@ -1548,6 +1548,23 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **301 pass, 0 fail, 0 skipped across 64 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 25 — 15-Minute Spaced Proactive Sticker Cadence (4/Hour: 2 Photos, 2 GIFs)
+
+- **Date:** 2026-08-31
+- **Start:** 11:03 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Separate proactive sticker delivery so stickers are not sent in batches of 2 at once. Deliver 4 items per hour (2 photo memes, 2 animated video GIFs) spaced throughout the hour (every 15 minutes).
+- **Scope:**
+  - `src/scheduler/redditStickerCron.js`: Updated `distributeScheduleTimes` to support 96 slots across 24h (1 every 15 minutes). Updated `sendSticker` to alternate media type based on the 15-minute slot (`:00` and `:30` -> Photo Meme from Meme-API; `:15` and `:45` -> Animated Video GIF from GIPHY).
+  - Environment: Updated `REDDIT_STICKER_SENDS_PER_DAY=96` and `REDDIT_STICKER_SEND_COUNT=1` in `.env` and Koyeb production.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **301 pass, 0 fail, 0 skipped across 64 test suites**.
+- **Status:** Completed
+
+
 
 
 

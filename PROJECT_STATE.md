@@ -49,7 +49,7 @@ All times are Asia/Jakarta (WIB).
 | Job | Slots |
 |---|---|
 | Reddit sticker generator | Configurable; default 6 slots across 24h (`00:00, 04:00, 08:00, 12:00, 16:00, 20:00`) |
-| Reddit sticker sender | Configurable; default 24 hourly slots (`00:00, 01:00, 02:00, ..., 23:00 WIB`) sending 2 stickers each (48 stickers/day) |
+| Reddit sticker sender | Configurable; default 96 slots every 15 minutes across 24h (`:00` & `:30` for Photo Memes; `:15` & `:45` for Animated Video GIFs) sending 1 sticker each (96 stickers/day: 48 photos + 48 GIFs) |
 | News briefing | 07:00, 12:00, 17:00, 22:00 (paused) |
 | FX rate collection + delivery | Hourly at `:05` (paused) |
 | FX market context refresh | 07:15, 10:15, 13:15, 16:15, 19:15 (paused) |

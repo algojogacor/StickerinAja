@@ -39,8 +39,15 @@ function formatScheduleMinute(totalMinutes) {
 }
 
 function distributeScheduleTimes(count, startMinutes = 8 * 60, endMinutes = 22 * 60) {
-  const safeCount = Math.max(1, Math.min(48, Number.parseInt(count, 10) || 1));
+  const safeCount = Math.max(1, Math.min(144, Number.parseInt(count, 10) || 1));
   if (safeCount === 1) return [formatScheduleMinute(endMinutes)];
+  const is24h = is24HoursActive();
+  if (is24h && (endMinutes - startMinutes >= 23 * 60)) {
+    const step = 1440 / safeCount;
+    return Array.from({ length: safeCount }, (_, index) =>
+      formatScheduleMinute(Math.floor((step * index) % 1440))
+    );
+  }
   const step = (endMinutes - startMinutes) / (safeCount - 1);
   return Array.from({ length: safeCount }, (_, index) =>
     formatScheduleMinute(Math.round(startMinutes + step * index))
@@ -208,7 +215,7 @@ async function runGenerator(slot = { id: "generate" }) {
   }
 }
 
-async function sendSticker() {
+async function sendSticker(slot) {
   if (await shouldSuppressCron(groupJid, "reddit-sticker")) {
     logger?.info("[Reddit Scheduler] Birthday takeover — skipping send");
     return true;
@@ -233,9 +240,24 @@ async function sendSticker() {
   }
   if (!groupJid) return true;
 
+  // Determine media type based on slot minute:
+  // Slots ending in :15 or :45 -> Video GIF (GIPHY)
+  // Slots ending in :00 or :30 -> Photo Meme (Meme-API)
+  const slotTime = String(slot?.time || "");
+  const minute = parseInt(slotTime.split(":")[1] || "0", 10);
+  const isGifSlot = (minute === 15 || minute === 45);
+
   try {
+    if (isGifSlot) {
+      const { searchAndSendGiphy } = require("../services/redditStickerService");
+      const res = await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
+      if (res?.success) {
+        logger?.info(`[Reddit Scheduler] Scheduled Animated GIF sticker sent (${slot?.time || slot?.id || "gif"})`);
+        return true;
+      }
+    }
     const result = await sendOneSticker(sock, groupJid, { logger });
-    if (result.sent > 0) logger?.info(`[Reddit Scheduler] Sticker sent (${result.sent})`);
+    if (result.sent > 0) logger?.info(`[Reddit Scheduler] Scheduled Photo Meme sticker sent (${result.sent})`);
     return true;
   } catch (error) {
     logger?.error({ err: error }, "[Reddit Scheduler] Send failed — pending until reconnect");
