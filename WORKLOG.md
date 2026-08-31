@@ -1512,5 +1512,25 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **296 pass, 0 fail, 0 skipped across 63 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 23 — Multimodal AI Vision & Text Chat (`!ai`, `!tanya`, `!vision`, `!gpt`)
+
+- **Date:** 2026-08-31
+- **Start:** 10:03 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Add AI Vision feature to describe images, read text inside images (OCR), and chat via Groq API.
+- **Scope:**
+  - `src/services/aiVisionService.js`: Added image optimization (Sharp JPEG 80%, max 1024px) for ultra-fast base64 transmission, Groq Vision API caller using `qwen/qwen3.8-27b`, text chat helper, and automatic multi-key rotation (`GROQ_API_KEY_PRIMARY` / `GROQ_API_KEY_SECONDARY`).
+  - `src/commands/ai.js`: Created command handler with aliases `['ai', 'tanya', 'ask', 'gpt', 'vision', 'baca', 'deskripsi']`, supporting both media reply vision analysis and text question answering.
+  - `src/commands/menu.js`: Updated main menu and added dedicated `!menu ai` submenu.
+  - `test/aiVision.test.js`: Added unit tests covering command names, model selection, image optimization, and usage instructions.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **300 pass, 0 fail, 0 skipped across 64 test suites**.
+  - Live Groq API benchmark verified with `qwen/qwen3.8-27b` delivering ~1s responses.
+- **Status:** Completed
+
+
 
 

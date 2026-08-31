@@ -22,6 +22,7 @@ module.exports = {
 │ ${p}menu meme      - meme sticker
 │ ${p}gif <kata>     - stiker animasi GIPHY
 │ ${p}sgif <kata>    - stiker transparan GIPHY
+│ ${p}ai <tanya>     - AI Vision & Chat (Groq)
 │ ${p}menu template  - label/warning/bubble/poster
 │ ${p}menu convert   - toimg/togif/tomp4/sinfo
 │ ${p}menu preset    - preset efek cepat
@@ -207,6 +208,24 @@ module.exports = {
 │ Pack: *${session.pack}*
 │ Author: *${session.author}*
 │ Kualitas: *${session.quality}%*
+╰──────────────────`,
+
+            ai: `╭──「 *GROQ AI VISION & CHAT* 」──
+│ Tanya jawab AI super cepat & cerdas.
+│
+│ *Lihat Gambar / Baca Teks:*
+│ Reply foto/stiker lalu ketik:
+│ ${p}ai
+│   Deskripsi gambar otomatis.
+│ ${p}ai apa teks di gambar ini?
+│   Baca teks/OCR dalam gambar.
+│ ${p}ai jelaskan maksud meme ini
+│   Penjelasan konteks meme.
+│
+│ *Tanya Jawab Teks:*
+│ ${p}ai <pertanyaan kamu>
+│ ${p}tanya <pertanyaan kamu>
+│ ${p}gpt <pertanyaan kamu>
 ╰──────────────────`
         };
 
@@ -224,6 +243,9 @@ module.exports = {
         menus.presets = menus.preset;
         menus.setting = menus.pack;
         menus.settings = menus.pack;
+        menus.vision = menus.ai;
+        menus.tanya = menus.ai;
+        menus.gpt = menus.ai;
 
         menus.all = `${menus.main}
 
