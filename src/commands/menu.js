@@ -26,6 +26,7 @@ module.exports = {
 │ ${p}tiktok <link>  - download video TikTok no WM
 │ ${p}tts <teks>     - text to speech voice note
 │ ${p}menu tools     - shortlink, QR, IP, password
+│ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
 │ ${p}menu template  - label/warning/bubble/poster
 │ ${p}menu convert   - toimg/togif/tomp4/sinfo
@@ -358,6 +359,18 @@ ${menus.gif}
 ${menus.text}
 
 ${menus.meme}
+
+${menus.ai}
+
+${menus.downloader}
+
+${menus.tts}
+
+${menus.tools}
+
+${menus.cuaca}
+
+${menus.pdf}
 
 ${menus.template}
 
