@@ -341,6 +341,66 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('Queue & Concurrency Hardening', () => {
+        const { ProcessQueue } = require('../src/utils/cache');
+        const { enqueueChatTask } = require('../src/handler');
+
+        it('executes tasks in sequential order with bounded concurrency', async () => {
+            const queue = new ProcessQueue(1);
+            const executionOrder = [];
+
+            const task1 = queue.add(async () => {
+                await new Promise(r => setTimeout(r, 20));
+                executionOrder.push(1);
+            });
+            const task2 = queue.add(async () => {
+                executionOrder.push(2);
+            });
+
+            await Promise.all([task1, task2]);
+            assert.deepEqual(executionOrder, [1, 2]);
+        });
+
+        it('handles task timeout cleanly without locking subsequent queue tasks', async () => {
+            const queue = new ProcessQueue(1);
+            const results = [];
+
+            // Task 1 will timeout (timeout = 30ms, task takes 100ms)
+            const task1 = queue.add(async () => {
+                await new Promise(r => setTimeout(r, 100));
+                results.push('task1_late');
+            }, 30).catch(err => {
+                results.push('task1_timeout');
+            });
+
+            // Task 2 should execute right after task 1 times out
+            const task2 = queue.add(async () => {
+                results.push('task2_ok');
+            }, 50);
+
+            await Promise.all([task1, task2]);
+            assert.ok(results.includes('task1_timeout'));
+            assert.ok(results.includes('task2_ok'));
+        });
+
+        it('maintains per-chat FIFO execution order across overlapping messages', async () => {
+            const chatJid = 'test_group_123@g.us';
+            const log = [];
+
+            const p1 = enqueueChatTask(chatJid, async () => {
+                await new Promise(r => setTimeout(r, 25));
+                log.push('userA_msg1');
+            });
+
+            const p2 = enqueueChatTask(chatJid, async () => {
+                log.push('userB_msg2');
+            });
+
+            await Promise.all([p1, p2]);
+            assert.deepEqual(log, ['userA_msg1', 'userB_msg2']);
+        });
+    });
+
     describe('Menu Submenus', () => {
         it('renders downloader, tts, kbbi, libur, kalender, tools, cuaca, and pdf submenus', async () => {
             const submenus = ['downloader', 'tts', 'kbbi', 'libur', 'kalender', 'tools', 'cuaca', 'pdf'];

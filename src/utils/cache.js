@@ -66,19 +66,20 @@ class LRUCache {
 }
 
 /**
- * Process queue — runs tasks with bounded concurrency
- * Prevents FFmpeg/sharp from OOM on 512MB RAM
+ * Process queue — runs tasks with bounded concurrency and timeout safety
+ * Prevents FFmpeg/sharp/heavy downloads from OOM on 512MB RAM deployments
  */
 class ProcessQueue {
-    constructor(maxConcurrent = 1) {
+    constructor(maxConcurrent = 1, defaultTimeoutMs = 45000) {
         this.queue = [];
         this.running = 0;
         this.maxConcurrent = maxConcurrent;
+        this.defaultTimeoutMs = defaultTimeoutMs;
     }
 
-    async add(task) {
+    async add(task, timeoutMs = this.defaultTimeoutMs) {
         return new Promise((resolve, reject) => {
-            this.queue.push({ task, resolve, reject });
+            this.queue.push({ task, resolve, reject, timeoutMs });
             this.processNext();
         });
     }
@@ -86,11 +87,31 @@ class ProcessQueue {
     async processNext() {
         if (this.running >= this.maxConcurrent || this.queue.length === 0) return;
         this.running++;
-        const { task, resolve, reject } = this.queue.shift();
+        const { task, resolve, reject, timeoutMs } = this.queue.shift();
+
+        let timer = null;
+        let isDone = false;
+
+        const timeoutPromise = new Promise((_, rej) => {
+            if (timeoutMs > 0) {
+                timer = setTimeout(() => {
+                    if (!isDone) {
+                        isDone = true;
+                        rej(new Error(`Task timeout exceeded (${Math.round(timeoutMs / 1000)}s)`));
+                    }
+                }, timeoutMs);
+            }
+        });
+
         try {
-            const result = await task();
+            const taskPromise = Promise.resolve().then(() => task());
+            const result = await Promise.race([taskPromise, timeoutPromise]);
+            isDone = true;
+            if (timer) clearTimeout(timer);
             resolve(result);
         } catch (err) {
+            isDone = true;
+            if (timer) clearTimeout(timer);
             reject(err);
         } finally {
             this.running--;
@@ -107,7 +128,9 @@ module.exports = {
     stickerCache: new LRUCache(50, 20 * 1024 * 1024),
     // ⚡ Text sticker cache: max 30 entries OR 10MB total (was 50, no byte limit)
     textStickerCache: new LRUCache(30, 10 * 1024 * 1024),
-    ffmpegQueue: new ProcessQueue(1),  // 1 video at a time (FFmpeg is memory-hungry)
-    // ⚡ Reduced from 3→2: each sharp/Sticker uses ~20-40MB peak, 3 concurrent = ~120MB spike
-    imageQueue: new ProcessQueue(2)
+    ffmpegQueue: new ProcessQueue(1, 45000),  // 1 video at a time (FFmpeg is memory-hungry)
+    imageQueue: new ProcessQueue(2, 30000),   // Max 2 sharp/sticker operations at a time
+    heavyTaskQueue: new ProcessQueue(2, 60000), // Max 2 downloader / PDF operations at a time
+    ProcessQueue,
+    LRUCache
 };

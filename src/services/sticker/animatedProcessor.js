@@ -31,29 +31,31 @@ function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, qualit
     });
 }
 
+const crypto = require('crypto');
+
 async function createAnimated({
     sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
     downloadFn, parseArgsFn, MAX_FILE_SIZE
 }) {
-    let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
-    if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video dengan *!sgif*' }, { quoted: msg });
-    if (buffer.length > MAX_FILE_SIZE) {
-        return sock.sendMessage(remoteJid, { text: '⚠️ Video terlalu besar! Maks 10MB' }, { quoted: msg });
-    }
-
-    const time = Date.now();
-    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
-
-    const tempInput = path.join(TEMP_DIR, `vid_in_${time}.mp4`);
-    const tempOutput = path.join(TEMP_DIR, `vid_out_${time}.webp`);
-
-    await fs.promises.writeFile(tempInput, buffer);
-    buffer = null;
-
     await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker animasi...' }, { quoted: msg });
 
     await ffmpegQueue.add(async () => {
+        let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video dengan *!sgif*' }, { quoted: msg });
+        if (buffer.length > MAX_FILE_SIZE) {
+            return sock.sendMessage(remoteJid, { text: '⚠️ Video terlalu besar! Maks 10MB' }, { quoted: msg });
+        }
+
+        const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+        const tempInput = path.join(TEMP_DIR, `vid_in_${uniqueId}.mp4`);
+        const tempOutput = path.join(TEMP_DIR, `vid_out_${uniqueId}.webp`);
+
         try {
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
             // Attempt 1: Adaptive up to 8s, 15fps, quality 50
             await runFfmpegEncode(tempInput, tempOutput, { duration: 8, fps: 15, quality: 50 });
             let stat = await fs.promises.stat(tempOutput);
@@ -61,7 +63,7 @@ async function createAnimated({
             // Attempt 2: If > 950KB (over WA limit), re-encode with 6s, 12fps, quality 40
             if (stat.size > MAX_STICKER_BYTES) {
                 logger.info({ size: stat.size }, 'Animated sticker exceeded 950KB, optimizing...');
-                try { fs.unlinkSync(tempOutput); } catch {}
+                try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
                 await runFfmpegEncode(tempInput, tempOutput, { duration: 6, fps: 12, quality: 40 });
                 stat = await fs.promises.stat(tempOutput);
             }
@@ -74,8 +76,8 @@ async function createAnimated({
             logger.error({ err }, 'Animated sticker conversion error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal. Video mungkin corrupt atau FFmpeg error.' }, { quoted: msg });
         } finally {
-            try { fs.unlinkSync(tempInput); } catch {}
-            try { fs.unlinkSync(tempOutput); } catch {}
+            try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch {}
+            try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
         }
     });
 }

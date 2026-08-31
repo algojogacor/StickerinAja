@@ -1729,6 +1729,30 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **326 pass, 0 fail, 0 skipped across 74 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 35 — System Hardening & Comprehensive Queue Architecture
+
+- **Date:** 2026-08-31
+- **Start:** 23:21 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Harden the whole system to prevent commands from being skipped or overwritten when multiple users send commands concurrently in groups.
+- **Scope:**
+  - `src/utils/cache.js`: Enhanced `ProcessQueue` with timeout safety and exported `heavyTaskQueue` (concurrency = 2, timeout = 60s).
+  - `src/handler.js`: Added per-chat sequential FIFO execution queue (`enqueueChatTask`) ensuring messages in the same chat/group are executed in strict order.
+  - `src/services/sticker/imageProcessor.js`: Replaced `Date.now()` with collision-proof `crypto.randomBytes(4).toString('hex')` and wrapped entire operation in `imageQueue`.
+  - `src/services/sticker/animatedProcessor.js`: Replaced timestamp with unique cryptographic IDs and wrapped execution safely.
+  - `src/services/sticker/converterService.js`: Replaced timestamp with unique IDs and wrapped `toImage` in `imageQueue`.
+  - `src/commands/sticker.js`: Wrapped `createFromText` inside `imageQueue.add(...)`.
+  - `src/commands/downloader.js`: Wrapped media downloads in `heavyTaskQueue`.
+  - `src/commands/pdf.js`: Wrapped PDF generation in `heavyTaskQueue`.
+  - `test/utilities.test.js`: Added test suite for queue sequencing, timeout protection, and per-chat FIFO order.
+- **Branch:** `main`
+- **Verification:**
+  - Verified per-chat FIFO queue sequencing and queue timeout recovery.
+  - `node --test test/*.test.js`: **329 pass, 0 fail, 0 skipped across 75 test suites**.
+- **Status:** Completed
+
 
 
 

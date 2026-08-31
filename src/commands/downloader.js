@@ -106,113 +106,117 @@ module.exports = {
         const isAudioOnly = command === 'ttmp3' || args.includes('--audio') || args.includes('-a');
         const isSticker = args.includes('--sticker') || args.includes('-s');
 
-        // ==========================================
-        // 1. INSTAGRAM DOWNLOADER
-        // ==========================================
-        if (isInstagram && !isTikTok) {
+const { heavyTaskQueue } = require('../utils/cache');
+
+        return heavyTaskQueue.add(async () => {
+            // ==========================================
+            // 1. INSTAGRAM DOWNLOADER
+            // ==========================================
+            if (isInstagram && !isTikTok) {
+                try {
+                    await sock.sendMessage(remoteJid, {
+                        text: `⏳ *Sedang mengambil media Instagram...* Mohon tunggu sebentar.`
+                    }, { quoted: msg });
+
+                    const mediaList = await getInstagramData(urlArg);
+
+                    for (let i = 0; i < mediaList.length; i++) {
+                        const item = mediaList[i];
+                        const buffer = await fetchBuffer(item.url);
+
+                        if (isSticker) {
+                            const { convertVideoToSticker, convertImageToSticker } = require('../services/sticker/converterService');
+                            const { prepareStickerWithExif } = require('../utils/exifHelper');
+
+                            const webpBuffer = item.type === 'video'
+                                ? await convertVideoToSticker(buffer)
+                                : await convertImageToSticker(buffer, { quality: 85 });
+                            const finalSticker = prepareStickerWithExif(webpBuffer);
+                            await sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
+                            continue;
+                        }
+
+                        if (item.type === 'video') {
+                            await sock.sendMessage(remoteJid, {
+                                video: buffer,
+                                caption: `🎬 *INSTAGRAM REELS / VIDEO*\n\n` +
+                                         (mediaList.length > 1 ? `📑 *Media:* ${i + 1} dari ${mediaList.length}\n` : '') +
+                                         `_Downloaded by StickerinAja_`,
+                                mimetype: 'video/mp4'
+                            }, { quoted: msg });
+                        } else {
+                            await sock.sendMessage(remoteJid, {
+                                image: buffer,
+                                caption: `📸 *INSTAGRAM PHOTO*\n\n` +
+                                         (mediaList.length > 1 ? `📑 *Foto:* ${i + 1} dari ${mediaList.length}\n` : '') +
+                                         `_Downloaded by StickerinAja_`,
+                                mimetype: 'image/jpeg'
+                            }, { quoted: msg });
+                        }
+
+                        if (i < mediaList.length - 1) {
+                            await new Promise(r => setTimeout(r, 1200));
+                        }
+                    }
+                    return;
+                } catch (error) {
+                    ctx?.logger?.error({ err: error }, '[IG Downloader] Error');
+                    return sock.sendMessage(remoteJid, {
+                        text: `❌ *Gagal Mendownload Instagram*\n\nAlasan: ${error.message || 'Postingan bersifat privat atau server sedang sibuk'}\n\nPastikan link adalah Reels/Foto dari akun Instagram publik.`
+                    }, { quoted: msg });
+                }
+            }
+
+            // ==========================================
+            // 2. TIKTOK DOWNLOADER
+            // ==========================================
             try {
                 await sock.sendMessage(remoteJid, {
-                    text: `⏳ *Sedang mengambil media Instagram...* Mohon tunggu sebentar.`
+                    text: `⏳ *Sedang memproses video TikTok...* Mohon tunggu sebentar.`
                 }, { quoted: msg });
 
-                const mediaList = await getInstagramData(urlArg);
+                const info = await getTikTokData(urlArg);
 
-                for (let i = 0; i < mediaList.length; i++) {
-                    const item = mediaList[i];
-                    const buffer = await fetchBuffer(item.url);
-
-                    if (isSticker) {
-                        const { convertVideoToSticker, convertImageToSticker } = require('../services/sticker/converterService');
-                        const { prepareStickerWithExif } = require('../utils/exifHelper');
-
-                        const webpBuffer = item.type === 'video'
-                            ? await convertVideoToSticker(buffer)
-                            : await convertImageToSticker(buffer, { quality: 85 });
-                        const finalSticker = prepareStickerWithExif(webpBuffer);
-                        await sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
-                        continue;
-                    }
-
-                    if (item.type === 'video') {
-                        await sock.sendMessage(remoteJid, {
-                            video: buffer,
-                            caption: `🎬 *INSTAGRAM REELS / VIDEO*\n\n` +
-                                     (mediaList.length > 1 ? `📑 *Media:* ${i + 1} dari ${mediaList.length}\n` : '') +
-                                     `_Downloaded by StickerinAja_`,
-                            mimetype: 'video/mp4'
-                        }, { quoted: msg });
-                    } else {
-                        await sock.sendMessage(remoteJid, {
-                            image: buffer,
-                            caption: `📸 *INSTAGRAM PHOTO*\n\n` +
-                                     (mediaList.length > 1 ? `📑 *Foto:* ${i + 1} dari ${mediaList.length}\n` : '') +
-                                     `_Downloaded by StickerinAja_`,
-                            mimetype: 'image/jpeg'
-                        }, { quoted: msg });
-                    }
-
-                    if (i < mediaList.length - 1) {
-                        await new Promise(r => setTimeout(r, 1200));
-                    }
+                if (isAudioOnly && info.musicUrl) {
+                    const audioBuffer = await fetchBuffer(info.musicUrl);
+                    return sock.sendMessage(remoteJid, {
+                        audio: audioBuffer,
+                        mimetype: 'audio/mp4',
+                        ptt: false,
+                        caption: `🎵 *Audio TikTok*\n📌 *Judul:* ${info.title}\n👤 *Author:* ${info.author}`
+                    }, { quoted: msg });
                 }
-                return;
-            } catch (error) {
-                ctx?.logger?.error({ err: error }, '[IG Downloader] Error');
-                return sock.sendMessage(remoteJid, {
-                    text: `❌ *Gagal Mendownload Instagram*\n\nAlasan: ${error.message || 'Postingan bersifat privat atau server sedang sibuk'}\n\nPastikan link adalah Reels/Foto dari akun Instagram publik.`
-                }, { quoted: msg });
-            }
-        }
 
-        // ==========================================
-        // 2. TIKTOK DOWNLOADER
-        // ==========================================
-        try {
-            await sock.sendMessage(remoteJid, {
-                text: `⏳ *Sedang memproses video TikTok...* Mohon tunggu sebentar.`
-            }, { quoted: msg });
+                if (isSticker && info.playUrl) {
+                    const { convertVideoToSticker } = require('../services/sticker/converterService');
+                    const { prepareStickerWithExif } = require('../utils/exifHelper');
+                    const videoBuffer = await fetchBuffer(info.playUrl);
+                    const webpBuffer = await convertVideoToSticker(videoBuffer);
+                    const finalSticker = prepareStickerWithExif(webpBuffer);
+                    return sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
+                }
 
-            const info = await getTikTokData(urlArg);
+                if (!info.playUrl) {
+                    throw new Error('Link video tidak ditemukan');
+                }
 
-            if (isAudioOnly && info.musicUrl) {
-                const audioBuffer = await fetchBuffer(info.musicUrl);
-                return sock.sendMessage(remoteJid, {
-                    audio: audioBuffer,
-                    mimetype: 'audio/mp4',
-                    ptt: false,
-                    caption: `🎵 *Audio TikTok*\n📌 *Judul:* ${info.title}\n👤 *Author:* ${info.author}`
-                }, { quoted: msg });
-            }
-
-            if (isSticker && info.playUrl) {
-                const { convertVideoToSticker } = require('../services/sticker/converterService');
-                const { prepareStickerWithExif } = require('../utils/exifHelper');
                 const videoBuffer = await fetchBuffer(info.playUrl);
-                const webpBuffer = await convertVideoToSticker(videoBuffer);
-                const finalSticker = prepareStickerWithExif(webpBuffer);
-                return sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
+                return sock.sendMessage(remoteJid, {
+                    video: videoBuffer,
+                    caption: `🎬 *TIKTOK VIDEO (NO WATERMARK)*\n\n` +
+                             `📌 *Judul:* ${info.title}\n` +
+                             `👤 *Author:* ${info.author}\n` +
+                             `⏱️ *Durasi:* ${info.duration} detik\n\n` +
+                             `_Powered by StickerinAja_`,
+                    mimetype: 'video/mp4'
+                }, { quoted: msg });
+
+            } catch (error) {
+                ctx?.logger?.error({ err: error }, '[TikTok Downloader] Error processing video');
+                return sock.sendMessage(remoteJid, {
+                    text: `❌ *Gagal Mendownload TikTok*\n\nAlasan: ${error.message || 'URL tidak valid atau server sedang sibuk'}\n\nPastikan link TikTok publik dan dapat dibuka.`
+                }, { quoted: msg });
             }
-
-            if (!info.playUrl) {
-                throw new Error('Link video tidak ditemukan');
-            }
-
-            const videoBuffer = await fetchBuffer(info.playUrl);
-            return sock.sendMessage(remoteJid, {
-                video: videoBuffer,
-                caption: `🎬 *TIKTOK VIDEO (NO WATERMARK)*\n\n` +
-                         `📌 *Judul:* ${info.title}\n` +
-                         `👤 *Author:* ${info.author}\n` +
-                         `⏱️ *Durasi:* ${info.duration} detik\n\n` +
-                         `_Powered by StickerinAja_`,
-                mimetype: 'video/mp4'
-            }, { quoted: msg });
-
-        } catch (error) {
-            ctx?.logger?.error({ err: error }, '[TikTok Downloader] Error processing video');
-            return sock.sendMessage(remoteJid, {
-                text: `❌ *Gagal Mendownload TikTok*\n\nAlasan: ${error.message || 'URL tidak valid atau server sedang sibuk'}\n\nPastikan link TikTok publik dan dapat dibuka.`
-            }, { quoted: msg });
-        }
+        });
     }
 };

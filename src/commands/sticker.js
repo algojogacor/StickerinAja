@@ -292,16 +292,18 @@ module.exports = {
 
         await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker teks...' }, { quoted: msg });
 
-        const imgBuffer = await renderTextToWebP(displayText, {
-            bgColor,
-            textColor,
-            quality: session.quality || 90
-        });
+        await imageQueue.add(async () => {
+            const imgBuffer = await renderTextToWebP(displayText, {
+                bgColor,
+                textColor,
+                quality: session.quality || 90
+            });
 
-        const stickerWithExif = addExifToWebp(imgBuffer, session?.pack, session?.author);
-        await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
-        textStickerCache.set(textCacheKey, stickerWithExif);
-        logger.info(`✅ Text sticker with EXIF sent: "${displayText.slice(0, 30)}..."`);
+            const stickerWithExif = addExifToWebp(imgBuffer, session?.pack, session?.author);
+            await sock.sendMessage(remoteJid, { sticker: stickerWithExif }, { quoted: msg });
+            textStickerCache.set(textCacheKey, stickerWithExif);
+            logger.info(`✅ Text sticker with EXIF sent: "${displayText.slice(0, 30)}..."`);
+        });
     },
 
     async createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger }) {

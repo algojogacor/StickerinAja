@@ -5,7 +5,8 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const { ffmpegQueue } = require('../../utils/cache');
+const crypto = require('crypto');
+const { ffmpegQueue, imageQueue } = require('../../utils/cache');
 
 function unwrapMessage(m) {
     if (!m) return null;
@@ -61,8 +62,9 @@ async function stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logg
     } catch {}
 
     if (kind.includes('video') || kind === 'sticker') {
-        const time = Date.now();
-        const tempInput = path.join(TEMP_DIR, `info_${time}.bin`);
+        const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+        const tempInput = path.join(TEMP_DIR, `info_${uniqueId}.bin`);
         await fs.promises.writeFile(tempInput, buffer);
         buffer = null;
         try {
@@ -72,7 +74,7 @@ async function stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logg
             if (stream?.duration) lines.push(`Durasi: ${Number(stream.duration).toFixed(2)}s`);
             if (stream?.avg_frame_rate && stream.avg_frame_rate !== '0/0') lines.push(`FPS: ${stream.avg_frame_rate}`);
         } finally {
-            try { fs.unlinkSync(tempInput); } catch {}
+            try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch {}
         }
     }
 
@@ -89,31 +91,35 @@ async function toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, 
 
     await sock.sendMessage(remoteJid, { text: '⏳ Mengubah stiker ke gambar...' }, { quoted: msg });
 
-    let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
-    if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
+    await imageQueue.add(async () => {
+        let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
 
-    const time = Date.now();
-    const tempInput = path.join(TEMP_DIR, `stk_${time}.webp`);
-    const tempOutput = path.join(TEMP_DIR, `img_${time}.png`);
-    await fs.promises.writeFile(tempInput, buffer);
-    buffer = null;
+        const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+        const tempInput = path.join(TEMP_DIR, `stk_${uniqueId}.webp`);
+        const tempOutput = path.join(TEMP_DIR, `img_${uniqueId}.png`);
 
-    try {
-        await new Promise((resolve, reject) => {
-            ffmpeg(tempInput)
-                .outputOptions(['-vframes 1', '-vcodec png'])
-                .on('end', resolve).on('error', reject)
-                .save(tempOutput);
-        });
-        const imgBuffer = await fs.promises.readFile(tempOutput);
-        await sock.sendMessage(remoteJid, { image: imgBuffer, caption: '🖼️ Hasil konversi' }, { quoted: msg });
-    } catch (err) {
-        logger.error({ err }, 'ToImg error');
-        await sock.sendMessage(remoteJid, { text: '❌ Gagal. Stiker animasi tidak didukung.' }, { quoted: msg });
-    } finally {
-        try { fs.unlinkSync(tempInput); } catch {}
-        try { fs.unlinkSync(tempOutput); } catch {}
-    }
+        try {
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
+            await new Promise((resolve, reject) => {
+                ffmpeg(tempInput)
+                    .outputOptions(['-vframes 1', '-vcodec png'])
+                    .on('end', resolve).on('error', reject)
+                    .save(tempOutput);
+            });
+            const imgBuffer = await fs.promises.readFile(tempOutput);
+            await sock.sendMessage(remoteJid, { image: imgBuffer, caption: '🖼️ Hasil konversi' }, { quoted: msg });
+        } catch (err) {
+            logger.error({ err }, 'ToImg error');
+            await sock.sendMessage(remoteJid, { text: '❌ Gagal. Stiker animasi tidak didukung.' }, { quoted: msg });
+        } finally {
+            try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch {}
+            try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
+        }
+    });
 }
 
 async function toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn, TEMP_DIR }) {
@@ -124,17 +130,19 @@ async function toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
 
     await sock.sendMessage(remoteJid, { text: '⏳ Mengubah stiker animasi ke GIF...' }, { quoted: msg });
 
-    let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
-    if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
-
     await ffmpegQueue.add(async () => {
-        const time = Date.now();
-        const tempInput = path.join(TEMP_DIR, `stk_${time}.webp`);
-        const tempOutput = path.join(TEMP_DIR, `gif_${time}.gif`);
-        await fs.promises.writeFile(tempInput, buffer);
-        buffer = null;
+        let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
+
+        const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+        const tempInput = path.join(TEMP_DIR, `stk_${uniqueId}.webp`);
+        const tempOutput = path.join(TEMP_DIR, `gif_${uniqueId}.gif`);
 
         try {
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
             await new Promise((resolve, reject) => {
                 ffmpeg(tempInput)
                     .outputOptions([
@@ -156,8 +164,8 @@ async function toGif({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
             logger.error({ err }, 'ToGif error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal mengubah stiker animasi ke GIF.' }, { quoted: msg });
         } finally {
-            try { fs.unlinkSync(tempInput); } catch {}
-            try { fs.unlinkSync(tempOutput); } catch {}
+            try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch {}
+            try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
         }
     });
 }
@@ -170,17 +178,19 @@ async function toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
 
     await sock.sendMessage(remoteJid, { text: '⏳ Mengubah stiker animasi ke MP4...' }, { quoted: msg });
 
-    let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
-    if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
-
     await ffmpegQueue.add(async () => {
-        const time = Date.now();
-        const tempInput = path.join(TEMP_DIR, `stk_${time}.webp`);
-        const tempOutput = path.join(TEMP_DIR, `mp4_${time}.mp4`);
-        await fs.promises.writeFile(tempInput, buffer);
-        buffer = null;
+        let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '❌ Gagal download stiker' }, { quoted: msg });
+
+        const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+        const tempInput = path.join(TEMP_DIR, `stk_${uniqueId}.webp`);
+        const tempOutput = path.join(TEMP_DIR, `mp4_${uniqueId}.mp4`);
 
         try {
+            await fs.promises.writeFile(tempInput, buffer);
+            buffer = null;
+
             await new Promise((resolve, reject) => {
                 ffmpeg(tempInput)
                     .outputOptions([
@@ -203,8 +213,8 @@ async function toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
             logger.error({ err }, 'ToMp4 error');
             await sock.sendMessage(remoteJid, { text: '❌ Gagal mengubah stiker animasi ke MP4.' }, { quoted: msg });
         } finally {
-            try { fs.unlinkSync(tempInput); } catch {}
-            try { fs.unlinkSync(tempOutput); } catch {}
+            try { if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput); } catch {}
+            try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
         }
     });
 }

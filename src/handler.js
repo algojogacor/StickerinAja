@@ -111,6 +111,25 @@ function extractMessageContent(msg) {
     return { text, quotedMsg, quotedStanza };
 }
 
+// Per-chat sequential execution queue (FIFO)
+// Guarantees commands in the same chat/group are executed in order without dropping or racing
+const chatQueues = new Map();
+
+function enqueueChatTask(chatJid, task) {
+    const currentPromise = chatQueues.get(chatJid) || Promise.resolve();
+    const nextPromise = currentPromise
+        .catch(() => {})
+        .then(() => task());
+
+    chatQueues.set(chatJid, nextPromise);
+    nextPromise.finally(() => {
+        if (chatQueues.get(chatJid) === nextPromise) {
+            chatQueues.delete(chatJid);
+        }
+    });
+    return nextPromise;
+}
+
 async function handler(sock, msg, logger, sessionId = null, botMode = null) {
     const remoteJid = msg.key?.remoteJid;
     if (!remoteJid) return;
@@ -132,18 +151,20 @@ async function handler(sock, msg, logger, sessionId = null, botMode = null) {
 
     logger.info({ cmd: cmdName, chat: remoteJid, sender: senderJid, fromMe: Boolean(msg.key?.fromMe) }, `→ ${cmdName}`);
 
-    try {
-        await cmd.execute({
-            sock, msg, args, cmdName, remoteJid, senderJid, quotedMsg, quotedStanza,
-            session: getSession(senderJid),
-            logger, PREFIX, state
-        });
-    } catch (err) {
-        logger.error({ err, cmd: cmdName }, 'Command error');
-        await sock.sendMessage(remoteJid, {
-            text: `❌ Error: ${err.message || 'Unknown error'}`
-        }, { quoted: msg });
-    }
+    return enqueueChatTask(remoteJid, async () => {
+        try {
+            await cmd.execute({
+                sock, msg, args, cmdName, remoteJid, senderJid, quotedMsg, quotedStanza,
+                session: getSession(senderJid),
+                logger, PREFIX, state
+            });
+        } catch (err) {
+            logger.error({ err, cmd: cmdName }, 'Command error');
+            await sock.sendMessage(remoteJid, {
+                text: `❌ Error: ${err.message || 'Unknown error'}`
+            }, { quoted: msg });
+        }
+    });
 }
 
 module.exports = {
@@ -152,5 +173,6 @@ module.exports = {
     getSession,
     getSenderJid,
     shouldProcessMessage,
-    extractMessageContent
+    extractMessageContent,
+    enqueueChatTask
 };
