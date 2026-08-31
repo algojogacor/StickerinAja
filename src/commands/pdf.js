@@ -5,8 +5,94 @@ const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pdfSessions = new Map();
 
 /**
+ * Intelligent Document Auto-Crop
+ * Detects document boundaries (bright paper vs darker background) with safe padding.
+ */
+async function autoCropDocument(buffer) {
+    try {
+        const metadata = await sharp(buffer).metadata();
+        const { width, height } = metadata;
+        if (!width || !height) return buffer;
+
+        const thumbWidth = 200;
+        const thumbHeight = Math.round((height / width) * 200);
+
+        const thumb = await sharp(buffer)
+            .resize(thumbWidth, thumbHeight)
+            .grayscale()
+            .raw()
+            .toBuffer();
+
+        let total = 0;
+        for (let i = 0; i < thumb.length; i++) total += thumb[i];
+        const avg = total / thumb.length;
+        const threshold = Math.max(avg * 0.9, 100);
+
+        let minX = thumbWidth, maxX = 0, minY = thumbHeight, maxY = 0;
+        let count = 0;
+
+        for (let y = 0; y < thumbHeight; y++) {
+            for (let x = 0; x < thumbWidth; x++) {
+                const val = thumb[y * thumbWidth + x];
+                if (val >= threshold) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    count++;
+                }
+            }
+        }
+
+        const areaRatio = count / (thumbWidth * thumbHeight);
+        if (areaRatio > 0.3 && areaRatio < 0.98 && maxX > minX && maxY > minY) {
+            const scaleX = width / thumbWidth;
+            const scaleY = height / thumbHeight;
+
+            const padX = Math.round(width * 0.02);
+            const padY = Math.round(height * 0.02);
+
+            const cropLeft = Math.max(0, Math.round(minX * scaleX) - padX);
+            const cropTop = Math.max(0, Math.round(minY * scaleY) - padY);
+            const cropWidth = Math.min(width - cropLeft, Math.round((maxX - minX) * scaleX) + padX * 2);
+            const cropHeight = Math.min(height - cropTop, Math.round((maxY - minY) * scaleY) + padY * 2);
+
+            if (cropWidth > width * 0.4 && cropHeight > height * 0.4) {
+                return sharp(buffer)
+                    .extract({ left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight })
+                    .toBuffer();
+            }
+        }
+        return buffer;
+    } catch {
+        return buffer;
+    }
+}
+
+/**
+ * Apply CamScanner Magic Color & Paper Whitening
+ */
+async function applyMagicScan(buffer, mode = 'scan') {
+    if (mode === 'scan') {
+        return sharp(buffer)
+            .grayscale()
+            .normalise()
+            .linear(1.45, -45)
+            .sharpen({ sigma: 1.2, m1: 1.0, m2: 2.0 })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+    } else {
+        return sharp(buffer)
+            .normalise()
+            .linear(1.25, -25)
+            .sharpen({ sigma: 1.0, m1: 0.8, m2: 1.5 })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+    }
+}
+
+/**
  * Creates a valid multi-page PDF-1.4 buffer directly from JPEG image buffers.
- * Zero external dependencies, ultra-fast and lightweight.
  */
 async function imagesToPdf(imageBuffers) {
     const pages = [];
@@ -53,13 +139,9 @@ async function imagesToPdf(imageBuffers) {
         objects.push(true);
     }
 
-    // Catalog
     addObj(`<< /Type /Catalog /Pages ${pagesObjNum} 0 R >>`);
-
-    // Pages tree
     addObj(`<< /Type /Pages /Kids [${pageObjNums.map(n => `${n} 0 R`).join(' ')}] /Count ${pages.length} >>`);
 
-    // Pages and Images
     for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
         const pageNum = pageObjNums[i];
@@ -83,18 +165,6 @@ async function imagesToPdf(imageBuffers) {
     return Buffer.from(pdf, 'latin1');
 }
 
-/**
- * Apply CamScanner-style enhancement to document image buffer (B&W high contrast).
- */
-async function applyScanFilter(buffer) {
-    return sharp(buffer)
-        .grayscale()
-        .linear(1.4, -20)
-        .sharpen()
-        .jpeg({ quality: 90 })
-        .toBuffer();
-}
-
 function getSender(msg, sock) {
     if (msg?.key?.fromMe) {
         return sock?.user?.id?.replace(/:.*@/, '@') || msg?.key?.remoteJid;
@@ -105,7 +175,8 @@ function getSender(msg, sock) {
 module.exports = {
     names: ['pdf', 'topdf', 'scan', 'pdfdone', 'donepdf', 'pdfcancel'],
     imagesToPdf,
-    applyScanFilter,
+    autoCropDocument,
+    applyMagicScan,
     execute: async (sock, msg, args, ctx) => {
         const remoteJid = msg.key?.remoteJid;
         const sender = getSender(msg, sock);
@@ -120,10 +191,10 @@ module.exports = {
             return sock.sendMessage(remoteJid, { text: 'ℹ️ Tidak ada sesi PDF aktif.' }, { quoted: msg });
         }
 
-        // 2. FINISH & GENERATE PDF
+        // 2. FINISH & GENERATE DUAL PDF OUTPUT (AutoCrop + FullFrame)
         if (command === 'pdfdone' || command === 'donepdf') {
             const session = pdfSessions.get(sender);
-            if (!session || session.buffers.length === 0) {
+            if (!session || session.rawBuffers.length === 0) {
                 return sock.sendMessage(remoteJid, {
                     text: '❌ *Belum ada gambar dalam sesi!*' +
                           '\nKirim/reply gambar terlebih dahulu dengan `!topdf` atau `!scan`.'
@@ -131,23 +202,57 @@ module.exports = {
             }
 
             try {
+                const totalPages = session.rawBuffers.length;
                 await sock.sendMessage(remoteJid, {
-                    text: `⏳ *Menggabungkan ${session.buffers.length} halaman menjadi PDF...*`
+                    text: `⏳ *Menggabungkan ${totalPages} halaman & menyiapkan 2 versi PDF dokumen...*`
                 }, { quoted: msg });
 
-                const pdfBuffer = await imagesToPdf(session.buffers);
-                const modeName = session.mode === 'scan' ? 'Dokumen_Scan' : 'Dokumen';
-                const fileName = `${modeName}_${Date.now()}.pdf`;
+                const mode = session.mode;
+                const timestamp = Date.now();
+                const prefix = mode === 'scan' ? 'Dokumen_Scan' : 'Dokumen';
 
+                // Process Version 1: Auto-Crop + MagicScan
+                const v1Buffers = [];
+                for (const raw of session.rawBuffers) {
+                    const cropped = await autoCropDocument(raw);
+                    const enhanced = await applyMagicScan(cropped, mode);
+                    v1Buffers.push(enhanced);
+                }
+                const pdfV1 = await imagesToPdf(v1Buffers);
+
+                // Process Version 2: Full-Frame + MagicScan
+                const v2Buffers = [];
+                for (const raw of session.rawBuffers) {
+                    const enhanced = await applyMagicScan(raw, mode);
+                    v2Buffers.push(enhanced);
+                }
+                const pdfV2 = await imagesToPdf(v2Buffers);
+
+                // Send PDF 1
                 await sock.sendMessage(remoteJid, {
-                    document: pdfBuffer,
+                    document: pdfV1,
                     mimetype: 'application/pdf',
-                    fileName,
-                    caption: `📄 *DOKUMEN PDF BERHASIL DIBUAT*\n\n` +
-                             `📑 *Total Halaman:* ${session.buffers.length}\n` +
-                             `🎨 *Mode:* ${session.mode === 'scan' ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
-                             `📦 *Ukuran File:* ${(pdfBuffer.length / 1024).toFixed(1)} KB\n\n` +
-                             `_Powered by StickerinAja_`
+                    fileName: `${prefix}_${timestamp}_1.pdf`,
+                    caption: `📄 *DOKUMEN PDF (VERSI 1)*\n\n` +
+                             `📑 *Total Halaman:* ${totalPages}\n` +
+                             `🎨 *Mode:* ${mode === 'scan' ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
+                             `✨ *Format:* Auto-Crop & Pembersih Dokumen\n\n` +
+                             `_Pilih versi yang paling pas dengan lembar dokumen Anda._`
+                }, { quoted: msg });
+
+                // Brief pause before sending PDF 2
+                await new Promise(r => setTimeout(r, 1200));
+
+                // Send PDF 2
+                await sock.sendMessage(remoteJid, {
+                    document: pdfV2,
+                    mimetype: 'application/pdf',
+                    fileName: `${prefix}_${timestamp}_2.pdf`,
+                    caption: `📄 *DOKUMEN PDF (VERSI 2)*\n\n` +
+                             `📑 *Total Halaman:* ${totalPages}\n` +
+                             `🎨 *Mode:* ${mode === 'scan' ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
+                             `✨ *Format:* Full-Frame & Pembersih Dokumen\n\n` +
+                             `_Pilih versi yang paling pas dengan lembar dokumen Anda._`
                 }, { quoted: msg });
 
                 pdfSessions.delete(sender);
@@ -175,52 +280,70 @@ module.exports = {
         }
 
         const isScanMode = (command === 'scan');
+        const mode = isScanMode ? 'scan' : 'color';
 
-        // Case A: Reply 1 image directly -> convert to PDF immediately!
+        // Case A: Reply 1 image directly -> generate and send both versions immediately!
         if (imageBuffer && !pdfSessions.has(sender)) {
             try {
-                let processedBuffer = imageBuffer;
-                if (isScanMode) {
-                    processedBuffer = await applyScanFilter(imageBuffer);
-                }
+                await sock.sendMessage(remoteJid, { text: '⏳ Sedang mengolah dokumen & menyiapkan 2 versi PDF...' }, { quoted: msg });
 
-                await sock.sendMessage(remoteJid, { text: '⏳ Sedang mengonversi gambar menjadi PDF...' }, { quoted: msg });
-                const pdfBuffer = await imagesToPdf([processedBuffer]);
-                const fileName = `${isScanMode ? 'Scan' : 'Dokumen'}_${Date.now()}.pdf`;
+                const timestamp = Date.now();
+                const prefix = isScanMode ? 'Dokumen_Scan' : 'Dokumen';
 
-                return sock.sendMessage(remoteJid, {
-                    document: pdfBuffer,
+                // Version 1: Auto-Crop + MagicScan
+                const cropped = await autoCropDocument(imageBuffer);
+                const enhancedV1 = await applyMagicScan(cropped, mode);
+                const pdfV1 = await imagesToPdf([enhancedV1]);
+
+                // Version 2: Full-Frame + MagicScan
+                const enhancedV2 = await applyMagicScan(imageBuffer, mode);
+                const pdfV2 = await imagesToPdf([enhancedV2]);
+
+                // Send PDF 1
+                await sock.sendMessage(remoteJid, {
+                    document: pdfV1,
                     mimetype: 'application/pdf',
-                    fileName,
-                    caption: `📄 *DOKUMEN PDF SIAP!*\n\n` +
+                    fileName: `${prefix}_${timestamp}_1.pdf`,
+                    caption: `📄 *DOKUMEN PDF (VERSI 1)*\n\n` +
                              `📑 *Halaman:* 1 Halaman\n` +
-                             `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W)' : 'Warna Asli'}\n\n` +
-                             `_Tips: Untuk menggabungkan banyak foto sekaligus jadi 1 PDF, ketik \`!topdf\` lalu kirim gambar berturut-turut, kemudian ketik \`!pdfdone\`._`
+                             `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
+                             `✨ *Format:* Auto-Crop & Pembersih Dokumen`
                 }, { quoted: msg });
+
+                await new Promise(r => setTimeout(r, 1200));
+
+                // Send PDF 2
+                return sock.sendMessage(remoteJid, {
+                    document: pdfV2,
+                    mimetype: 'application/pdf',
+                    fileName: `${prefix}_${timestamp}_2.pdf`,
+                    caption: `📄 *DOKUMEN PDF (VERSI 2)*\n\n` +
+                             `📑 *Halaman:* 1 Halaman\n` +
+                             `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
+                             `✨ *Format:* Full-Frame & Pembersih Dokumen\n\n` +
+                             `_Tips: Untuk menggabungkan banyak foto jadi 1 file PDF, ketik \`!topdf\` lalu kirim gambar berturut-turut, lalu ketik \`!pdfdone\`._`
+                }, { quoted: msg });
+
             } catch (err) {
                 return sock.sendMessage(remoteJid, { text: `❌ *Gagal membuat PDF:* ${err.message}` }, { quoted: msg });
             }
         }
 
-        // Case B: Session already active -> add this image to session
+        // Case B: Session already active -> add raw image to session
         if (pdfSessions.has(sender)) {
             const session = pdfSessions.get(sender);
             if (imageBuffer) {
-                let finalBuf = imageBuffer;
-                if (session.mode === 'scan') {
-                    finalBuf = await applyScanFilter(imageBuffer);
-                }
-                session.buffers.push(finalBuf);
+                session.rawBuffers.push(imageBuffer);
                 return sock.sendMessage(remoteJid, {
-                    text: `✅ *Halaman ${session.buffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *!pdfdone* untuk menyelesaikan dan download PDF.`
+                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *!pdfdone* untuk menyelesaikan dan download 2 versi PDF.`
                 }, { quoted: msg });
             } else {
                 return sock.sendMessage(remoteJid, {
                     text: `📑 *Sesi PDF Sedang Aktif*\n\n` +
-                          `• Halaman tersimpan: *${session.buffers.length}*\n` +
+                          `• Halaman tersimpan: *${session.rawBuffers.length}*\n` +
                           `• Mode: *${session.mode === 'scan' ? 'Scan Dokumen (B&W)' : 'Warna Asli'}*\n\n` +
                           `Silakan kirim gambar lagi, atau ketik:\n` +
-                          `• \`!pdfdone\` : Selesai & Buat File PDF\n` +
+                          `• \`!pdfdone\` : Selesai & Download 2 Versi PDF\n` +
                           `• \`!pdfcancel\` : Batalkan sesi`
                 }, { quoted: msg });
             }
@@ -228,17 +351,17 @@ module.exports = {
 
         // Case C: Start new multi-page PDF session
         pdfSessions.set(sender, {
-            mode: isScanMode ? 'scan' : 'color',
-            buffers: [],
+            mode,
+            rawBuffers: [],
             createdAt: Date.now()
         });
 
         return sock.sendMessage(remoteJid, {
             text: `📑 *SESI PEMBUATAN PDF DIMULAI!*\n\n` +
                   `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n\n` +
-                  `Silakan kirim foto/dokumen satu per satu (bisa banyak halaman).\n\n` +
+                  `Silakan kirim foto/dokumen satu per satu secara berurutan.\nSaat selesai, bot akan mengirimkan 2 versi PDF (Auto-Crop & Full-Frame) untuk Anda pilih.\n\n` +
                   `📌 *Perintah Kontrol:*\n` +
-                  `• \`!pdfdone\` : Selesai & download dokumen PDF\n` +
+                  `• \`!pdfdone\` : Selesai & download 2 versi PDF\n` +
                   `• \`!pdfcancel\` : Batalkan sesi`
         }, { quoted: msg });
     }
