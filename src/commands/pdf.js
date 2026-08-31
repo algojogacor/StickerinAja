@@ -165,6 +165,14 @@ async function imagesToPdf(imageBuffers) {
     return Buffer.from(pdf, 'latin1');
 }
 
+function getCleanFileName(customTitle, defaultPrefix) {
+    if (customTitle && customTitle.trim()) {
+        const sanitized = customTitle.trim().replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_');
+        return sanitized.toLowerCase().endsWith('.pdf') ? sanitized : `${sanitized}.pdf`;
+    }
+    return `${defaultPrefix}.pdf`;
+}
+
 function getSender(msg, sock) {
     if (msg?.key?.fromMe) {
         return sock?.user?.id?.replace(/:.*@/, '@') || msg?.key?.remoteJid;
@@ -181,6 +189,7 @@ module.exports = {
         const remoteJid = msg.key?.remoteJid;
         const sender = getSender(msg, sock);
         const command = (args._command || 'pdf').toLowerCase();
+        const customTitle = args.join(' ').trim();
 
         // 1. CANCEL SESSION
         if (command === 'pdfcancel') {
@@ -208,8 +217,9 @@ module.exports = {
                 }, { quoted: msg });
 
                 const mode = session.mode;
-                const timestamp = Date.now();
                 const prefix = mode === 'scan' ? 'Dokumen_Scan' : 'Dokumen';
+                const finalTitle = customTitle || session.title || '';
+                const fileName = getCleanFileName(finalTitle, prefix);
 
                 // Process Version 1: Auto-Crop + MagicScan
                 const v1Buffers = [];
@@ -232,7 +242,7 @@ module.exports = {
                 await sock.sendMessage(remoteJid, {
                     document: pdfV1,
                     mimetype: 'application/pdf',
-                    fileName: `${prefix}_${timestamp}_1.pdf`,
+                    fileName,
                     caption: `📄 *DOKUMEN PDF (VERSI 1)*\n\n` +
                              `📑 *Total Halaman:* ${totalPages}\n` +
                              `🎨 *Mode:* ${mode === 'scan' ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
@@ -247,7 +257,7 @@ module.exports = {
                 await sock.sendMessage(remoteJid, {
                     document: pdfV2,
                     mimetype: 'application/pdf',
-                    fileName: `${prefix}_${timestamp}_2.pdf`,
+                    fileName,
                     caption: `📄 *DOKUMEN PDF (VERSI 2)*\n\n` +
                              `📑 *Total Halaman:* ${totalPages}\n` +
                              `🎨 *Mode:* ${mode === 'scan' ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
@@ -287,8 +297,8 @@ module.exports = {
             try {
                 await sock.sendMessage(remoteJid, { text: '⏳ Sedang mengolah dokumen & menyiapkan 2 versi PDF...' }, { quoted: msg });
 
-                const timestamp = Date.now();
                 const prefix = isScanMode ? 'Dokumen_Scan' : 'Dokumen';
+                const fileName = getCleanFileName(customTitle, prefix);
 
                 // Version 1: Auto-Crop + MagicScan
                 const cropped = await autoCropDocument(imageBuffer);
@@ -303,7 +313,7 @@ module.exports = {
                 await sock.sendMessage(remoteJid, {
                     document: pdfV1,
                     mimetype: 'application/pdf',
-                    fileName: `${prefix}_${timestamp}_1.pdf`,
+                    fileName,
                     caption: `📄 *DOKUMEN PDF (VERSI 1)*\n\n` +
                              `📑 *Halaman:* 1 Halaman\n` +
                              `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
@@ -316,7 +326,7 @@ module.exports = {
                 return sock.sendMessage(remoteJid, {
                     document: pdfV2,
                     mimetype: 'application/pdf',
-                    fileName: `${prefix}_${timestamp}_2.pdf`,
+                    fileName,
                     caption: `📄 *DOKUMEN PDF (VERSI 2)*\n\n` +
                              `📑 *Halaman:* 1 Halaman\n` +
                              `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
@@ -352,16 +362,18 @@ module.exports = {
         // Case C: Start new multi-page PDF session
         pdfSessions.set(sender, {
             mode,
+            title: customTitle || '',
             rawBuffers: [],
             createdAt: Date.now()
         });
 
         return sock.sendMessage(remoteJid, {
             text: `📑 *SESI PEMBUATAN PDF DIMULAI!*\n\n` +
-                  `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n\n` +
-                  `Silakan kirim foto/dokumen satu per satu secara berurutan.\nSaat selesai, bot akan mengirimkan 2 versi PDF (Auto-Crop & Full-Frame) untuk Anda pilih.\n\n` +
+                  `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
+                  (customTitle ? `📝 *Judul Dokumen:* ${customTitle}\n` : '') +
+                  `\nSilakan kirim foto/dokumen satu per satu secara berurutan.\nSaat selesai, bot akan mengirimkan 2 versi PDF (Auto-Crop & Full-Frame) dengan nama bersih yang siap dikumpulkan.\n\n` +
                   `📌 *Perintah Kontrol:*\n` +
-                  `• \`!pdfdone\` : Selesai & download 2 versi PDF\n` +
+                  `• \`!pdfdone\` : Selesai & download PDF\n` +
                   `• \`!pdfcancel\` : Batalkan sesi`
         }, { quoted: msg });
     }

@@ -1626,7 +1626,7 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 - **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
 - **Request:** Port PDF tools and document scanner features from `algojogacor/BOT-WA-1`.
 - **Scope:**
-  - `src/commands/pdf.js`: Built pure zero-dependency PDF-1.4 binary engine embedding JPEG DCTDecode streams. Added intelligent document Auto-Crop (paper vs background thresholding + safe padding), CamScanner-style Magic Color & B&W paper whitening (`applyMagicScan`), and dual-PDF output (sends Version 1 Auto-Crop and Version 2 Full-Frame with clean numbered names without 'cropped' tags).
+  - `src/commands/pdf.js`: Built pure zero-dependency PDF-1.4 binary engine embedding JPEG DCTDecode streams. Added intelligent document Auto-Crop (paper vs background thresholding + safe padding), CamScanner-style Magic Color & B&W paper whitening (`applyMagicScan`), custom document title support (e.g. `!scan Kuis PIH Arya Rizky` or `!pdfdone Tugas PIH`), and dual-PDF output with completely clean file names (no sequence numbers or tags, ready for direct homework/task submission).
   - `src/commands/menu.js`: Added `pdf` submenu and aliases (`topdf`, `scan`, `document`, `dokumen`).
   - `test/utilities.test.js`: Added unit tests for PDF binary generator and session lifecycle.
 - **Branch:** `main`
