@@ -373,19 +373,19 @@ async function generateStickers({ logger, count = GENERATE_COUNT() } = {}) {
 
 // ── Send scheduled sticker ───────────────────────────────────
 
-async function sendOneSticker(sock, groupJid, { logger } = {}) {
-  const count = SEND_COUNT();
-  if (count <= 0) return { sent: 0 };
+async function sendOneSticker(sock, groupJid, { logger, count } = {}) {
+  const targetCount = Number.isInteger(count) && count > 0 ? count : SEND_COUNT();
+  if (targetCount <= 0) return { sent: 0 };
 
-  const ready = await getReadyStickers(count * 2);
-  const stickers = selectScheduledStickers(ready, count);
+  const ready = await getReadyStickers(targetCount * 2);
+  const stickers = selectScheduledStickers(ready, targetCount);
 
   if (stickers.length === 0) {
     // If bank is empty, generate immediately on-the-fly!
     logger?.info("[Reddit Sticker] No ready stickers in bank — generating on-demand");
-    await generateStickers({ logger, count });
-    const freshReady = await getReadyStickers(count);
-    stickers.push(...selectScheduledStickers(freshReady, count));
+    await generateStickers({ logger, count: targetCount });
+    const freshReady = await getReadyStickers(targetCount);
+    stickers.push(...selectScheduledStickers(freshReady, targetCount));
   }
 
   if (stickers.length === 0) {

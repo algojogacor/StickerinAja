@@ -240,27 +240,34 @@ async function sendSticker(slot) {
   }
   if (!groupJid) return true;
 
-  // Determine media type based on slot minute:
-  // Slots ending in :15 or :45 -> Video GIF (GIPHY)
-  // Slots ending in :00 or :30 -> Photo Meme (Meme-API)
-  const slotTime = String(slot?.time || "");
-  const minute = parseInt(slotTime.split(":")[1] || "0", 10);
-  const isGifSlot = (minute === 15 || minute === 45);
-
   try {
-    if (isGifSlot) {
-      const { searchAndSendGiphy } = require("../services/redditStickerService");
-      const res = await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
-      if (res?.success) {
-        logger?.info(`[Reddit Scheduler] Scheduled Animated GIF sticker sent (${slot?.time || slot?.id || "gif"})`);
-        return true;
+    const { searchAndSendGiphy, sendOneSticker } = require("../services/redditStickerService");
+
+    // 1. Send 2 Photo Memes (Meme-API / Ready Bank)
+    logger?.info(`[Reddit Scheduler] Sending 2 Photo Memes for slot ${slot?.time || slot?.id}...`);
+    const memeRes = await sendOneSticker(sock, groupJid, { logger, count: 2 });
+    if (memeRes?.sent > 0) {
+      logger?.info(`[Reddit Scheduler] Sent ${memeRes.sent} Photo Meme(s)`);
+    }
+
+    // 1.5s gap between meme and gif sends
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // 2. Send 2 Animated Video GIFs (GIPHY)
+    logger?.info(`[Reddit Scheduler] Sending 2 Animated GIFs for slot ${slot?.time || slot?.id}...`);
+    for (let i = 0; i < 2; i++) {
+      try {
+        await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
+        if (i < 1) await new Promise((r) => setTimeout(r, 1500));
+      } catch (gifErr) {
+        logger?.warn({ err: gifErr?.message }, `[Reddit Scheduler] GIF #${i + 1} send failed`);
       }
     }
-    const result = await sendOneSticker(sock, groupJid, { logger });
-    if (result.sent > 0) logger?.info(`[Reddit Scheduler] Scheduled Photo Meme sticker sent (${result.sent})`);
+
+    logger?.info(`[Reddit Scheduler] Batch complete for slot ${slot?.time || slot?.id} (2 Memes + 2 GIFs)`);
     return true;
   } catch (error) {
-    logger?.error({ err: error }, "[Reddit Scheduler] Send failed — pending until reconnect");
+    logger?.error({ err: error }, "[Reddit Scheduler] Send batch failed — pending until reconnect");
     return false;
   }
 }

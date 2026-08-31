@@ -1581,6 +1581,23 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - Verified sample downloads in `downloads/`.
 - **Status:** Completed
 
+---
+
+## Session 27 — Increased Proactive Batch Ratio (2 Memes + 2 GIFs every 15 Minutes)
+
+- **Date:** 2026-08-31
+- **Start:** 21:15 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Configure proactive sticker delivery to send 2 photo memes and 2 animated GIFs every 15 minutes.
+- **Scope:**
+  - `src/services/redditStickerService.js`: Enabled explicit `count` option in `sendOneSticker`.
+  - `src/scheduler/redditStickerCron.js`: Updated `sendSticker` to send a full batch of 2 Photo Memes (via Meme-API) and 2 Animated Video GIFs (via GIPHY) at each 15-minute slot across 24h.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **301 pass, 0 fail, 0 skipped across 64 test suites**.
+- **Status:** Completed
+
+
 
 
 
