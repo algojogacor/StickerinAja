@@ -254,9 +254,50 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('Libur Module', () => {
+        const liburCmd = require('../src/commands/libur');
+
+        it('exports required command names and helper functions', () => {
+            assert.ok(Array.isArray(liburCmd.names));
+            assert.ok(liburCmd.names.includes('libur'));
+            assert.ok(liburCmd.names.includes('harilibur'));
+            assert.ok(liburCmd.names.includes('kalender'));
+            assert.ok(liburCmd.names.includes('holiday'));
+            assert.equal(typeof liburCmd.execute, 'function');
+            assert.equal(typeof liburCmd.parseMonth, 'function');
+            assert.equal(typeof liburCmd.formatHolidays, 'function');
+        });
+
+        it('parses month names and numbers correctly', () => {
+            assert.equal(liburCmd.parseMonth('8'), 8);
+            assert.equal(liburCmd.parseMonth('agustus'), 8);
+            assert.equal(liburCmd.parseMonth('aug'), 8);
+            assert.equal(liburCmd.parseMonth('desember'), 12);
+            assert.equal(liburCmd.parseMonth('invalid_month'), null);
+        });
+
+        it('formats mock holidays correctly with national and cuti tags', () => {
+            const mockHolidays = [
+                { date: '2026-08-17', name: 'Proklamasi Kemerdekaan', isCutiBersama: false },
+                { date: '2026-08-25', name: 'Maulid Nabi Muhammad S.A.W.', isCutiBersama: false }
+            ];
+
+            const formatted = liburCmd.formatHolidays(mockHolidays, 8, 2026);
+            assert.match(formatted, /📅 \*Hari Libur — Agustus 2026\*/);
+            assert.match(formatted, /17 Agustus 2026, Senin — Proklamasi Kemerdekaan 🔴/);
+            assert.match(formatted, /25 Agustus 2026, Selasa — Maulid Nabi Muhammad S\.A\.W\. 🔴/);
+        });
+
+        it('formats empty month correctly', () => {
+            const formatted = liburCmd.formatHolidays([], 9, 2026);
+            assert.match(formatted, /📅 \*Hari Libur — September 2026\*/);
+            assert.match(formatted, /Tidak ada hari libur di bulan ini\./);
+        });
+    });
+
     describe('Menu Submenus', () => {
-        it('renders downloader, tts, kbbi, tools, cuaca, and pdf submenus', async () => {
-            const submenus = ['downloader', 'tts', 'kbbi', 'tools', 'cuaca', 'pdf'];
+        it('renders downloader, tts, kbbi, libur, tools, cuaca, and pdf submenus', async () => {
+            const submenus = ['downloader', 'tts', 'kbbi', 'libur', 'tools', 'cuaca', 'pdf'];
             for (const sub of submenus) {
                 let sentText = '';
                 const mockSock = {

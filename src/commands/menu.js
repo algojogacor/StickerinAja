@@ -26,6 +26,7 @@ module.exports = {
 │ ${p}tiktok <link>  - download video TikTok no WM
 │ ${p}tts <teks>     - text to speech voice note
 │ ${p}kbbi <kata>    - kamus besar bahasa indonesia
+│ ${p}libur [bulan]  - hari libur nasional & cuti bersama
 │ ${p}menu tools     - shortlink, QR, IP, password
 │ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
@@ -331,6 +332,23 @@ module.exports = {
 │ • ${p}kbbi jalan
 │
 │ Alias: ${p}kamus, ${p}artikata, ${p}arti
+╰──────────────────`,
+
+            libur: `╭──「 *HARI LIBUR NASIONAL* 」──
+│ Info hari libur nasional & cuti bersama resmi.
+│
+│ ${p}libur
+│   Tampilkan hari libur bulan ini.
+│ ${p}libur <bulan>
+│   Tampilkan hari libur bulan tertentu.
+│
+│ Contoh:
+│ • ${p}libur
+│ • ${p}libur agustus
+│ • ${p}libur 12
+│ • ${p}libur maret 2026
+│
+│ Alias: ${p}harilibur, ${p}kalender, ${p}holiday
 ╰──────────────────`
         };
 
@@ -372,6 +390,9 @@ module.exports = {
         menus.kamus = menus.kbbi;
         menus.artikata = menus.kbbi;
         menus.arti = menus.kbbi;
+        menus.harilibur = menus.libur;
+        menus.kalender = menus.libur;
+        menus.holiday = menus.libur;
 
         menus.all = `${menus.main}
 
@@ -392,6 +413,8 @@ ${menus.downloader}
 ${menus.tts}
 
 ${menus.kbbi}
+
+${menus.libur}
 
 ${menus.tools}
 

@@ -1688,6 +1688,27 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **318 pass, 0 fail, 0 skipped across 72 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 33 — Add Indonesian National Holidays & Cuti Bersama Command (!libur)
+
+- **Date:** 2026-08-31
+- **Start:** 23:09 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Implement `!libur` and `!libur <bulan>` command with automatic dual-provider fallback (Primary: Kemendesa API, Fallback: Vercel API). Distinguish libur nasional (🔴) and cuti bersama (🟡).
+- **Scope:**
+  - Endpoint testing during dev:
+    - Primary (Kemendesa): `https://api.kemendesa.link/libur-nasional/api/holidays/2026.json` -> **AKTIF (HTTP 200)**.
+    - Fallback (Vercel): `https://api-hari-libur.vercel.app/api?year=2026&month=8` -> **AKTIF (HTTP 200)**.
+  - `src/commands/libur.js`: Created holiday command handler with active provider tracking, in-memory caching, month parsing, and Indonesian date formatting.
+  - `src/commands/menu.js`: Added `!libur` to main menu, `libur` submenu, and aliases (`harilibur`, `kalender`, `holiday`).
+  - `test/utilities.test.js`: Added unit tests for month parsing, holiday formatting, empty month message, and submenu integration.
+- **Branch:** `main`
+- **Verification:**
+  - Verified formatting across multiple months (March with 7 entries, August with 2 entries, September with 0 entries).
+  - `node --test test/*.test.js`: **322 pass, 0 fail, 0 skipped across 73 test suites**.
+- **Status:** Completed
+
 
 
 
