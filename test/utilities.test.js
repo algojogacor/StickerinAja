@@ -197,6 +197,67 @@ describe('Utility and Tools Command Suite', () => {
             await pdfCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net', participant: 'user1@s.whatsapp.net' } }, args);
             assert.ok(sentMessage);
             assert.match(sentMessage.text, /SESI PEMBUATAN PDF DIMULAI/);
+            assert.ok(pdfCmd.pdfSessions.has('user1@s.whatsapp.net'));
+        });
+
+        it('captures incoming images during active session and compiles with pdfdone', async () => {
+            let sentMessages = [];
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessages.push(content);
+                    return { key: { id: 'test' } };
+                }
+            };
+
+            // Start session
+            const args = [];
+            args._command = 'scan';
+            await pdfCmd.execute(mockSock, { key: { remoteJid: 'group1@g.us', participant: 'user2@s.whatsapp.net' } }, args);
+            assert.ok(pdfCmd.pdfSessions.has('user2@s.whatsapp.net'));
+
+            // Mock an image buffer in session
+            const sampleImg = await sharp({
+                create: { width: 100, height: 100, channels: 3, background: { r: 120, g: 120, b: 120 } }
+            }).jpeg().toBuffer();
+
+            const session = pdfCmd.pdfSessions.get('user2@s.whatsapp.net');
+            session.rawBuffers.push(sampleImg);
+            session.rawBuffers.push(sampleImg);
+
+            // Execute pdfdone
+            const doneArgs = [];
+            doneArgs._command = 'pdfdone';
+            await pdfCmd.execute(mockSock, { key: { remoteJid: 'group1@g.us', participant: 'user2@s.whatsapp.net' } }, doneArgs);
+
+            // Wait for queue
+            await new Promise(r => setTimeout(r, 100));
+
+            // PDF V1 and PDF V2 sent
+            const docs = sentMessages.filter(m => m.document);
+            assert.ok(docs.length >= 2, 'Should send both Version 1 and Version 2 PDFs');
+            assert.equal(docs[0].mimetype, 'application/pdf');
+            assert.equal(docs[1].mimetype, 'application/pdf');
+            assert.ok(!pdfCmd.pdfSessions.has('user2@s.whatsapp.net'), 'Session should be cleared after completion');
+        });
+
+        it('cancels active session with pdfcancel', async () => {
+            let sentMessage = null;
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessage = content;
+                    return { key: { id: 'test' } };
+                }
+            };
+
+            pdfCmd.pdfSessions.set('user3@s.whatsapp.net', { mode: 'scan', rawBuffers: [], lastActive: Date.now() });
+
+            const cancelArgs = [];
+            cancelArgs._command = 'pdfcancel';
+            await pdfCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net', participant: 'user3@s.whatsapp.net' } }, cancelArgs);
+
+            assert.ok(sentMessage);
+            assert.match(sentMessage.text, /dibatalkan/);
+            assert.ok(!pdfCmd.pdfSessions.has('user3@s.whatsapp.net'));
         });
     });
 

@@ -141,6 +141,20 @@ async function handler(sock, msg, logger, sessionId = null, botMode = null) {
     const senderJid = getSenderJid(msg, sock);
 
     const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
+
+    // 1. Check if user has an active stateful session (e.g. PDF multi-page creation)
+    const pdfCmd = commands.get('pdf');
+    if (pdfCmd?.handleActiveSession) {
+        try {
+            const handled = await pdfCmd.handleActiveSession({
+                sock, msg, senderJid, remoteJid, logger, messageText, PREFIX
+            });
+            if (handled) return;
+        } catch (sessionErr) {
+            logger.warn({ err: sessionErr }, '[Handler] Active session handling error');
+        }
+    }
+
     if (!messageText || !messageText.startsWith(PREFIX)) return;
 
     const [rawCmd, ...args] = messageText.slice(PREFIX.length).trim().split(/\s+/);

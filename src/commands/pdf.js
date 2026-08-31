@@ -3,6 +3,16 @@ const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 // In-memory active PDF creation sessions (keyed by user JID)
 const pdfSessions = new Map();
+const SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes TTL
+
+function cleanExpiredSessions() {
+    const now = Date.now();
+    for (const [key, session] of pdfSessions.entries()) {
+        if (now - (session.lastActive || session.createdAt || 0) > SESSION_TTL_MS) {
+            pdfSessions.delete(key);
+        }
+    }
+}
 
 /**
  * Intelligent Document Auto-Crop
@@ -180,6 +190,42 @@ function getSender(msg, sock) {
     return msg?.key?.participant || msg?.key?.remoteJid;
 }
 
+async function extractImageBuffer(msg, logger) {
+    try {
+        let m = msg?.message;
+        if (!m) return null;
+        if (m.ephemeralMessage?.message) m = m.ephemeralMessage.message;
+        if (m.viewOnceMessage?.message) m = m.viewOnceMessage.message;
+        if (m.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+        if (m.documentWithCaptionMessage?.message) m = m.documentWithCaptionMessage.message;
+
+        if (m.imageMessage || (m.documentMessage && m.documentMessage.mimetype?.startsWith('image/'))) {
+            return await downloadMediaMessage(
+                { key: msg.key, message: m },
+                'buffer',
+                {},
+                { logger: logger || console }
+            );
+        }
+
+        const quoted = m.extendedTextMessage?.contextInfo?.quotedMessage;
+        if (quoted?.imageMessage || (quoted?.documentMessage && quoted.documentMessage.mimetype?.startsWith('image/'))) {
+            return await downloadMediaMessage(
+                {
+                    key: { remoteJid: msg.key?.remoteJid, id: m.extendedTextMessage?.contextInfo?.stanzaId },
+                    message: quoted
+                },
+                'buffer',
+                {},
+                { logger: logger || console }
+            );
+        }
+    } catch (err) {
+        if (logger?.warn) logger.warn({ err }, '[PDF] Media download error');
+    }
+    return null;
+}
+
 function normalizeParams(sockOrOpts, msg, args, ctx) {
     if (sockOrOpts && sockOrOpts.sock) {
         return {
@@ -189,7 +235,8 @@ function normalizeParams(sockOrOpts, msg, args, ctx) {
             cmdName: sockOrOpts.cmdName,
             remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
             senderJid: sockOrOpts.senderJid,
-            logger: sockOrOpts.logger
+            logger: sockOrOpts.logger,
+            PREFIX: sockOrOpts.PREFIX || process.env.PREFIX || '!'
         };
     }
     return {
@@ -199,7 +246,8 @@ function normalizeParams(sockOrOpts, msg, args, ctx) {
         cmdName: args?._command || 'pdf',
         remoteJid: msg?.key?.remoteJid,
         senderJid: getSender(msg, sockOrOpts),
-        logger: ctx?.logger
+        logger: ctx?.logger,
+        PREFIX: process.env.PREFIX || '!'
     };
 }
 
@@ -208,11 +256,42 @@ module.exports = {
     imagesToPdf,
     autoCropDocument,
     applyMagicScan,
+    pdfSessions,
+    handleActiveSession: async ({ sock, msg, senderJid, remoteJid, logger, messageText, PREFIX }) => {
+        cleanExpiredSessions();
+        if (!pdfSessions.has(senderJid)) return false;
+
+        // If message is an explicit command starting with PREFIX (e.g. !pdfdone, !pdfcancel, !scan), let normal router handle it
+        if (messageText && messageText.startsWith(PREFIX)) {
+            return false;
+        }
+
+        const imageBuffer = await extractImageBuffer(msg, logger);
+        if (!imageBuffer) return false;
+
+        const session = pdfSessions.get(senderJid);
+        session.rawBuffers.push(imageBuffer);
+        session.lastActive = Date.now();
+
+        const count = session.rawBuffers.length;
+        await sock.sendMessage(remoteJid, {
+            text: `✅ *Halaman ${count} Tersimpan!*\n\n` +
+                  `• Mode: *${session.mode === 'scan' ? 'Scan Dokumen (B&W)' : 'Warna Asli'}*\n` +
+                  `• Total Halaman: *${count}*\n\n` +
+                  `Silakan kirim foto berikutnya, atau ketik:\n` +
+                  `• \`${PREFIX}pdfdone\` : Selesai & Download 2 Versi PDF\n` +
+                  `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
+        }, { quoted: msg });
+
+        return true;
+    },
     execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
-        const { sock, msg, args, cmdName, remoteJid, senderJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
+        const { sock, msg, args, cmdName, remoteJid, senderJid, logger, PREFIX } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
         const sender = senderJid || getSender(msg, sock);
         const command = (cmdName || args._command || 'pdf').toLowerCase();
         const customTitle = args.join(' ').trim();
+
+        cleanExpiredSessions();
 
         // 1. CANCEL SESSION
         if (command === 'pdfcancel') {
@@ -229,7 +308,7 @@ module.exports = {
             if (!session || session.rawBuffers.length === 0) {
                 return sock.sendMessage(remoteJid, {
                     text: '❌ *Belum ada gambar dalam sesi!*' +
-                          '\nKirim/reply gambar terlebih dahulu dengan `!topdf` atau `!scan`.'
+                          `\nKirim/reply gambar terlebih dahulu dengan \`${PREFIX}topdf\` atau \`${PREFIX}scan\`.`
                 }, { quoted: msg });
             }
 
@@ -293,28 +372,14 @@ module.exports = {
                     pdfSessions.delete(sender);
                     return;
                 } catch (err) {
-                    ctx?.logger?.error({ err }, '[PDF] Failed to generate PDF');
+                    logger?.error({ err }, '[PDF] Failed to generate PDF');
                     return sock.sendMessage(remoteJid, { text: `❌ *Gagal membuat file PDF:* ${err.message}` }, { quoted: msg });
                 }
             });
         }
 
         // 3. CHECK FOR IMAGE MEDIA (Direct or Quoted)
-        let imageBuffer = null;
-        try {
-            const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            if (quotedMsg?.imageMessage || quotedMsg?.documentMessage?.mimetype?.startsWith('image/')) {
-                imageBuffer = await downloadMediaMessage({
-                    key: { remoteJid, id: msg.message.extendedTextMessage.contextInfo.stanzaId },
-                    message: quotedMsg
-                }, 'buffer', {}, { logger: ctx?.logger || console });
-            } else if (msg.message?.imageMessage) {
-                imageBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: ctx?.logger || console });
-            }
-        } catch (e) {
-            ctx?.logger?.warn({ err: e }, '[PDF] Media download error');
-        }
-
+        const imageBuffer = await extractImageBuffer(msg, logger);
         const isScanMode = (command === 'scan');
         const mode = isScanMode ? 'scan' : 'color';
 
@@ -359,7 +424,7 @@ module.exports = {
                                  `📑 *Halaman:* 1 Halaman\n` +
                                  `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
                                  `✨ *Format:* Full-Frame & Pembersih Dokumen\n\n` +
-                                 `_Tips: Untuk menggabungkan banyak foto jadi 1 file PDF, ketik \`!topdf\` lalu kirim gambar berturut-turut, lalu ketik \`!pdfdone\`._`
+                                 `_Tips: Untuk banyak foto jadi 1 PDF, ketik \`${PREFIX}topdf\` atau \`${PREFIX}scan\`, kirim foto berurutan, lalu ketik \`${PREFIX}pdfdone\`._`
                     }, { quoted: msg });
 
                 } catch (err) {
@@ -371,10 +436,12 @@ module.exports = {
         // Case B: Session already active -> add raw image to session
         if (pdfSessions.has(sender)) {
             const session = pdfSessions.get(sender);
+            session.lastActive = Date.now();
+
             if (imageBuffer) {
                 session.rawBuffers.push(imageBuffer);
                 return sock.sendMessage(remoteJid, {
-                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *!pdfdone* untuk menyelesaikan dan download 2 versi PDF.`
+                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF.`
                 }, { quoted: msg });
             } else {
                 return sock.sendMessage(remoteJid, {
@@ -382,8 +449,8 @@ module.exports = {
                           `• Halaman tersimpan: *${session.rawBuffers.length}*\n` +
                           `• Mode: *${session.mode === 'scan' ? 'Scan Dokumen (B&W)' : 'Warna Asli'}*\n\n` +
                           `Silakan kirim gambar lagi, atau ketik:\n` +
-                          `• \`!pdfdone\` : Selesai & Download 2 Versi PDF\n` +
-                          `• \`!pdfcancel\` : Batalkan sesi`
+                          `• \`${PREFIX}pdfdone\` : Selesai & Download 2 Versi PDF\n` +
+                          `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
                 }, { quoted: msg });
             }
         }
@@ -392,18 +459,21 @@ module.exports = {
         pdfSessions.set(sender, {
             mode,
             title: customTitle || '',
-            rawBuffers: [],
+            rawBuffers: imageBuffer ? [imageBuffer] : [],
+            lastActive: Date.now(),
             createdAt: Date.now()
         });
 
+        const initialCount = imageBuffer ? 1 : 0;
         return sock.sendMessage(remoteJid, {
             text: `📑 *SESI PEMBUATAN PDF DIMULAI!*\n\n` +
                   `🎨 *Mode:* ${isScanMode ? 'Dokumen Scan (B&W High Contrast)' : 'Warna Asli'}\n` +
                   (customTitle ? `📝 *Judul Dokumen:* ${customTitle}\n` : '') +
+                  (initialCount > 0 ? `• Halaman 1 tersimpan!\n` : '') +
                   `\nSilakan kirim foto/dokumen satu per satu secara berurutan.\nSaat selesai, bot akan mengirimkan 2 versi PDF (Auto-Crop & Full-Frame) dengan nama bersih yang siap dikumpulkan.\n\n` +
                   `📌 *Perintah Kontrol:*\n` +
-                  `• \`!pdfdone\` : Selesai & download PDF\n` +
-                  `• \`!pdfcancel\` : Batalkan sesi`
+                  `• \`${PREFIX}pdfdone\` : Selesai & download PDF\n` +
+                  `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
         }, { quoted: msg });
     }
 };
