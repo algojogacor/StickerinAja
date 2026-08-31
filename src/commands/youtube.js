@@ -173,7 +173,11 @@ module.exports = {
                 const safeTitle = sanitizeFileName(video.title);
                 const uniqueId = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
                 const cookieFile = getCookiesFilePath();
-                const cookieArgs = cookieFile ? ['--cookies', cookieFile] : [];
+                const authArgs = cookieFile 
+                    ? ['--cookies', cookieFile]
+                    : ['--extractor-args', 'youtube:player_client=android,ios,mweb'];
+
+                logger?.info({ hasCookies: Boolean(cookieFile) }, '[YouTube] Extractor configuration');
 
                 if (isVideo) {
                     // Download Video MP4 (480p/720p)
@@ -185,10 +189,9 @@ module.exports = {
                     await ytdlp.execAsync([
                         video.url,
                         '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best[height<=720]/best',
-                        '--extractor-args', 'youtube:player_client=android,ios,mweb',
                         '--no-playlist',
                         '--no-check-certificates',
-                        ...cookieArgs,
+                        ...authArgs,
                         '-o', outPattern
                     ]);
 
@@ -228,10 +231,9 @@ module.exports = {
                         '-x',
                         '--audio-format', 'mp3',
                         '--audio-quality', '0',
-                        '--extractor-args', 'youtube:player_client=android,ios,mweb',
                         '--no-playlist',
                         '--no-check-certificates',
-                        ...cookieArgs,
+                        ...authArgs,
                         '-o', outPattern
                     ]);
 
