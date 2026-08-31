@@ -1670,6 +1670,24 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 32 — Add KBBI Online Dictionary Command (!kbbi)
+
+- **Date:** 2026-08-31
+- **Start:** 23:03 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Implement `!kbbi <kata>` command calling `https://kbbi.raf555.dev/api/v1/entry/{kata}` with structured formatting (lemma, entries, word classes, numbered definitions, usage examples replacing `~`/`--`, and derived words list).
+- **Scope:**
+  - `src/commands/kbbi.js`: Created KBBI command handler with `fetchKbbi` and `formatKbbi` functions.
+  - `src/commands/menu.js`: Added `!kbbi` to main menu, `kbbi` submenu, and aliases (`kamus`, `artikata`, `arti`).
+  - `test/utilities.test.js`: Added unit tests for KBBI command exports, empty query help, and mock data formatting.
+- **Branch:** `main`
+- **Verification:**
+  - Verified API responses on real words `cinta`, `makan`, `algojo`, `jalan`, and not-found word `asdfghjk`.
+  - `node --test test/*.test.js`: **318 pass, 0 fail, 0 skipped across 72 test suites**.
+- **Status:** Completed
+
 
 
 

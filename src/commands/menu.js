@@ -25,6 +25,7 @@ module.exports = {
 │ ${p}ai <tanya>     - Groq AI Vision & Chat
 │ ${p}tiktok <link>  - download video TikTok no WM
 │ ${p}tts <teks>     - text to speech voice note
+│ ${p}kbbi <kata>    - kamus besar bahasa indonesia
 │ ${p}menu tools     - shortlink, QR, IP, password
 │ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
@@ -316,6 +317,20 @@ module.exports = {
 │ 3. Ketik \`${p}pdfdone\` untuk download PDF!
 │
 │ Alias: ${p}topdf, ${p}scan, ${p}pdfdone, ${p}pdfcancel
+╰──────────────────`,
+
+            kbbi: `╭──「 *KAMUS BESAR BAHASA INDONESIA* 」──
+│ Cari definisi & arti kata resmi di KBBI daring.
+│
+│ ${p}kbbi <kata>
+│   Mencari arti kata, kelas kata, contoh kalimat & kata turunan.
+│
+│ Contoh:
+│ • ${p}kbbi cinta
+│ • ${p}kbbi algojo
+│ • ${p}kbbi jalan
+│
+│ Alias: ${p}kamus, ${p}artikata, ${p}arti
 ╰──────────────────`
         };
 
@@ -354,6 +369,9 @@ module.exports = {
         menus.scan = menus.pdf;
         menus.document = menus.pdf;
         menus.dokumen = menus.pdf;
+        menus.kamus = menus.kbbi;
+        menus.artikata = menus.kbbi;
+        menus.arti = menus.kbbi;
 
         menus.all = `${menus.main}
 
@@ -372,6 +390,8 @@ ${menus.ai}
 ${menus.downloader}
 
 ${menus.tts}
+
+${menus.kbbi}
 
 ${menus.tools}
 

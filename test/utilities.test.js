@@ -200,9 +200,63 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('KBBI Module', () => {
+        const kbbiCmd = require('../src/commands/kbbi');
+
+        it('exports required command names and formatting function', () => {
+            assert.ok(Array.isArray(kbbiCmd.names));
+            assert.ok(kbbiCmd.names.includes('kbbi'));
+            assert.ok(kbbiCmd.names.includes('kamus'));
+            assert.ok(kbbiCmd.names.includes('artikata'));
+            assert.ok(kbbiCmd.names.includes('arti'));
+            assert.equal(typeof kbbiCmd.execute, 'function');
+            assert.equal(typeof kbbiCmd.formatKbbi, 'function');
+        });
+
+        it('replies with usage instructions when query is empty', async () => {
+            let sentMessage = null;
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessage = content;
+                    return { key: { id: 'test' } };
+                }
+            };
+            await kbbiCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, []);
+            assert.ok(sentMessage);
+            assert.match(sentMessage.text, /KAMUS BESAR BAHASA INDONESIA/);
+            assert.match(sentMessage.text, /!kbbi <kata>/);
+        });
+
+        it('formats mock KBBI json correctly', () => {
+            const mockData = {
+                lemma: 'cinta',
+                entries: [
+                    {
+                        entry: 'cin.ta',
+                        definitions: [
+                            {
+                                definition: 'suka sekali; sayang benar',
+                                labels: [{ code: 'a', kind: 'Kelas Kata' }],
+                                usageExamples: ['orang tuaku ~ kepada kami semua']
+                            }
+                        ],
+                        derivedWords: ['bercinta', 'tercinta']
+                    }
+                ]
+            };
+
+            const formatted = kbbiCmd.formatKbbi(mockData, 'cinta');
+            assert.match(formatted, /📖 \*cinta\*/);
+            assert.match(formatted, /\*cin\.ta\* \(a\)/);
+            assert.match(formatted, /1\. suka sekali; sayang benar/);
+            assert.match(formatted, /📝 _orang tuaku cinta kepada kami semua_/);
+            assert.match(formatted, /📌 \*Kata turunan:\* bercinta, tercinta/);
+        });
+    });
+
     describe('Menu Submenus', () => {
-        it('renders downloader, tts, tools, cuaca, and pdf submenus', async () => {
-            const submenus = ['downloader', 'tts', 'tools', 'cuaca', 'pdf'];
+        it('renders downloader, tts, kbbi, tools, cuaca, and pdf submenus', async () => {
+            const submenus = ['downloader', 'tts', 'kbbi', 'tools', 'cuaca', 'pdf'];
             for (const sub of submenus) {
                 let sentText = '';
                 const mockSock = {
