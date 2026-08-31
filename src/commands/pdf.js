@@ -128,10 +128,12 @@ async function imagesToPdf(imageBuffers) {
     const pagesObjNum = currentObj++;
 
     const pageObjNums = [];
+    const contentObjNums = [];
     const imageObjNums = [];
 
     for (let i = 0; i < pages.length; i++) {
         pageObjNums.push(currentObj++);
+        contentObjNums.push(currentObj++);
         imageObjNums.push(currentObj++);
     }
 
@@ -154,13 +156,17 @@ async function imagesToPdf(imageBuffers) {
 
     for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
-        const pageNum = pageObjNums[i];
+        const contentNum = contentObjNums[i];
         const imgNum = imageObjNums[i];
 
         const contentStream = `q ${page.width} 0 0 ${page.height} 0 0 cm /Im0 Do Q`;
         const contentLen = Buffer.byteLength(contentStream, 'latin1');
 
-        addObj(`<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /XObject << /Im0 ${imgNum} 0 R >> >> /Contents [<< /Length ${contentLen} >>\nstream\n${contentStream}\nendstream] >>`);
+        // Page object — Contents references a separate indirect object
+        addObj(`<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${page.width} ${page.height}] /Resources << /XObject << /Im0 ${imgNum} 0 R >> >> /Contents ${contentNum} 0 R >>`);
+        // Content stream as its own indirect object
+        addObj(`<< /Length ${contentLen} >>`, Buffer.from(contentStream, 'latin1'));
+        // Image XObject
         addObj(`<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.buffer.length} >>`, page.buffer);
     }
 
