@@ -15,6 +15,10 @@ describe('Utility and Tools Command Suite', () => {
             assert.ok(downloaderCmd.names.includes('tt'));
             assert.ok(downloaderCmd.names.includes('ttdl'));
             assert.ok(downloaderCmd.names.includes('ttmp3'));
+            assert.ok(downloaderCmd.names.includes('ig'));
+            assert.ok(downloaderCmd.names.includes('igdl'));
+            assert.ok(downloaderCmd.names.includes('instagram'));
+            assert.ok(downloaderCmd.names.includes('reels'));
             assert.equal(typeof downloaderCmd.execute, 'function');
         });
 
@@ -28,8 +32,9 @@ describe('Utility and Tools Command Suite', () => {
             };
             await downloaderCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, []);
             assert.ok(sentMessage);
-            assert.match(sentMessage.text, /TIKTOK DOWNLOADER/);
+            assert.match(sentMessage.text, /SOCIAL MEDIA DOWNLOADER/);
             assert.match(sentMessage.text, /!tiktok/);
+            assert.match(sentMessage.text, /!ig/);
         });
     });
 

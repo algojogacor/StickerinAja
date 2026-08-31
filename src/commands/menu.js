@@ -235,7 +235,7 @@ module.exports = {
             downloader: `╭──「 *SOCIAL DOWNLOADER* 」──
 │ Download media media sosial tanpa watermark.
 │
-│ *TikTok Video:*
+│ *TikTok Video & Audio:*
 │ ${p}tiktok <link tiktok>
 │   Download video MP4 no-watermark.
 │ ${p}ttmp3 <link tiktok>
@@ -243,7 +243,13 @@ module.exports = {
 │ ${p}tiktok <link> --sticker
 │   Langsung jadikan stiker animasi!
 │
-│ Alias: ${p}tt, ${p}ttdl, ${p}download, ${p}dl
+│ *Instagram Reels & Foto:*
+│ ${p}ig <link instagram>
+│   Download Reels, Video, & Foto Instagram.
+│ ${p}ig <link> --sticker
+│   Ubah Reels/Foto Instagram jadi stiker WA!
+│
+│ Alias: ${p}tt, ${p}ig, ${p}instagram, ${p}reels, ${p}download, ${p}dl
 ╰──────────────────`,
 
             tts: `╭──「 *TEXT TO SPEECH (VN)* 」──
@@ -333,6 +339,10 @@ module.exports = {
         menus.tiktok = menus.downloader;
         menus.tt = menus.downloader;
         menus.dl = menus.downloader;
+        menus.ig = menus.downloader;
+        menus.instagram = menus.downloader;
+        menus.reels = menus.downloader;
+        menus.reel = menus.downloader;
         menus.vn = menus.tts;
         menus.suara = menus.tts;
         menus.tool = menus.tools;
@@ -344,9 +354,6 @@ module.exports = {
         menus.scan = menus.pdf;
         menus.document = menus.pdf;
         menus.dokumen = menus.pdf;
-        menus.util = menus.tools;
-        menus.weather = menus.cuaca;
-        menus.prakiraan = menus.cuaca;
 
         menus.all = `${menus.main}
 

@@ -43,31 +43,112 @@ async function getTikTokData(url) {
     throw new Error(data.msg || 'Gagal memproses URL TikTok');
 }
 
+async function getInstagramData(url) {
+    const { snapsave } = await import('snapsave-media-downloader');
+    const res = await snapsave(url);
+    if (res?.success && Array.isArray(res?.data?.media) && res.data.media.length > 0) {
+        return res.data.media;
+    }
+    throw new Error('Media Instagram tidak ditemukan. Pastikan link adalah postingan/reels dari akun publik.');
+}
+
 module.exports = {
-    names: ['tiktok', 'tt', 'ttdl', 'download', 'dl', 'ttmp3'],
+    names: ['tiktok', 'tt', 'ttdl', 'ttmp3', 'ig', 'igdl', 'instagram', 'reels', 'reel', 'download', 'dl'],
+    getTikTokData,
+    getInstagramData,
+    fetchBuffer,
     execute: async (sock, msg, args, ctx) => {
         const remoteJid = msg.key?.remoteJid;
-        const command = args._command || 'tiktok';
+        const command = (args._command || 'download').toLowerCase();
 
         // Extract URL
         const urlArg = args.find(a => a.startsWith('http://') || a.startsWith('https://'));
         if (!urlArg) {
             return sock.sendMessage(remoteJid, {
-                text: `🎬 *TIKTOK DOWNLOADER*\n\n` +
-                      `Download video TikTok tanpa watermark secara instan!\n\n` +
-                      `📌 *Format:* \`!tiktok <link tiktok>\`\n` +
-                      `🎵 *Audio Saja:* \`!ttmp3 <link tiktok>\` atau \`!tiktok <link> --audio\`\n` +
-                      `🎨 *Jadikan Stiker:* \`!tiktok <link> --sticker\`\n\n` +
-                      `💡 *Contoh:* \`!tiktok https://vt.tiktok.com/ZSjX3Yv1b/\``
+                text: `📥 *SOCIAL MEDIA DOWNLOADER*\n\n` +
+                      `Download video/foto TikTok & Instagram tanpa watermark secara instan!\n\n` +
+                      `🎬 *TikTok Downloader:*\n` +
+                      `• \`!tiktok <link>\` : Download video TikTok no-WM\n` +
+                      `• \`!ttmp3 <link>\` : Ambil audio/lagu TikTok\n` +
+                      `• \`!tiktok <link> --sticker\` : Jadikan stiker bergerak\n\n` +
+                      `📸 *Instagram Downloader:*\n` +
+                      `• \`!ig <link>\` : Download Reels, Video & Foto Instagram\n` +
+                      `• \`!ig <link> --sticker\` : Ubah Reels/Foto jadi stiker WA\n\n` +
+                      `💡 *Contoh:*\n` +
+                      `\`!tiktok https://vt.tiktok.com/ZSjX3Yv1b/\`\n` +
+                      `\`!ig https://www.instagram.com/reel/DctGPX0pYfi/\``
             }, { quoted: msg });
         }
 
+        const isInstagram = urlArg.includes('instagram.com') || urlArg.includes('instagr.am') || ['ig', 'igdl', 'instagram', 'reels', 'reel'].includes(command);
+        const isTikTok = urlArg.includes('tiktok.com') || urlArg.includes('douyin.com') || ['tiktok', 'tt', 'ttdl', 'ttmp3'].includes(command);
         const isAudioOnly = command === 'ttmp3' || args.includes('--audio') || args.includes('-a');
         const isSticker = args.includes('--sticker') || args.includes('-s');
 
+        // ==========================================
+        // 1. INSTAGRAM DOWNLOADER
+        // ==========================================
+        if (isInstagram && !isTikTok) {
+            try {
+                await sock.sendMessage(remoteJid, {
+                    text: `⏳ *Sedang mengambil media Instagram...* Mohon tunggu sebentar.`
+                }, { quoted: msg });
+
+                const mediaList = await getInstagramData(urlArg);
+
+                for (let i = 0; i < mediaList.length; i++) {
+                    const item = mediaList[i];
+                    const buffer = await fetchBuffer(item.url);
+
+                    if (isSticker) {
+                        const { convertVideoToSticker, convertImageToSticker } = require('../services/sticker/converterService');
+                        const { prepareStickerWithExif } = require('../utils/exifHelper');
+
+                        const webpBuffer = item.type === 'video'
+                            ? await convertVideoToSticker(buffer)
+                            : await convertImageToSticker(buffer, { quality: 85 });
+                        const finalSticker = prepareStickerWithExif(webpBuffer);
+                        await sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
+                        continue;
+                    }
+
+                    if (item.type === 'video') {
+                        await sock.sendMessage(remoteJid, {
+                            video: buffer,
+                            caption: `🎬 *INSTAGRAM REELS / VIDEO*\n\n` +
+                                     (mediaList.length > 1 ? `📑 *Media:* ${i + 1} dari ${mediaList.length}\n` : '') +
+                                     `_Downloaded by StickerinAja_`,
+                            mimetype: 'video/mp4'
+                        }, { quoted: msg });
+                    } else {
+                        await sock.sendMessage(remoteJid, {
+                            image: buffer,
+                            caption: `📸 *INSTAGRAM PHOTO*\n\n` +
+                                     (mediaList.length > 1 ? `📑 *Foto:* ${i + 1} dari ${mediaList.length}\n` : '') +
+                                     `_Downloaded by StickerinAja_`,
+                            mimetype: 'image/jpeg'
+                        }, { quoted: msg });
+                    }
+
+                    if (i < mediaList.length - 1) {
+                        await new Promise(r => setTimeout(r, 1200));
+                    }
+                }
+                return;
+            } catch (error) {
+                ctx?.logger?.error({ err: error }, '[IG Downloader] Error');
+                return sock.sendMessage(remoteJid, {
+                    text: `❌ *Gagal Mendownload Instagram*\n\nAlasan: ${error.message || 'Postingan bersifat privat atau server sedang sibuk'}\n\nPastikan link adalah Reels/Foto dari akun Instagram publik.`
+                }, { quoted: msg });
+            }
+        }
+
+        // ==========================================
+        // 2. TIKTOK DOWNLOADER
+        // ==========================================
         try {
             await sock.sendMessage(remoteJid, {
-                text: `⏳ Sedang memproses video TikTok... Mohon tunggu sebentar.`
+                text: `⏳ *Sedang memproses video TikTok...* Mohon tunggu sebentar.`
             }, { quoted: msg });
 
             const info = await getTikTokData(urlArg);

@@ -1634,6 +1634,25 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 30 — Instagram Reels, Video, Photo, and Sticker Downloader
+
+- **Date:** 2026-08-31
+- **Start:** 22:00 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Implement Instagram media downloader (`!ig`, `!instagram`, `!reels`) with support for Reels, Videos, Photos, and `--sticker` conversion. Tested with real Instagram reel (`https://www.instagram.com/reel/DctGPX0pYfi/`).
+- **Scope:**
+  - `src/commands/downloader.js`: Added `getInstagramData(url)` using dynamic `snapsave-media-downloader` integration. Downloads Reels/MP4 videos, HD photos, multi-photo carousels, and supports `--sticker` flag to immediately convert Instagram content into WhatsApp stickers.
+  - `src/commands/menu.js`: Updated `downloader` submenu with Instagram guide (`!ig <link>`, `!ig <link> --sticker`) and aliases (`ig`, `igdl`, `instagram`, `reels`, `reel`).
+  - `package.json`: Added `snapsave-media-downloader` dependency.
+  - `test/utilities.test.js`: Added unit tests for Instagram downloader command aliases and usage validation.
+- **Branch:** `main`
+- **Verification:**
+  - Verified downloading real Reel `https://www.instagram.com/reel/DctGPX0pYfi/` (returned 632KB MP4 buffer).
+  - `node --test test/*.test.js`: **315 pass, 0 fail, 0 skipped across 71 test suites**.
+- **Status:** Completed
+
 
 
 
