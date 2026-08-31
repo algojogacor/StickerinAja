@@ -78,11 +78,12 @@ async function messageHandler(sock, msg, logger, sessionId) {
     if (messageText.startsWith(PREFIX)) {
         const isGroup = Boolean(msg.key?.remoteJid?.endsWith('@g.us'));
 
-        // Prevent double response in shared group: prioritize bot session over pribadi
+        // Prevent double response in shared group: prioritize bot session ONLY IF bot is a member of this group
         if (isGroup && sessionId === 'pribadi') {
             const botSession = global.botSessions?.['bot'];
-            if (botSession?.status === 'connected') {
-                logger.debug({ msgId: msg.key?.id }, '[Multi-Session] Skipped group command on pribadi session in favor of connected bot session');
+            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
+            if (botSession?.status === 'connected' && isBotInThisGroup) {
+                logger.debug({ msgId: msg.key?.id, group: msg.key?.remoteJid }, '[Multi-Session] Skipped group command on pribadi session in favor of connected bot session');
                 return;
             }
         }

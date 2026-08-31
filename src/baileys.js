@@ -99,11 +99,22 @@ function startSession({
                     global.botSessions[sessionId].user = sock.user;
                     syncGlobalBotState();
                     sessionLogger.info(`✅ [${sessionName}] Connected! Logged in as: ${sock.user?.name || sock.user?.id}`);
+                    if (sessionId === 'bot') {
+                        sock.groupFetchAllParticipating().then(groups => {
+                            global.botGroupJids = new Set(Object.keys(groups || {}));
+                            sessionLogger.info(`[bot] Discovered ${global.botGroupJids.size} groups where bot is a member`);
+                        }).catch(err => {
+                            sessionLogger.debug({ err: err?.message }, '[bot] Failed to fetch participating groups');
+                        });
+                    }
                     Promise.resolve(onConnectionOpen?.(sock, sessionId)).catch((err) => {
                         sessionLogger.error({ err }, `[${sessionName}] Scheduler resume after reconnect failed`);
                     });
                 }
                 if (connection === 'close') {
+                    if (sessionId === 'bot') {
+                        global.botGroupJids = new Set();
+                    }
                     const wasActiveSocket = clearSock(sock, sessionId);
                     if (!wasActiveSocket && getSock(sessionId)) {
                         sessionLogger.info(`[${sessionName}] Ignoring close event from a stale WhatsApp socket`);

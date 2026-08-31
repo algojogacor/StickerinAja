@@ -1531,6 +1531,24 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - Live Groq API benchmark verified with `qwen/qwen3.8-27b` delivering ~1s responses.
 - **Status:** Completed
 
+---
+
+## Session 24 — Accurate Multi-Session Group Delegation Based on Bot Group Membership
+
+- **Date:** 2026-08-31
+- **Start:** 10:10 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Fix issue where personal selfbot (`pribadi`) did not respond to `!s` in groups where the bot number is not a member.
+- **Scope:**
+  - `src/baileys.js`: When `bot` session connects, track participating groups via `sock.groupFetchAllParticipating()` into `global.botGroupJids`. Clear on disconnect.
+  - `index.js`: Updated group delegation logic so `pribadi` only yields command handling if `botSession` is connected AND `global.botGroupJids.has(msg.key.remoteJid)` (the bot is actually a member of that specific group). If the bot is not in the group, `pribadi` handles commands normally.
+  - `test/multiSession.test.js`: Added unit tests verifying delegation condition only applies when the bot is a participant.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/*.test.js`: **301 pass, 0 fail, 0 skipped across 64 test suites**.
+- **Status:** Completed
+
+
 
 
 

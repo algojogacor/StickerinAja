@@ -66,4 +66,20 @@ describe('Multi-Session Socket Manager', () => {
         assert.equal(getSock(), null);
         assert.equal(getAllSocks().length, 0);
     });
+
+    it('delegates group commands to bot only when bot is a participant of the group', () => {
+        global.botSessions = {
+            bot: { status: 'connected' },
+            pribadi: { status: 'connected' }
+        };
+        global.botGroupJids = new Set(['shared-group@g.us']);
+
+        // In shared group: bot is present -> isBotInThisGroup is true
+        const inSharedGroup = global.botGroupJids.has('shared-group@g.us');
+        assert.equal(inSharedGroup, true);
+
+        // In solo group (IPhO): bot is NOT present -> isBotInThisGroup is false
+        const inSoloGroup = global.botGroupJids.has('ipho-group@g.us');
+        assert.equal(inSoloGroup, false);
+    });
 });
