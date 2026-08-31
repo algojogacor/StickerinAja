@@ -141,22 +141,29 @@ module.exports = {
                 const uniqueId = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
                 if (isVideo) {
-                    // Download Video MP4
+                    // Download Video MP4 (480p/720p)
                     await sock.sendMessage(remoteJid, {
                         text: `⏳ *Sedang mengunduh video MP4...*\n🎬 *Judul:* ${video.title}\n⏱️ *Durasi:* ${video.timestamp}`
                     }, { quoted: msg });
 
                     const outPattern = path.join(tempDir, `vid_${uniqueId}_${safeTitle}.%(ext)s`);
-                    const result = await ytdlp.downloadVideo(video.url, '480p', {
-                        output: outPattern
-                    });
+                    await ytdlp.execAsync([
+                        video.url,
+                        '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best[height<=720]/best',
+                        '--extractor-args', 'youtube:player_client=android,ios,mweb',
+                        '--no-playlist',
+                        '--no-check-certificates',
+                        '-o', outPattern
+                    ]);
 
-                    downloadedFiles = result.filePaths || [];
-                    const finalPath = downloadedFiles[0];
-
-                    if (!finalPath || !fs.existsSync(finalPath)) {
+                    // Find generated file in temp directory
+                    const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`vid_${uniqueId}_`));
+                    if (!foundFiles.length) {
                         throw new Error('Gagal menyimpan file video hasil download.');
                     }
+
+                    const finalPath = path.join(tempDir, foundFiles[0]);
+                    downloadedFiles.push(finalPath);
 
                     const videoBuffer = fs.readFileSync(finalPath);
                     await sock.sendMessage(remoteJid, {
@@ -180,16 +187,25 @@ module.exports = {
                     }, { quoted: msg });
 
                     const outPattern = path.join(tempDir, `audio_${uniqueId}_${safeTitle}.%(ext)s`);
-                    const result = await ytdlp.downloadAudio(video.url, 'mp3', {
-                        output: outPattern
-                    });
+                    await ytdlp.execAsync([
+                        video.url,
+                        '-x',
+                        '--audio-format', 'mp3',
+                        '--audio-quality', '0',
+                        '--extractor-args', 'youtube:player_client=android,ios,mweb',
+                        '--no-playlist',
+                        '--no-check-certificates',
+                        '-o', outPattern
+                    ]);
 
-                    downloadedFiles = result.filePaths || [];
-                    const finalPath = downloadedFiles[0];
-
-                    if (!finalPath || !fs.existsSync(finalPath)) {
+                    // Find generated file in temp directory
+                    const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`audio_${uniqueId}_`));
+                    if (!foundFiles.length) {
                         throw new Error('Gagal menyimpan file audio MP3 hasil download.');
                     }
+
+                    const finalPath = path.join(tempDir, foundFiles[0]);
+                    downloadedFiles.push(finalPath);
 
                     const audioBuffer = fs.readFileSync(finalPath);
                     await sock.sendMessage(remoteJid, {
