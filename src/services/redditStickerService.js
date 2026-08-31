@@ -451,8 +451,32 @@ async function sendOneSticker(sock, groupJid, { logger } = {}) {
 
 // ── Search + send GIPHY ──────────────────────────────────────
 
-const RANDOM_GIF_QUERIES = ["funny meme", "dank meme", "reaction meme", "lol", "cat meme", "fail meme", "laughing meme", "comedy"];
-const RANDOM_STICKER_QUERIES = ["funny sticker", "meme reaction", "cat reaction", "funny face", "anime reaction"];
+const RANDOM_GIF_QUERIES = [
+  "prabowo",
+  "jokowi",
+  "bahlil",
+  "jomok",
+  "meme indonesia",
+  "ngakak",
+  "lucu",
+  "funny meme",
+  "dank meme",
+  "reaction meme",
+  "cat meme",
+  "comedy",
+  "laughing meme",
+];
+const RANDOM_STICKER_QUERIES = [
+  "prabowo",
+  "jokowi",
+  "jomok",
+  "meme indonesia",
+  "lucu",
+  "ngakak",
+  "funny sticker",
+  "meme reaction",
+  "cat reaction",
+];
 
 async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", logger } = {}) {
   let cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
