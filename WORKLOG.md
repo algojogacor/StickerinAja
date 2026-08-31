@@ -6,6 +6,53 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 37 — Neutralize Korea VM cryptominer and deploy high-speed YouTube downloader microservice
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 00:16 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell, Ubuntu 24.04 (Korea VM) |
+| **Branch** | `main` |
+| **Starting HEAD** | `17eb822` — `fix(youtube): prioritize web client cookies without android player client conflict` |
+| **Ending HEAD** | `2677752` — `feat(youtube): integrate high-speed Korea VM worker with local fallback` |
+| **Working-tree status** | Clean |
+
+### User request
+
+1. Investigate and turn off rogue cryptominer / backdoor processes consuming 156% CPU on the Korea VM (`20.214.143.187`).
+2. Utilize the clean Korea VM IP for YouTube MP3/MP4 downloading to eliminate datacenter bot-checks from Koyeb.
+
+### Implementation
+
+- **Malware & Cryptominer Cleanup:**
+  - Located rogue processes: PID 1105952 (`syslog-ng-ace0c250`, 156% CPU) and PID 1105967 (`syslog-helper`) running out of `/home/azureuser/.syslog-1e52dd8a/xmrig-6.26.0`.
+  - Terminated both processes immediately (`kill -9`).
+  - Purged malware working directories and hidden temp folders: `/home/azureuser/.syslog*`, `/dev/shm/duet`, `/tmp/.ICEi-unix`, `/var/tmp/.bin`.
+  - Verified host CPU dropped from 100% to 0.5% idle across all legitimate services (PM2: `forfh`, `kontrakpaham`, `webhook`).
+- **High-Speed YouTube Downloader Microservice on Korea VM:**
+  - Installed standalone latest `yt-dlp` and `ffmpeg` with full audio codec libraries on the Korea VM.
+  - Deployed user's YouTube cookies to `/home/azureuser/cookies.txt`.
+  - Created `/home/azureuser/yt-service/server.js` running on `127.0.0.1:3005` managed by PM2 (`yt-worker`).
+  - Configured Nginx reverse proxy endpoint `https://vpn.aryariap.my.id/api/yt/download` secured with `x-api-key`.
+  - Updated `src/commands/youtube.js` to route download requests through the high-speed Korea worker, streaming media buffers straight to Koyeb with automatic local fallback.
+  - Deployed updated bot to Koyeb and verified end-to-end download speed (4.25 MB in <1 second at 16.31 MB/s).
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| Korea VM CPU utilization after malware termination | 0.5% idle (Pass) |
+| `node --test test/*.test.js` | 333 pass, 0 fail; 76 suites |
+| End-to-end remote download test via `vpn.aryariap.my.id` | 8.18 MB MP3 downloaded in 19.97s (Pass) |
+| Koyeb live deployment `02f135dc` health check | `HEALTHY`, WhatsApp dual sessions connected |
+
+**Status: Completed**
+
+---
+
 ## Session 19 — Implement Selfbot / Dual Mode (1-number & 2-number bot mode)
 
 | Field | Value |
