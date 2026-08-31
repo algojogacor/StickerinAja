@@ -1,0 +1,227 @@
+const yts = require('yt-search');
+const { YtDlp } = require('ytdlp-nodejs');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
+const { heavyTaskQueue } = require('../utils/cache');
+
+const ytdlp = new YtDlp();
+const MAX_DURATION_SECONDS = 15 * 60; // Max 15 minutes limit to prevent OOM/slow downs
+
+function isYouTubeUrl(input) {
+    return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)/i.test(input);
+}
+
+function sanitizeFileName(title) {
+    return (title || 'YouTube_Audio')
+        .replace(/[/\\?%*:|"<>]/g, '')
+        .trim()
+        .slice(0, 60);
+}
+
+async function resolveVideo(queryOrUrl) {
+    if (isYouTubeUrl(queryOrUrl)) {
+        const match = queryOrUrl.match(/(?:v=|\/|be\/)([a-zA-Z0-9_-]{11})/);
+        if (match && match[1]) {
+            try {
+                const info = await yts({ videoId: match[1] });
+                if (info && info.title) {
+                    return {
+                        title: info.title,
+                        url: info.url || queryOrUrl,
+                        timestamp: info.duration?.timestamp || `${Math.floor(info.seconds / 60)}:${info.seconds % 60}`,
+                        seconds: info.duration?.seconds || info.seconds || 0,
+                        author: info.author?.name || 'Unknown',
+                        views: info.views || 0,
+                        thumbnail: info.thumbnail
+                    };
+                }
+            } catch (e) {
+                // fallback to search
+            }
+        }
+    }
+
+    const searchRes = await yts(queryOrUrl);
+    if (!searchRes?.videos?.length) {
+        throw new Error('Video/lagu tidak ditemukan di YouTube.');
+    }
+
+    const video = searchRes.videos[0];
+    return {
+        title: video.title,
+        url: video.url,
+        timestamp: video.timestamp || 'N/A',
+        seconds: video.seconds || 0,
+        author: video.author?.name || 'Unknown',
+        views: video.views || 0,
+        thumbnail: video.thumbnail
+    };
+}
+
+function normalizeParams(sockOrOpts, msg, args, ctx) {
+    if (sockOrOpts && sockOrOpts.sock) {
+        return {
+            sock: sockOrOpts.sock,
+            msg: sockOrOpts.msg,
+            args: sockOrOpts.args || [],
+            cmdName: sockOrOpts.cmdName,
+            remoteJid: sockOrOpts.remoteJid || sockOrOpts.msg?.key?.remoteJid,
+            logger: sockOrOpts.logger
+        };
+    }
+    return {
+        sock: sockOrOpts,
+        msg,
+        args: args || [],
+        cmdName: args?._command || 'play',
+        remoteJid: msg?.key?.remoteJid,
+        logger: ctx?.logger
+    };
+}
+
+module.exports = {
+    names: ['play', 'ytmp3', 'yta', 'ytmp4', 'ytv', 'youtube', 'yt', 'lagu', 'music'],
+    resolveVideo,
+    sanitizeFileName,
+    isYouTubeUrl,
+    execute: async (sockOrOpts, rawMsg, rawArgs, ctx) => {
+        const { sock, msg, args, cmdName, remoteJid, logger } = normalizeParams(sockOrOpts, rawMsg, rawArgs, ctx);
+        const command = (cmdName || args._command || 'play').toLowerCase();
+        const query = args.join(' ').trim();
+
+        // 1. Help menu if no query provided
+        if (!query) {
+            return sock.sendMessage(remoteJid, {
+                text: `🎬 *YOUTUBE DOWNLOADER & MUSIC PLAYER*\n\n` +
+                      `Download lagu MP3 (file attachment dokumen) dan video MP4 langsung dari YouTube!\n\n` +
+                      `🎵 *Download Audio / MP3 (File Attachment):*\n` +
+                      `• \`!play <judul lagu>\` : Cari lagu & kirim file MP3\n` +
+                      `• \`!ytmp3 <link / judul>\` : Download audio MP3\n` +
+                      `• \`!yta <link / judul>\` : Alias download audio MP3\n\n` +
+                      `🎬 *Download Video / MP4:*\n` +
+                      `• \`!ytmp4 <link / judul>\` : Download video MP4\n` +
+                      `• \`!ytv <link / judul>\` : Alias download video MP4\n\n` +
+                      `💡 *Contoh:*\n` +
+                      `\`!play monokrom tulus\`\n` +
+                      `\`!ytmp3 https://youtu.be/dQw4w9WgXcQ\`\n` +
+                      `\`!ytmp4 tutorial nodejs\``
+            }, { quoted: msg });
+        }
+
+        const isVideo = ['ytmp4', 'ytv'].includes(command);
+
+        return heavyTaskQueue.add(async () => {
+            const tempDir = path.join(os.tmpdir(), 'stickerin_yt');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            let downloadedFiles = [];
+
+            try {
+                // Inform user that search is in progress
+                await sock.sendMessage(remoteJid, {
+                    text: `🔍 *Mencari:* _${query}_\nMohon tunggu sebentar...`
+                }, { quoted: msg });
+
+                const video = await resolveVideo(query);
+
+                if (video.seconds > MAX_DURATION_SECONDS) {
+                    return sock.sendMessage(remoteJid, {
+                        text: `❌ *Durasi Terlalu Panjang*\n\n` +
+                              `📌 *Judul:* ${video.title}\n` +
+                              `⏱️ *Durasi:* ${video.timestamp} (Maksimal 15 menit)\n\n` +
+                              `Silakan pilih lagu atau video dengan durasi di bawah 15 menit.`
+                    }, { quoted: msg });
+                }
+
+                const safeTitle = sanitizeFileName(video.title);
+                const uniqueId = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+
+                if (isVideo) {
+                    // Download Video MP4
+                    await sock.sendMessage(remoteJid, {
+                        text: `⏳ *Sedang mengunduh video MP4...*\n🎬 *Judul:* ${video.title}\n⏱️ *Durasi:* ${video.timestamp}`
+                    }, { quoted: msg });
+
+                    const outPattern = path.join(tempDir, `vid_${uniqueId}_${safeTitle}.%(ext)s`);
+                    const result = await ytdlp.downloadVideo(video.url, '480p', {
+                        output: outPattern
+                    });
+
+                    downloadedFiles = result.filePaths || [];
+                    const finalPath = downloadedFiles[0];
+
+                    if (!finalPath || !fs.existsSync(finalPath)) {
+                        throw new Error('Gagal menyimpan file video hasil download.');
+                    }
+
+                    const videoBuffer = fs.readFileSync(finalPath);
+                    await sock.sendMessage(remoteJid, {
+                        document: videoBuffer,
+                        mimetype: 'video/mp4',
+                        fileName: `${safeTitle}.mp4`,
+                        caption: `🎬 *${video.title}*\n\n` +
+                                 `👤 *Channel:* ${video.author}\n` +
+                                 `⏱️ *Durasi:* ${video.timestamp}\n` +
+                                 `👁️ *Views:* ${Number(video.views || 0).toLocaleString('id-ID')}\n` +
+                                 `🔗 *Link:* ${video.url}\n\n` +
+                                 `_Downloaded by StickerinAja_`
+                    }, { quoted: msg });
+
+                    logger?.info(`✅ YouTube video sent: ${video.title}`);
+
+                } else {
+                    // Download Audio MP3 (Document attachment)
+                    await sock.sendMessage(remoteJid, {
+                        text: `⏳ *Sedang mengunduh audio MP3...*\n🎵 *Judul:* ${video.title}\n⏱️ *Durasi:* ${video.timestamp}`
+                    }, { quoted: msg });
+
+                    const outPattern = path.join(tempDir, `audio_${uniqueId}_${safeTitle}.%(ext)s`);
+                    const result = await ytdlp.downloadAudio(video.url, 'mp3', {
+                        output: outPattern
+                    });
+
+                    downloadedFiles = result.filePaths || [];
+                    const finalPath = downloadedFiles[0];
+
+                    if (!finalPath || !fs.existsSync(finalPath)) {
+                        throw new Error('Gagal menyimpan file audio MP3 hasil download.');
+                    }
+
+                    const audioBuffer = fs.readFileSync(finalPath);
+                    await sock.sendMessage(remoteJid, {
+                        document: audioBuffer,
+                        mimetype: 'audio/mpeg',
+                        fileName: `${safeTitle}.mp3`,
+                        caption: `🎵 *${video.title}*\n\n` +
+                                 `👤 *Channel:* ${video.author}\n` +
+                                 `⏱️ *Durasi:* ${video.timestamp}\n` +
+                                 `👁️ *Views:* ${Number(video.views || 0).toLocaleString('id-ID')}\n` +
+                                 `🔗 *Link:* ${video.url}\n\n` +
+                                 `_Downloaded by StickerinAja_`
+                    }, { quoted: msg });
+
+                    logger?.info(`✅ YouTube MP3 sent: ${video.title}`);
+                }
+
+            } catch (error) {
+                logger?.error({ err: error }, '[YouTube Downloader] Error');
+                return sock.sendMessage(remoteJid, {
+                    text: `❌ *Gagal Memproses YouTube*\n\nAlasan: ${error.message || 'Terjadi kesalahan saat mengunduh media'}\n\nPastikan judul atau link YouTube dapat diakses secara publik.`
+                }, { quoted: msg });
+            } finally {
+                // Clean up temporary files
+                for (const fp of downloadedFiles) {
+                    try {
+                        if (fs.existsSync(fp)) fs.unlinkSync(fp);
+                    } catch (e) {
+                        // ignore cleanup errors
+                    }
+                }
+            }
+        });
+    }
+};

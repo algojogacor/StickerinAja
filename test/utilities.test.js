@@ -401,9 +401,57 @@ describe('Utility and Tools Command Suite', () => {
         });
     });
 
+    describe('YouTube Downloader & Music Module', () => {
+        const ytCmd = require('../src/commands/youtube');
+
+        it('exports required command names and helper functions', () => {
+            assert.ok(Array.isArray(ytCmd.names));
+            assert.ok(ytCmd.names.includes('play'));
+            assert.ok(ytCmd.names.includes('ytmp3'));
+            assert.ok(ytCmd.names.includes('yta'));
+            assert.ok(ytCmd.names.includes('ytmp4'));
+            assert.ok(ytCmd.names.includes('ytv'));
+            assert.ok(ytCmd.names.includes('youtube'));
+            assert.ok(ytCmd.names.includes('yt'));
+            assert.ok(ytCmd.names.includes('lagu'));
+            assert.ok(ytCmd.names.includes('music'));
+            assert.equal(typeof ytCmd.execute, 'function');
+            assert.equal(typeof ytCmd.resolveVideo, 'function');
+            assert.equal(typeof ytCmd.sanitizeFileName, 'function');
+            assert.equal(typeof ytCmd.isYouTubeUrl, 'function');
+        });
+
+        it('identifies YouTube URLs correctly', () => {
+            assert.equal(ytCmd.isYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), true);
+            assert.equal(ytCmd.isYouTubeUrl('https://youtu.be/dQw4w9WgXcQ'), true);
+            assert.equal(ytCmd.isYouTubeUrl('https://youtube.com/shorts/abcdefghijk'), true);
+            assert.equal(ytCmd.isYouTubeUrl('just a song title'), false);
+        });
+
+        it('sanitizes filename safely for Windows/Linux filesystems', () => {
+            const dirty = 'Lagu: Keren / Gokil * Banget? <2026> | OK';
+            const clean = ytCmd.sanitizeFileName(dirty);
+            assert.doesNotMatch(clean, /[/\\?%*:|"<>]/);
+            assert.ok(clean.length <= 60);
+        });
+
+        it('replies with usage help when called without query', async () => {
+            let sentMessage = null;
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessage = content;
+                    return { key: { id: 'test' } };
+                }
+            };
+            await ytCmd.execute(mockSock, { key: { remoteJid: 'test@s.whatsapp.net' } }, []);
+            assert.ok(sentMessage);
+            assert.match(sentMessage.text, /YOUTUBE DOWNLOADER & MUSIC PLAYER/);
+        });
+    });
+
     describe('Menu Submenus', () => {
-        it('renders downloader, tts, kbbi, libur, kalender, tools, cuaca, and pdf submenus', async () => {
-            const submenus = ['downloader', 'tts', 'kbbi', 'libur', 'kalender', 'tools', 'cuaca', 'pdf'];
+        it('renders downloader, youtube, tts, kbbi, libur, kalender, tools, cuaca, and pdf submenus', async () => {
+            const submenus = ['downloader', 'youtube', 'tts', 'kbbi', 'libur', 'kalender', 'tools', 'cuaca', 'pdf'];
             for (const sub of submenus) {
                 let sentText = '';
                 const mockSock = {

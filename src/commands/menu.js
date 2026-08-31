@@ -11,23 +11,26 @@ module.exports = {
 │
 │ *Fitur Utama*
 │ 1. Reply foto/video/GIF -> jadikan stiker otomatis.
-│ 2. AI Vision & Chat pintar (${p}ai).
-│ 3. TikTok Downloader tanpa watermark (${p}tiktok).
-│ 4. Voice Note Generator (${p}tts).
+│ 2. YouTube MP3 & MP4 (${p}play / ${p}ytmp3).
+│ 3. TikTok & IG Downloader (${p}tiktok / ${p}ig).
+│ 4. AI Vision & Chat pintar (${p}ai).
 │
 │ *Daftar Menu*
+│ ${p}play <judul>   - cari lagu & download MP3 (file)
+│ ${p}ytmp4 <link>   - download video YouTube MP4
+│ ${p}tiktok <link>  - download video TikTok no WM
+│ ${p}ig <link>      - download Reels/Foto Instagram
+│ ${p}ai <tanya>     - Groq AI Vision & Chat
+│ ${p}tts <teks>     - text to speech voice note
+│ ${p}kbbi <kata>    - kamus besar bahasa indonesia
+│ ${p}libur [bulan]  - hari libur nasional & cuti bersama
+│ ${p}kalender [bln] - visual kalender bulanan & libur
 │ ${p}menu basic     - foto ke stiker
 │ ${p}menu efek      - efek & filter gambar
 │ ${p}menu gif       - video/GIF animasi
 │ ${p}menu text      - stiker teks, quote, emoji
 │ ${p}menu meme      - meme sticker
 │ ${p}gif <kata>     - stiker animasi GIPHY
-│ ${p}ai <tanya>     - Groq AI Vision & Chat
-│ ${p}tiktok <link>  - download video TikTok no WM
-│ ${p}tts <teks>     - text to speech voice note
-│ ${p}kbbi <kata>    - kamus besar bahasa indonesia
-│ ${p}libur [bulan]  - hari libur nasional & cuti bersama
-│ ${p}kalender [bln] - visual kalender bulanan & libur
 │ ${p}menu tools     - shortlink, QR, IP, password
 │ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
@@ -255,6 +258,32 @@ module.exports = {
 │ Alias: ${p}tt, ${p}ig, ${p}instagram, ${p}reels, ${p}download, ${p}dl
 ╰──────────────────`,
 
+            youtube: `╭──「 *YOUTUBE & MP3 MUSIC* 」──
+│ Download lagu MP3 & video YouTube langsung ke WA.
+│
+│ *Download Audio / Lagu MP3:*
+│ ${p}play <judul lagu>
+│   Cari & kirim audio MP3 sebagai file lampiran.
+│ ${p}ytmp3 <link youtube>
+│   Download audio MP3 dari URL video.
+│ ${p}yta <link / judul>
+│   Shortcut download lagu MP3.
+│
+│ *Download Video MP4:*
+│ ${p}ytmp4 <link / judul>
+│   Download video MP4 (kualitas 480p/720p).
+│ ${p}ytv <link / judul>
+│   Shortcut download video MP4.
+│
+│ Contoh:
+│ • ${p}play monokrom tulus
+│ • ${p}play komang raim laode
+│ • ${p}ytmp3 https://youtu.be/dQw4w9WgXcQ
+│ • ${p}ytmp4 anime opening
+│
+│ Alias: ${p}play, ${p}ytmp3, ${p}ytmp4, ${p}yta, ${p}ytv, ${p}lagu, ${p}music
+╰──────────────────`,
+
             tts: `╭──「 *TEXT TO SPEECH (VN)* 」──
 │ Ubah teks jadi pesan suara WhatsApp.
 │
@@ -413,6 +442,14 @@ module.exports = {
         menus.holiday = menus.libur;
         menus.cal = menus.kalender;
         menus.calendar = menus.kalender;
+        menus.yt = menus.youtube;
+        menus.play = menus.youtube;
+        menus.lagu = menus.youtube;
+        menus.music = menus.youtube;
+        menus.ytmp3 = menus.youtube;
+        menus.ytmp4 = menus.youtube;
+        menus.yta = menus.youtube;
+        menus.ytv = menus.youtube;
 
         menus.all = `${menus.main}
 
@@ -429,6 +466,8 @@ ${menus.meme}
 ${menus.ai}
 
 ${menus.downloader}
+
+${menus.youtube}
 
 ${menus.tts}
 

@@ -1753,6 +1753,29 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **329 pass, 0 fail, 0 skipped across 75 test suites**.
 - **Status:** Completed
 
+---
+
+## Session 36 — Implement YouTube MP3 (Document Attachment) & MP4 Downloader (!play, !ytmp3, !ytmp4)
+
+- **Date:** 2026-08-31
+- **Start:** 23:45 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Add YouTube MP3 downloader sending as file attachment document (for saving/playing music) and MP4 video downloader.
+- **Scope:**
+  - `package.json`: Added `yt-search` and `ytdlp-nodejs` dependencies for resilient search and extraction.
+  - `src/commands/youtube.js`: Created dedicated YouTube downloader module with commands `['play', 'ytmp3', 'yta', 'ytmp4', 'ytv', 'youtube', 'yt', 'lagu', 'music']`.
+    - `!play <judul lagu>` & `!ytmp3 <link>`: Downloads high-quality MP3 audio and sends as document attachment (`audio/mpeg`, `.mp3`).
+    - `!ytmp4 <link / judul>` & `!ytv <link>`: Downloads video MP4 (480p/720p).
+    - Integrated automatic duration limit protection (max 15 mins) to prevent OOM.
+    - Integrated with `heavyTaskQueue` and collision-proof temporary files with automatic cleanup.
+  - `src/commands/menu.js`: Updated main menu and added `youtube` submenu with aliases.
+  - `test/utilities.test.js`: Added unit tests for URL parsing, safe filename sanitization, empty query help response, and submenu verification.
+- **Branch:** `main`
+- **Verification:**
+  - Verified YouTube search, audio extraction, MP4 video download, and safe document dispatch.
+  - `node --test test/*.test.js`: **333 pass, 0 fail, 0 skipped across 76 test suites**.
+- **Status:** Completed
+
 
 
 
