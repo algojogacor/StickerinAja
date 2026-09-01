@@ -6,6 +6,83 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 40 — Implement True CamScanner Magic Color & Clear B&W Filters
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 11:06 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `70b1d1e` — `fix(pdf): use indirect object references for content streams to fix blank white pages` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+1. Investigate why PDF output Version 1 and Version 2 were virtually identical ("gaada bedanya antara hasil 1 dan 2").
+2. Fix weird scanner filter to accurately match CamScanner document scanning ("filternya aneh, hasilnya tidak mirip seperti camscanner").
+
+### Root cause
+
+1. **Identical V1 vs V2:** Version 1 was previously designated "Auto-Crop" and Version 2 was "Full-Frame", but both used the exact same filter mode. When document auto-crop could not safely find high-contrast dark table margins (e.g. paper fills frame or table is light), auto-crop safely fell back to full frame, resulting in byte-for-byte identical PDF outputs.
+2. **Weird Filter:** `applyMagicScan` previously used a naive global contrast shift (`.linear(1.45, -45)` with `.normalise()`). Global contrast curves cannot remove non-uniform shadows or yellow/gray ambient lighting. Instead, shadows were crushed into dirty dark blotches and unsharp masking created noisy, grainy artifacts.
+
+### Implementation
+
+- **Retinex Background Illumination Division (`src/commands/pdf.js`):**
+  - Replaced crude global linear curves with Retinex illumination division:
+    - Downsamples image to compute low-frequency background illumination map ($I_{bg}$) representing shadows, ambient light falloff, and paper color cast.
+    - Divides original pixels by the illumination map: $I_{norm} = (I_{orig} / I_{bg}) \times 255$.
+    - Normalizes paper across the entire page (even in deep shadows) to pure clean white ($255$), while preserving ink reflectance and darkness.
+- **True Dual Output (Magic Color vs Clear B&W):**
+  - **Version 1 (`_MagicColor.pdf`):** CamScanner signature Magic Color. Levels stretching ($whitePoint=225, blackPoint=35$), subtle saturation boost ($1.2\times$), and clarity sharpening. Completely whitens paper while keeping color stamps (red/blue), pen signatures, photos, and highlighters vibrant.
+  - **Version 2 (`_ClearBW.pdf`):** CamScanner Clear B&W. High-contrast perceptual luminance thresholding with smooth anti-aliasing. Ideal for printing, photocopying, and official submissions.
+- **Safety & Performance:**
+  - Auto-rotates using EXIF orientation tags before processing.
+  - Limits max dimension to 2048px to keep memory footprint bounded (<25MB) and prevent OOM on Koyeb containers.
+
+### Verification
+
+| Command/check | Result |
+|---|---|
+| `node scratch/test_camscanner.js` | Illumination division eliminates shadows; shadow paper $119 \to 255$, stamp $187 \to 255$. |
+| `node --test test/utilities.test.js` | 34 pass, 0 fail; 12 suites |
+| `node --test test/*.test.js` | 335 pass, 0 fail; 76 suites |
+
+**Status: Completed**
+
+---
+
+## Session 39 — Test Novita AI Sandbox API Key
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 07:03 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.6 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `2c2a1b4` — `fix(pdf): capture uncaptioned images in active PDF sessions and reply with page confirmations` |
+| **Ending HEAD** | `2c2a1b4` |
+| **Working-tree status** | Clean |
+
+### User request
+
+Test Novita AI API key provided by user.
+
+### Result
+
+- **API Key Validity:** Valid & Authenticated (endpoint `https://api.novita.ai/v3/openai/models` returned HTTP 200 OK).
+- **Balance Status:** Insufficient balance / Saldo Habis (`HTTP 403: NOT_ENOUGH_BALANCE`).
+
+**Status: Completed**
+
+---
+
 ## Session 38 — Fix PDF & Document Scanner Multi-Image Session Capture
 
 | Field | Value |
