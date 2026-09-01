@@ -17,7 +17,7 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `a6b3c7c` — `docs: record final session 40 commit in worklog` |
-| **Ending HEAD** | `61b9246` — `feat(scanner): use skimage threshold_local (PyImageSearch standard) for clean B&W document scan` |
+| **Ending HEAD** | `8d21cb8` — `fix(scanner): use resolution-adaptive blockSize and offset=5 in enhance_bw` |
 | **Working-tree status** | Clean |
 
 ### User request
