@@ -111,31 +111,40 @@ def find_document_quad(image: np.ndarray) -> np.ndarray | None:
 
 
 def enhance_bw(image: np.ndarray) -> np.ndarray:
-    from skimage.filters import threshold_local
-
+    """
+    Applies Retinex illumination normalization, gamma midtone contrast,
+    CLAHE local contrast pop, and high-acutance unsharp masking.
+    Produces crisp, dark, anti-aliased handwriting/text on spotless white paper.
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # blockSize harus ganjil dan scale dengan resolusi gambar
-    # ~1/40 dari sisi terpendek, minimum 11
-    h, w = gray.shape
-    block = max(11, (min(h, w) // 40))
-    if block % 2 == 0:
-        block += 1
+    # 1. Background illumination normalization (Retinex)
+    blur = cv2.GaussianBlur(gray, (51, 51), 0)
+    blur = np.clip(blur.astype(np.float32), 25, 255)
+    norm = np.clip((gray.astype(np.float32) / blur) * 255.0, 0, 255).astype(np.uint8)
 
-    T = threshold_local(gray, block, offset=5, method="gaussian")
-    bw = (gray > T).astype("uint8") * 255
+    # 2. Gamma 1.8 for rich, dark ink midtones
+    table = np.array([((i / 255.0) ** 1.8) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    contrast = cv2.LUT(norm, table)
 
-    return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+    # 3. CLAHE local contrast pop
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+    cl = clahe.apply(contrast)
+
+    # 4. High-acutance unsharp mask for razor sharp text without soft-focus blur
+    g = cv2.GaussianBlur(cl, (0, 0), 1.0)
+    sharp = cv2.addWeighted(cl, 1.9, g, -0.9, 0)
+
+    return cv2.cvtColor(sharp, cv2.COLOR_GRAY2BGR)
 
 
 def enhance_color(image: np.ndarray) -> np.ndarray:
     """
-    Applies divide normalization (Retinex) and saturation boost for Magic Color mode.
+    Applies divide normalization (Retinex), gamma midtone darkening,
+    saturation pop for stamps/signatures, and crisp unsharp masking.
     """
     # Background illumination estimation via large Gaussian blur
     blur = cv2.GaussianBlur(image, (51, 51), 0)
-    
-    # Avoid zero division
     blur = np.clip(blur, 20, 255)
 
     # Divide normalization: (image / blur) * 255
@@ -150,9 +159,9 @@ def enhance_color(image: np.ndarray) -> np.ndarray:
     hsv[..., 1] = np.clip(hsv[..., 1] * 1.25, 0, 255)
     result = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
-    # Mild unsharp mask
-    gaussian = cv2.GaussianBlur(result, (0, 0), 1.5)
-    sharpened = cv2.addWeighted(result, 1.2, gaussian, -0.2, 0)
+    # High-acutance unsharp mask for crisp text and clear lines
+    gaussian = cv2.GaussianBlur(result, (0, 0), 1.2)
+    sharpened = cv2.addWeighted(result, 1.6, gaussian, -0.6, 0)
     return sharpened
 
 
