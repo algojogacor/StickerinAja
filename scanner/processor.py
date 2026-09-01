@@ -111,36 +111,16 @@ def find_document_quad(image: np.ndarray) -> np.ndarray | None:
 
 
 def enhance_bw(image: np.ndarray) -> np.ndarray:
-    """
-    Applies illumination normalization before adaptive thresholding,
-    safe unsharp mask without filter2D overflow, and returns BGR for consistent encoding.
-    """
+    from skimage.filters import threshold_local
+    
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Normalisasi pencahayaan dulu sebelum threshold
-    # supaya area gelap/terang tidak uneven
-    blur_bg = cv2.GaussianBlur(gray, (51, 51), 0)
-    blur_bg = np.clip(blur_bg.astype(np.float32), 30, 255)
-    normalized = np.clip((gray.astype(np.float32) / blur_bg) * 220, 0, 255).astype(np.uint8)
-
-    # Pre-smooth slightly to suppress micro paper grain/noise
-    denoised = cv2.GaussianBlur(normalized, (3, 3), 0)
-
-    # Adaptive threshold — C=8 with blockSize 25 for crisp text and spotless white background
-    thresh = cv2.adaptiveThreshold(
-        denoised, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        blockSize=25,
-        C=8
-    )
-
-    # Sharpen HANYA pakai unsharp mask — jangan filter2D di atas binary image
-    blurred = cv2.GaussianBlur(thresh, (0, 0), 1.0)
-    sharpened = cv2.addWeighted(thresh, 1.5, blurred, -0.5, 0)
-
-    # Konversi ke BGR supaya konsisten dengan pipeline encode
-    return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
+    
+    # threshold_local: blockSize 11, offset 10, method gaussian
+    # Ini teknik standar pyimagesearch yang proven clean
+    T = threshold_local(gray, 11, offset=10, method="gaussian")
+    bw = (gray > T).astype("uint8") * 255
+    
+    return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
 
 
 def enhance_color(image: np.ndarray) -> np.ndarray:
@@ -156,11 +136,12 @@ def enhance_color(image: np.ndarray) -> np.ndarray:
     # Divide normalization: (image / blur) * 255
     norm = cv2.divide(image, blur, scale=255)
 
-    # Levels stretching (black point 25, white point 225)
-    norm = np.clip((norm.astype(np.float32) - 25) * (255.0 / (225.0 - 25.0)), 0, 255).astype(np.uint8)
+    # Gamma 1.4: darkens midtones (pencil/pen ink) while preserving 100% white paper
+    table = np.array([((i / 255.0) ** 1.4) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    adjusted = cv2.LUT(norm, table)
 
     # Saturation pop for stamps/signatures
-    hsv = cv2.cvtColor(norm, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv = cv2.cvtColor(adjusted, cv2.COLOR_BGR2HSV).astype(np.float32)
     hsv[..., 1] = np.clip(hsv[..., 1] * 1.25, 0, 255)
     result = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
