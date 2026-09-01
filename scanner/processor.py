@@ -112,19 +112,35 @@ def find_document_quad(image: np.ndarray) -> np.ndarray | None:
 
 def enhance_bw(image: np.ndarray) -> np.ndarray:
     """
-    Applies adaptive thresholding for clear, high-contrast B&W document scan.
+    Applies illumination normalization before adaptive thresholding,
+    safe unsharp mask without filter2D overflow, and returns BGR for consistent encoding.
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Adaptive threshold: blockSize must be odd (21), C=10
+
+    # Normalisasi pencahayaan dulu sebelum threshold
+    # supaya area gelap/terang tidak uneven
+    blur_bg = cv2.GaussianBlur(gray, (51, 51), 0)
+    blur_bg = np.clip(blur_bg.astype(np.float32), 30, 255)
+    normalized = np.clip((gray.astype(np.float32) / blur_bg) * 220, 0, 255).astype(np.uint8)
+
+    # Pre-smooth slightly to suppress micro paper grain/noise
+    denoised = cv2.GaussianBlur(normalized, (3, 3), 0)
+
+    # Adaptive threshold — C=8 with blockSize 25 for crisp text and spotless white background
     thresh = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 10
+        denoised, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=25,
+        C=8
     )
 
-    # Mild text sharpening
-    kernel = np.array([[0, -0.5, 0], [-0.5, 3.0, -0.5], [0, -0.5, 0]], dtype=np.float32)
-    sharpened = cv2.filter2D(thresh, -1, kernel)
-    return sharpened
+    # Sharpen HANYA pakai unsharp mask — jangan filter2D di atas binary image
+    blurred = cv2.GaussianBlur(thresh, (0, 0), 1.0)
+    sharpened = cv2.addWeighted(thresh, 1.5, blurred, -0.5, 0)
+
+    # Konversi ke BGR supaya konsisten dengan pipeline encode
+    return cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)
 
 
 def enhance_color(image: np.ndarray) -> np.ndarray:
