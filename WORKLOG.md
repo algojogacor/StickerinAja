@@ -6,6 +6,59 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 41 — Build Python FastAPI Document Scanner Microservice (OpenCV 4-Point Transform & Adaptive Thresholding)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 11:23 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `a6b3c7c` — `docs: record final session 40 commit in worklog` |
+| **Ending HEAD** | In progress |
+| **Working-tree status** | Modified |
+
+### User request
+
+Create a Python microservice for document scanning that can be called from the WhatsApp bot (Baileys/Node.js via HTTP POST `/scan`):
+- Stack: FastAPI, `opencv-python-headless`, Pillow, numpy, uvicorn.
+- Endpoint: `POST /scan?mode=bw|color` (multipart/form-data with field `image`), returns binary JPEG (quality 88).
+- Pipeline:
+  1. Load image (handle EXIF orientation) → resize max 1800px preserving aspect ratio.
+  2. Grayscale → Gaussian blur → Canny edge detection.
+  3. findContours → find largest quadrilateral contour (> 15% image area).
+  4. Perspective transform (four-point transform) to rectify the document into 2D rectangle.
+  5. If no quad found: graceful fallback (skip warp, continue with whitening).
+  6. Filters:
+     - `bw`: `cv2.adaptiveThreshold` (`ADAPTIVE_THRESH_GAUSSIAN_C`, blockSize=21, C=10).
+     - `color`: divide normalization (Retinex `img / blur * 255`) + levels adjustment + saturation boost.
+  7. Mild sharpening.
+  8. Return JPEG bytes.
+- Structure: `scanner/` directory with `main.py`, `processor.py`, `requirements.txt`, `Dockerfile` (`python:3.11-slim` with `libgl1` and `libglib2.0-0`).
+- Update `pdf.js` in Node.js bot with `callScanner(buffer, mode)` sending HTTP POST to `SCANNER_URL/scan` with 15s timeout and local fallback.
+
+### Implementation details
+
+1. **`scanner/requirements.txt`:** Added `fastapi`, `uvicorn[standard]`, `opencv-python-headless`, `Pillow`, `numpy`, `python-multipart`.
+2. **`scanner/processor.py`:**
+   - Implemented `order_points` and `four_point_transform` computing Euclidean width/height and applying `cv2.getPerspectiveTransform` + `cv2.warpPerspective`.
+   - Implemented `find_document_quad` with convex hull and adaptive epsilon polygon approximation (scaling `eps` from 0.015 to 0.085 on the hull) with `minAreaRect` fallback.
+   - Implemented `enhance_bw` using `cv2.adaptiveThreshold` (blockSize 21, C=10) and mild unsharp text sharpening.
+   - Implemented `enhance_color` using Retinex divide normalization with large Gaussian illumination blur, black/white point levels stretch, HSV saturation boost (1.25x), and unsharp masking.
+   - Handled EXIF orientation via `PIL.ImageOps.exif_transpose` and resized longest dimension to max 1800px.
+3. **`scanner/main.py`:** FastAPI application exposing `GET /health` and `POST /scan?mode={bw|color|magic}`.
+4. **`scanner/Dockerfile`:** Production Docker container based on `python:3.11-slim` with `libgl1` and `libglib2.0-0`.
+5. **`src/commands/pdf.js`:** Added `callScanner(buffer, mode, logger)` calling `SCANNER_URL/scan?mode={color|bw}` via HTTP multipart/form-data with 15-second `AbortController` timeout and seamless fallback to local Retinex processing.
+6. **Testing & Verification:**
+   - Verified Python pipeline on user real images (`WhatsApp Image 2026-09-01 at 00.45.46.jpeg` and `.38.jpeg`). Successfully perspective-unwarped document, eliminating tilted table/laptop background and producing clean document pages.
+   - Started local FastAPI server on port 8000 and tested end-to-end HTTP communication from Node.js: completed in ~720–760ms per image.
+   - Tested dead-port fallback (`http://127.0.0.1:9999`): cleanly fell back to local processing without errors.
+   - All 335 Node.js tests passed across 76 suites.
+
+---
+
 ## Session 40 — Implement True CamScanner Magic Color & Clear B&W Filters
 
 | Field | Value |

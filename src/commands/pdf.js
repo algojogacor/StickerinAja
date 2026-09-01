@@ -202,6 +202,52 @@ async function applyMagicScan(buffer, mode = 'magic') {
     }
 }
 
+const SCANNER_URL = process.env.SCANNER_URL || '';
+const SCANNER_TIMEOUT_MS = parseInt(process.env.SCANNER_TIMEOUT_MS || '15000', 10);
+
+/**
+ * Dispatches document image to Python FastAPI scanner microservice (OpenCV 4-point warp + adaptive threshold)
+ * with graceful fallback to local Retinex processing on error or timeout.
+ */
+async function callScanner(buffer, mode = 'bw', logger) {
+    if (!SCANNER_URL) {
+        const isColor = (mode === 'color' || mode === 'magic');
+        return await applyMagicScan(await autoCropDocument(buffer), isColor ? 'magic' : 'bw');
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCANNER_TIMEOUT_MS);
+
+    try {
+        const formData = new FormData();
+        const blob = new Blob([buffer], { type: 'image/jpeg' });
+        formData.append('image', blob, 'document.jpg');
+
+        const scanMode = (mode === 'color' || mode === 'magic') ? 'color' : 'bw';
+        const endpoint = `${SCANNER_URL.replace(/\/+$/, '')}/scan?mode=${scanMode}`;
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+
+        if (!res.ok) {
+            throw new Error(`Scanner microservice returned HTTP ${res.status}`);
+        }
+
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+    } catch (err) {
+        if (logger?.warn) {
+            logger.warn({ err: err.message }, '[PDF Scanner] Microservice call failed or timed out, falling back to local');
+        }
+        const isColor = (mode === 'color' || mode === 'magic');
+        return await applyMagicScan(await autoCropDocument(buffer), isColor ? 'magic' : 'bw');
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 /**
  * Creates a valid multi-page PDF-1.4 buffer directly from JPEG image buffers.
  */
@@ -363,6 +409,7 @@ module.exports = {
     imagesToPdf,
     autoCropDocument,
     applyMagicScan,
+    callScanner,
     pdfSessions,
     handleActiveSession: async ({ sock, msg, senderJid, remoteJid, logger, messageText, PREFIX }) => {
         cleanExpiredSessions();
@@ -430,20 +477,18 @@ module.exports = {
                     const baseFileName = getCleanFileName(finalTitle, 'Dokumen_Scan');
                     const baseNameNoExt = baseFileName.replace(/\.pdf$/i, '');
 
-                    // Process Version 1: CamScanner Magic Color (Retinex illumination division)
+                    // Process Version 1: CamScanner Magic Color
                     const v1Buffers = [];
                     for (const raw of session.rawBuffers) {
-                        const cropped = await autoCropDocument(raw);
-                        const enhanced = await applyMagicScan(cropped, 'magic');
+                        const enhanced = await callScanner(raw, 'color', logger);
                         v1Buffers.push(enhanced);
                     }
                     const pdfV1 = await imagesToPdf(v1Buffers);
 
-                    // Process Version 2: CamScanner Clear B&W (Anti-aliased high-contrast binarization)
+                    // Process Version 2: CamScanner Clear B&W
                     const v2Buffers = [];
                     for (const raw of session.rawBuffers) {
-                        const cropped = await autoCropDocument(raw);
-                        const enhanced = await applyMagicScan(cropped, 'bw');
+                        const enhanced = await callScanner(raw, 'bw', logger);
                         v2Buffers.push(enhanced);
                     }
                     const pdfV2 = await imagesToPdf(v2Buffers);
@@ -497,14 +542,12 @@ module.exports = {
                     const baseFileName = getCleanFileName(customTitle, 'Dokumen_Scan');
                     const baseNameNoExt = baseFileName.replace(/\.pdf$/i, '');
 
-                    const cropped = await autoCropDocument(imageBuffer);
-
                     // Version 1: CamScanner Magic Color
-                    const enhancedV1 = await applyMagicScan(cropped, 'magic');
+                    const enhancedV1 = await callScanner(imageBuffer, 'color', logger);
                     const pdfV1 = await imagesToPdf([enhancedV1]);
 
                     // Version 2: CamScanner Clear B&W
-                    const enhancedV2 = await applyMagicScan(cropped, 'bw');
+                    const enhancedV2 = await callScanner(imageBuffer, 'bw', logger);
                     const pdfV2 = await imagesToPdf([enhancedV2]);
 
                     // Send PDF 1 (Magic Color)

@@ -38,6 +38,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
 | Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |
+| Document Scanner & PDF | Active; CamScanner-style dual output (Magic Color + Clear B&W), Python FastAPI microservice (`scanner/`) with OpenCV 4-point perspective warp + adaptive thresholding, with pure Node.js/Sharp Retinex illumination division fallback | `src/commands/pdf.js`, `scanner/main.py`, `scanner/processor.py`, `scanner/Dockerfile` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
 
 ---

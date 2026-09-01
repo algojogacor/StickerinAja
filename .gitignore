@@ -12,3 +12,9 @@ AGENTS.md
 CLAUDE.md
 PROJECT_STATE.md
 WORKLOG.md
+scanner/.venv/
+__pycache__/
+*.pyc
+downloads/
+
+
