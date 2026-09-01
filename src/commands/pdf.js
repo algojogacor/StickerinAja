@@ -24,55 +24,74 @@ async function autoCropDocument(buffer) {
         const { width, height } = metadata;
         if (!width || !height) return buffer;
 
-        const thumbWidth = 200;
-        const thumbHeight = Math.round((height / width) * 200);
+        // Work on 200-wide thumbnail for ultra fast detection (sub-10ms)
+        const thumbW = 200;
+        const thumbH = Math.round((height / width) * 200);
 
         const thumb = await sharp(buffer)
-            .resize(thumbWidth, thumbHeight)
-            .grayscale()
+            .resize(thumbW, thumbH)
             .raw()
             .toBuffer();
 
-        let total = 0;
-        for (let i = 0; i < thumb.length; i++) total += thumb[i];
-        const avg = total / thumb.length;
-        const threshold = Math.max(avg * 0.9, 100);
+        // Check row-by-row and col-by-col paper concentration
+        const rowWhite = new Array(thumbH).fill(0);
+        const colWhite = new Array(thumbW).fill(0);
 
-        let minX = thumbWidth, maxX = 0, minY = thumbHeight, maxY = 0;
-        let count = 0;
-
-        for (let y = 0; y < thumbHeight; y++) {
-            for (let x = 0; x < thumbWidth; x++) {
-                const val = thumb[y * thumbWidth + x];
-                if (val >= threshold) {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                    count++;
+        for (let y = 0; y < thumbH; y++) {
+            for (let x = 0; x < thumbW; x++) {
+                const idx = (y * thumbW + x) * 3;
+                const r = thumb[idx];
+                const g = thumb[idx + 1];
+                const b = thumb[idx + 2];
+                const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+                // Paper has high luminance and neutral color balance
+                const isPaper = (luma > 150 && Math.abs(r - g) < 30 && Math.abs(r - b) < 30);
+                if (isPaper) {
+                    rowWhite[y]++;
+                    colWhite[x]++;
                 }
             }
         }
 
-        const areaRatio = count / (thumbWidth * thumbHeight);
-        if (areaRatio > 0.3 && areaRatio < 0.98 && maxX > minX && maxY > minY) {
-            const scaleX = width / thumbWidth;
-            const scaleY = height / thumbHeight;
+        // Find contiguous document span
+        let startY = -1, endY = -1;
+        for (let y = 0; y < thumbH; y++) {
+            const ratio = rowWhite[y] / thumbW;
+            if (ratio > 0.40 && startY === -1) startY = y;
+            if (ratio > 0.40) endY = y;
+        }
 
-            const padX = Math.round(width * 0.02);
-            const padY = Math.round(height * 0.02);
+        let startX = -1, endX = -1;
+        for (let x = 0; x < thumbW; x++) {
+            const ratio = colWhite[x] / thumbH;
+            if (ratio > 0.30 && startX === -1) startX = x;
+            if (ratio > 0.30) endX = x;
+        }
 
-            const cropLeft = Math.max(0, Math.round(minX * scaleX) - padX);
-            const cropTop = Math.max(0, Math.round(minY * scaleY) - padY);
-            const cropWidth = Math.min(width - cropLeft, Math.round((maxX - minX) * scaleX) + padX * 2);
-            const cropHeight = Math.min(height - cropTop, Math.round((maxY - minY) * scaleY) + padY * 2);
+        if (startX >= 0 && endX > startX && startY >= 0 && endY > startY) {
+            const scaleX = width / thumbW;
+            const scaleY = height / thumbH;
 
-            if (cropWidth > width * 0.4 && cropHeight > height * 0.4) {
+            // Safe margin (1.5%)
+            const padX = Math.round(width * 0.015);
+            const padY = Math.round(height * 0.015);
+
+            const cropLeft = Math.max(0, Math.round(startX * scaleX) - padX);
+            const cropTop = Math.max(0, Math.round(startY * scaleY) - padY);
+            const cropWidth = Math.min(width - cropLeft, Math.round((endX - startX) * scaleX) + padX * 2);
+            const cropHeight = Math.min(height - cropTop, Math.round((endY - startY) * scaleY) + padY * 2);
+
+            const cropArea = cropWidth * cropHeight;
+            const totalArea = width * height;
+            const areaRatio = cropArea / totalArea;
+
+            if (areaRatio > 0.20 && areaRatio < 0.96 && cropWidth > width * 0.3 && cropHeight > height * 0.3) {
                 return sharp(buffer)
                     .extract({ left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight })
                     .toBuffer();
             }
         }
+
         return buffer;
     } catch {
         return buffer;
