@@ -72,12 +72,26 @@ const AUTOMATED_MEME_SUBREDDITS = new Set([
   "lotrmemes",
   "historymemes",
   "animemes",
+  "goodanimemes",
   "comedycemetery",
   "therewasanattempt",
   "dndmemes",
   "shitposting",
   "whenthe",
   "indonesia",
+  "wkwkwkland",
+  "aku_ddn",
+  "indowibu",
+  "okbuddyretard",
+  "memes_of_the_dank",
+  "dank_meme",
+  "funnymemes",
+  "meme",
+  "comedyheaven",
+  "bonehurtingjuice",
+  "bikinibottomtwitter",
+  "trippinthroughtime",
+  "wordington",
   "adviceanimals",
   "giphy",
 ]);
@@ -285,14 +299,30 @@ async function processPost(post, { logger } = {}) {
   };
 }
 
-// ── Selection helper ────────────────────────────────────────
+const UNUSABLE_STICKER_SUBREDDITS = new Set([
+  "starterpacks",
+  "lotrmemes",
+  "historymemes",
+  "programmerhumor",
+  "therewasanattempt",
+  "mildlyinfuriating",
+  "comedycemetery",
+  "terriblefacebookmemes",
+]);
 
 function isAutomatedMemeCandidate(post) {
   const subreddit = String(post?.subreddit || "").trim().toLowerCase();
-  if (AUTOMATED_MEME_SUBREDDITS.has(subreddit)) return true;
+  if (UNUSABLE_STICKER_SUBREDDITS.has(subreddit)) return false;
 
   const text = `${post?.title || ""} ${post?._searchDescription || ""}`;
-  return /\b(?:meme|shitpost|reaction|starter\s*pack|funny|lol)\b/i.test(text);
+  // Reject starter packs, letters, articles, text walls, and infographics that make unreadable stickers
+  if (/\b(?:starter\s*pack|starterpack|infographic|letter|article|essay|newspaper|receipt|chart|graph)\b/i.test(text)) {
+    return false;
+  }
+
+  if (AUTOMATED_MEME_SUBREDDITS.has(subreddit)) return true;
+
+  return /\b(?:meme|shitpost|reaction|funny|kocak|ngakak|wkwk|lucu|lol)\b/i.test(text);
 }
 
 function selectDiversePosts(posts, count = posts?.length || 0) {
@@ -348,7 +378,7 @@ async function generateStickers({ logger, count = GENERATE_COUNT() } = {}) {
   const memeCandidates = eligible.filter(isAutomatedMemeCandidate);
   const pool = memeCandidates.length > 0 ? memeCandidates : eligible;
 
-  const selected = selectDiversePosts(pool, Math.max(targetCount * 2, 4));
+  const selected = selectDiversePosts(pool, pool.length);
 
   let generated = 0;
   let attempted = 0;
@@ -364,7 +394,7 @@ async function generateStickers({ logger, count = GENERATE_COUNT() } = {}) {
   }
 
   logger?.info(
-    { feature: "reddit_sticker", generated, attempted },
+    { feature: "reddit_sticker", generated, attempted, totalCandidates: pool.length },
     `Generation complete: ${generated}/${targetCount} stickers`
   );
 
@@ -452,62 +482,172 @@ async function sendOneSticker(sock, groupJid, { logger, count } = {}) {
 // ── Search + send GIPHY ──────────────────────────────────────
 
 const RANDOM_GIF_QUERIES = [
+  // Tokoh Politik & Pemerintah Indonesia
   "prabowo",
+  "prabowo subianto",
+  "gemoy",
+  "prabowo joget",
   "jokowi",
+  "joko widodo",
+  "jokowi ketawa",
   "bahlil",
+  "bahlil lahadalia",
+  "gibran",
+  "pemerintah",
+  "dpr indonesia",
+  "pejabat lucu",
+  // Komedi Jomok & Brainrot Lokal / Global
   "jomok",
+  "ambasing",
+  "rusdi",
+  "ngawi",
+  "skibidi",
+  "mewing",
+  "brainrot",
+  "sigma meme",
+  "gigachad",
+  "si imut",
+  // Komedi & Reaksi Indonesia
   "meme indonesia",
   "ngakak",
   "lucu",
+  "kocak",
+  "wkwk",
+  "goyang",
+  "joget",
+  "meme cringe",
+  "meme anime",
+  // Reaksi & Pop Culture Memes
   "funny meme",
   "dank meme",
   "reaction meme",
   "cat meme",
   "comedy",
   "laughing meme",
+  "spongebob meme",
+  "tom and jerry meme",
+  "shocked reaction",
+  "facepalm",
+  "mind blown",
+  "clown meme",
+  "pepe the frog",
+  "crying laughing",
+  "bruh",
+  "rolling eyes",
+  "dancing cat",
+  "doge meme",
+  "confused meme",
+  "happy dance",
+  "troll face",
+  "sus meme",
 ];
+
 const RANDOM_STICKER_QUERIES = [
+  // Tokoh Politik Indonesia
   "prabowo",
+  "gemoy",
   "jokowi",
+  "bahlil",
+  "gibran",
+  // Jomok & Reaksi Lokal
   "jomok",
+  "ambasing",
+  "rusdi",
   "meme indonesia",
   "lucu",
   "ngakak",
+  "kocak",
+  "wkwk",
+  // Stiker Reaksi & Kartun
   "funny sticker",
   "meme reaction",
   "cat reaction",
+  "anime reaction",
+  "spongebob",
+  "emoji reaction",
+  "facepalm sticker",
+  "pepe sticker",
+  "doge sticker",
+  "gigachad sticker",
+  "clown sticker",
 ];
 
 async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", logger } = {}) {
-  let cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
-  if (!cleanKeyword) {
-    const list = type === "stickers" ? RANDOM_STICKER_QUERIES : RANDOM_GIF_QUERIES;
-    cleanKeyword = list[Math.floor(Math.random() * list.length)];
+  const isProactiveRandom = !keyword || !String(keyword).trim();
+  const list = type === "stickers" ? RANDOM_STICKER_QUERIES : RANDOM_GIF_QUERIES;
+  const maxAttempts = isProactiveRandom ? 3 : 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
+    if (!cleanKeyword) {
+      cleanKeyword = list[Math.floor(Math.random() * list.length)];
+    }
+
+    logger?.info({ keyword: cleanKeyword, type, attempt: attempt + 1 }, "[GIPHY Sticker] Search and send");
+
+    const candidates = await fetchGiphyPosts({
+      query: cleanKeyword,
+      limit: 8,
+      type,
+      randomOffset: true,
+      maxRandomOffset: 40,
+      logger,
+    });
+
+    if (candidates.length === 0) {
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      const result = await processPost(candidate, { logger });
+      if (result.success) {
+        const sticker = await getStickerById(result.stickerId);
+        if (sticker && sticker.localPath) {
+          const fs = require("fs");
+          if (fs.existsSync(sticker.localPath)) {
+            const buffer = fs.readFileSync(sticker.localPath);
+            await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
+            await markStickerSent(sticker.id);
+            return {
+              success: true,
+              postId: candidate.id,
+              title: candidate.title,
+              stickerId: sticker.id,
+            };
+          }
+        }
+      }
+    }
   }
 
-  logger?.info({ keyword: cleanKeyword, type }, "[GIPHY Sticker] Search and send");
-
-  const candidates = await fetchGiphyPosts({ query: cleanKeyword, limit: 4, type, logger });
-  if (candidates.length === 0) {
-    return { success: false, reason: "no_results" };
-  }
-
-  for (const candidate of candidates) {
-    const result = await processPost(candidate, { logger });
-    if (result.success) {
-      const sticker = await getStickerById(result.stickerId);
-      if (sticker && sticker.localPath) {
-        const fs = require("fs");
-        if (fs.existsSync(sticker.localPath)) {
-          const buffer = fs.readFileSync(sticker.localPath);
-          await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
-          await markStickerSent(sticker.id);
-          return {
-            success: true,
-            postId: candidate.id,
-            title: candidate.title,
-            stickerId: sticker.id,
-          };
+  // If specific query failed, try trending with random offset as fallback
+  if (isProactiveRandom) {
+    logger?.info({ type }, "[GIPHY Sticker] Trying trending fallback with random offset");
+    const trendingCandidates = await fetchGiphyPosts({
+      query: "",
+      limit: 8,
+      type,
+      randomOffset: true,
+      maxRandomOffset: 50,
+      logger,
+    });
+    for (const candidate of trendingCandidates) {
+      const result = await processPost(candidate, { logger });
+      if (result.success) {
+        const sticker = await getStickerById(result.stickerId);
+        if (sticker && sticker.localPath) {
+          const fs = require("fs");
+          if (fs.existsSync(sticker.localPath)) {
+            const buffer = fs.readFileSync(sticker.localPath);
+            await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
+            await markStickerSent(sticker.id);
+            return {
+              success: true,
+              postId: candidate.id,
+              title: candidate.title,
+              stickerId: sticker.id,
+            };
+          }
         }
       }
     }

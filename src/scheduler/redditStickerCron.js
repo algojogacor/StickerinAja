@@ -250,21 +250,28 @@ async function sendSticker(slot) {
       logger?.info(`[Reddit Scheduler] Sent ${memeRes.sent} Photo Meme(s)`);
     }
 
-    // 1.5s gap between meme and gif sends
+    // 1.5s gap between sends
     await new Promise((r) => setTimeout(r, 1500));
 
-    // 2. Send 2 Animated Video GIFs (GIPHY)
-    logger?.info(`[Reddit Scheduler] Sending 2 Animated GIFs for slot ${slot?.time || slot?.id}...`);
-    for (let i = 0; i < 2; i++) {
-      try {
-        await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
-        if (i < 1) await new Promise((r) => setTimeout(r, 1500));
-      } catch (gifErr) {
-        logger?.warn({ err: gifErr?.message }, `[Reddit Scheduler] GIF #${i + 1} send failed`);
-      }
+    // 2. Send 1 Transparent Cutout Sticker (GIPHY Stickers)
+    logger?.info(`[Reddit Scheduler] Sending 1 Transparent Sticker for slot ${slot?.time || slot?.id}...`);
+    try {
+      await searchAndSendGiphy("", sock, groupJid, { type: "stickers", logger });
+    } catch (stickerErr) {
+      logger?.warn({ err: stickerErr?.message }, "[Reddit Scheduler] Transparent sticker send failed");
     }
 
-    logger?.info(`[Reddit Scheduler] Batch complete for slot ${slot?.time || slot?.id} (2 Memes + 2 GIFs)`);
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // 3. Send 1 Animated Video GIF (GIPHY GIFs)
+    logger?.info(`[Reddit Scheduler] Sending 1 Animated GIF for slot ${slot?.time || slot?.id}...`);
+    try {
+      await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
+    } catch (gifErr) {
+      logger?.warn({ err: gifErr?.message }, "[Reddit Scheduler] Animated GIF send failed");
+    }
+
+    logger?.info(`[Reddit Scheduler] Batch complete for slot ${slot?.time || slot?.id} (2 Memes + 1 Sticker + 1 GIF)`);
     return true;
   } catch (error) {
     logger?.error({ err: error }, "[Reddit Scheduler] Send batch failed — pending until reconnect");

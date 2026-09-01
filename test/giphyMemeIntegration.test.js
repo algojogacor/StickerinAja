@@ -49,4 +49,19 @@ describe("Meme-API and GIPHY Integrations", () => {
     const res = await searchAndSendGiphy("", dummySock, "dummy@g.us");
     assert.ok(typeof res === "object");
   });
+
+  it("fetchGiphyPosts supports offset and randomOffset parameters", async () => {
+    // When no API key is set, returns empty array without throwing
+    const res1 = await fetchGiphyPosts({ query: "meme", offset: 10 });
+    assert.ok(Array.isArray(res1));
+
+    const res2 = await fetchGiphyPosts({ query: "meme", randomOffset: true, maxRandomOffset: 30 });
+    assert.ok(Array.isArray(res2));
+  });
+
+  it("fetchMemeApiPosts handles subreddit array and shuffles gracefully", async () => {
+    const res = await fetchMemeApiPosts({ subreddits: ["dankmemes", "memes"], countPerSubreddit: 1 });
+    assert.ok(Array.isArray(res));
+  });
 });
+

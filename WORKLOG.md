@@ -6,6 +6,51 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 42 — Fix Proactive Sticker Deduplication Starvation (GIPHY Random Offset & Full Meme Pool Traversal)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-01 |
+| **Start time** | 21:35 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `bf1f2fd` |
+| **Status** | Completed |
+
+### User request
+
+1. Check Koyeb deployment runtime logs to diagnose why proactive stickers stopped/rarely sending.
+2. Apply Fix 1 (GIPHY random offset & larger keyword pool & retry) and Fix 2 (Meme generator loops through entire candidate pool instead of capping at 4 items).
+3. Explain the concept of adding backup meme subreddits.
+
+### Root cause identified from Koyeb logs
+
+1. **GIPHY Pagination & Fixed Keywords:** `fetchGiphyPosts` queried GIPHY without `offset` (always index 0, returning the same top 4 items). With only 13 keywords in `RANDOM_GIF_QUERIES`, running every 15 minutes (96 runs/day) exhausted all top results within hours. Subsequent searches returned duplicates (`Duplicate post ID: giphy_...`), causing 100% rejection and 0 GIF stickers sent.
+2. **Meme Generator Candidate Truncation:** `generateStickers` fetched 24 posts from Meme-API across subreddits, but `selectDiversePosts` artificially sliced the pool to only 4 items (`Math.max(targetCount * 2, 4)`). When those 4 had already been seen/sent in previous slots, generation terminated with `0/2` without inspecting the remaining 20 valid candidates.
+
+### Implementation details
+
+1. **`src/services/redditStickerDiscovery.js`:**
+   - Updated `fetchGiphyPosts` to support `randomOffset: true`, `offset`, `maxRandomOffset: 40-50`, and graceful automatic fallback to `offset=0` if a random offset returns empty for niche terms.
+   - Updated `discoverTrendingPosts` to use `randomOffset: true` when retrieving GIPHY memes.
+   - Purged unusable infographic / text-wall subreddits (`starterpacks`, `lotrmemes`, `historymemes`, `mildlyinfuriating`, `therewasanattempt`, `ProgrammerHumor`) from default search.
+   - Expanded `SEARCH_SUBREDDITS` default list with verified active Indonesian meme/shitpost subreddits (`r/WkwkwkLand`, `r/aku_ddn`, `r/indonesia`, `r/indowibu`) alongside top global meme communities (`r/okbuddyretard`, `r/shitposting`, `r/comedyheaven`, `r/bonehurtingjuice`, `r/BikiniBottomTwitter`, etc.) and added random shuffle in `fetchMemeApiPosts` to ensure diverse subreddit sampling on each run.
+2. **`src/services/redditStickerService.js` & `src/services/redditMediaResolver.js`:**
+   - Updated `generateStickers` to pass `pool.length` to `selectDiversePosts`, ensuring the generator traverses the entire candidate pool until `targetCount` (2 stickers) is fulfilled.
+   - Added strict filter rejecting posts with titles or content containing `starterpack`, `starter pack`, `infographic`, `letter`, `article`, `essay`, `review`, `chart`, `graph`, `newspaper`, etc.
+   - Expanded `AUTOMATED_MEME_SUBREDDITS` with new Indonesian and comedy subreddits while purging unusable infographic subreddits into `UNUSABLE_STICKER_SUBREDDITS`.
+   - Expanded `RANDOM_GIF_QUERIES` and `RANDOM_STICKER_QUERIES` with Indonesian political figures (Prabowo, Jokowi, Bahlil, Gibran, DPR/pemerintah), Jomok & brainrot (jomok, ambasing, rusdi, ngawi, skibidi, mewing, gigachad), and Indonesian comedy/reaction keywords.
+   - Updated `searchAndSendGiphy` with retry capability (up to 3 attempts with random keywords/offsets and trending fallback) for proactive automated slots.
+3. **`src/scheduler/redditStickerCron.js`:**
+   - Updated proactive delivery mix: sends 2 Curated Photo Reaction Memes + 1 Transparent Cutout Animated Sticker (`type: "stickers"`) + 1 Animated Video GIF (`type: "gifs"`), ensuring diverse and highly usable stickers for chat.
+4. **Testing & Verification:**
+   - Updated unit tests in `test/redditSticker.test.js` and `test/giphyMemeIntegration.test.js`.
+   - All 338 test cases across 76 suites passed 100%.
+
+---
+
 ## Session 41 — Build Python FastAPI Document Scanner Microservice (OpenCV 4-Point Transform & Adaptive Thresholding)
 
 | Field | Value |

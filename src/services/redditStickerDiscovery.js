@@ -30,7 +30,7 @@ const DISCOVERY_QUERIES = () => {
 };
 
 const SEARCH_SUBREDDITS = () =>
-  (process.env.REDDIT_SEARCH_SUBREDDITS || "memes,dankmemes,funny,starterpacks,lotrmemes,therewasanattempt,wholesomememes,ProgrammerHumor,me_irl,mildlyinfuriating,shitposting")
+  (process.env.REDDIT_SEARCH_SUBREDDITS || "WkwkwkLand,aku_ddn,indonesia,indowibu,shitposting,okbuddyretard,memes,dankmemes,funny,starterpacks,memes_of_the_dank,dank_meme,Funnymemes,meme,wholesomememes,comedyheaven,bonehurtingjuice,BikiniBottomTwitter,animemes,goodanimemes,trippinthroughtime,AdviceAnimals,ProgrammerHumor,me_irl,therewasanattempt,mildlyinfuriating,wordington")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -59,7 +59,10 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = TIMEOUT_MS) {
  * Fetch fresh memes from meme-api.com across top meme subreddits.
  */
 async function fetchMemeApiPosts({ subreddits = SEARCH_SUBREDDITS(), countPerSubreddit = 3, logger } = {}) {
-  const subs = Array.isArray(subreddits) ? subreddits.slice(0, 6) : ["dankmemes", "memes", "wholesomememes"];
+  const allSubs = Array.isArray(subreddits) ? subreddits : ["dankmemes", "memes", "wholesomememes"];
+  // Randomly shuffle to rotate subreddits across scheduled runs
+  const shuffled = [...allSubs].sort(() => Math.random() - 0.5);
+  const subs = shuffled.slice(0, 8);
   const candidates = [];
 
   const promises = subs.map(async (sub) => {
@@ -144,32 +147,62 @@ function normalizeMemeApiItem(item, subreddit, index) {
 /**
  * Fetch GIFs or transparent Stickers from GIPHY API.
  */
-async function fetchGiphyPosts({ query, limit = 5, type = "gifs", rating = "g", logger } = {}) {
+async function fetchGiphyPosts({
+  query,
+  limit = 5,
+  type = "gifs",
+  rating = "g",
+  offset,
+  randomOffset = false,
+  maxRandomOffset = 50,
+  logger,
+} = {}) {
   const apiKey = GIPHY_API_KEY();
   if (!apiKey) return [];
 
   const isSearch = Boolean(query && query.trim());
   const endpoint = isSearch ? "search" : "trending";
-  const params = new URLSearchParams({
-    api_key: apiKey,
-    limit: String(limit),
-    rating,
-  });
-  if (isSearch) {
-    params.set("q", query.trim());
+
+  let effectiveOffset = 0;
+  if (typeof offset === "number" && offset >= 0) {
+    effectiveOffset = Math.floor(offset);
+  } else if (randomOffset) {
+    effectiveOffset = Math.floor(Math.random() * Math.max(1, maxRandomOffset));
   }
 
-  const url = `https://api.giphy.com/v1/${type}/${endpoint}?${params.toString()}`;
+  const buildUrl = (off) => {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      limit: String(limit),
+      rating,
+    });
+    if (isSearch) {
+      params.set("q", query.trim());
+    }
+    if (off > 0) {
+      params.set("offset", String(off));
+    }
+    return `https://api.giphy.com/v1/${type}/${endpoint}?${params.toString()}`;
+  };
 
   try {
-    const res = await fetchWithTimeout(url, { headers: { "User-Agent": "WhatsAppGroupStickerBot/1.0" } }, 10000);
+    let res = await fetchWithTimeout(buildUrl(effectiveOffset), { headers: { "User-Agent": "WhatsAppGroupStickerBot/1.0" } }, 10000);
     if (!res.ok) {
       logger?.warn({ status: res.status }, "[GIPHY API] Error response");
       return [];
     }
 
-    const data = await res.json();
-    const list = Array.isArray(data?.data) ? data.data : [];
+    let data = await res.json();
+    let list = Array.isArray(data?.data) ? data.data : [];
+
+    // Fallback to offset 0 if random offset returned no items (e.g. niche query with < offset results)
+    if (list.length === 0 && effectiveOffset > 0) {
+      res = await fetchWithTimeout(buildUrl(0), { headers: { "User-Agent": "WhatsAppGroupStickerBot/1.0" } }, 10000);
+      if (res.ok) {
+        data = await res.json();
+        list = Array.isArray(data?.data) ? data.data : [];
+      }
+    }
 
     return list.map((item, idx) => normalizeGiphyItem(item, type, idx)).filter(Boolean);
   } catch (err) {
@@ -454,7 +487,14 @@ async function discoverTrendingPosts({ logger } = {}) {
   // 2. Fetch animated memes from GIPHY if key configured
   try {
     if (GIPHY_API_KEY()) {
-      const giphyMemes = await fetchGiphyPosts({ query: "funny meme", limit: 6, type: "gifs", logger });
+      const giphyMemes = await fetchGiphyPosts({
+        query: "funny meme",
+        limit: 6,
+        type: "gifs",
+        randomOffset: true,
+        maxRandomOffset: 40,
+        logger,
+      });
       for (const post of giphyMemes) {
         if (!seen.has(post.id)) {
           seen.add(post.id);

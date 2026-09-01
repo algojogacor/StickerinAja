@@ -403,6 +403,10 @@ describe("Reddit scheduled sender selection", () => {
     assert.strictEqual(isAutomatedMemeCandidate({
       subreddit: "starterpacks",
       title: "Fates Of A Modern Meme Starter Pack",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "wkwkwkland",
+      title: "Kalian Masih Bayar Pajak?",
     }), true);
     assert.strictEqual(isAutomatedMemeCandidate({
       subreddit: "pics",

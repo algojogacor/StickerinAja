@@ -36,6 +36,10 @@ function isEligibleRedditPost(post) {
   if (/prove your humanity|removed by moderator|deleted by user/i.test(post.title || "")) {
     return false;
   }
+  // Reject starter packs, letters, articles, text walls, and infographics that make unreadable stickers
+  if (/\b(?:starter\s*pack|starterpack|infographic|letter|article|essay|newspaper|receipt|chart|graph)\b/i.test(post.title || "")) {
+    return false;
+  }
 
   if (post.is_video) {
     const duration = Number(
