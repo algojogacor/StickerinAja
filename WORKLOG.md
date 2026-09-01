@@ -17,7 +17,7 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `a6b3c7c` — `docs: record final session 40 commit in worklog` |
-| **Ending HEAD** | `1f09172` — `feat(scanner): add Python FastAPI document scanner microservice with OpenCV perspective warp and adaptive thresholding` |
+| **Ending HEAD** | `ea97a5b` — `fix(scanner): normalize illumination before threshold, replace filter2D with addWeighted unsharp, return BGR` |
 | **Working-tree status** | Clean |
 
 ### User request
