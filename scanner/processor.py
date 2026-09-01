@@ -112,14 +112,19 @@ def find_document_quad(image: np.ndarray) -> np.ndarray | None:
 
 def enhance_bw(image: np.ndarray) -> np.ndarray:
     from skimage.filters import threshold_local
-    
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # threshold_local: blockSize 11, offset 10, method gaussian
-    # Ini teknik standar pyimagesearch yang proven clean
-    T = threshold_local(gray, 11, offset=10, method="gaussian")
+
+    # blockSize harus ganjil dan scale dengan resolusi gambar
+    # ~1/40 dari sisi terpendek, minimum 11
+    h, w = gray.shape
+    block = max(11, (min(h, w) // 40))
+    if block % 2 == 0:
+        block += 1
+
+    T = threshold_local(gray, block, offset=5, method="gaussian")
     bw = (gray > T).astype("uint8") * 255
-    
+
     return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
 
 
