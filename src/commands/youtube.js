@@ -93,6 +93,35 @@ async function resolveVideo(queryOrUrl) {
     };
 }
 
+/**
+ * Resilient yt-dlp downloader:
+ * 1. Always passes mobile player client (android,ios) to bypass Google's datacenter bot challenge.
+ * 2. If cookies are provided and fail/expire, automatically retries without cookies.
+ */
+async function runYtDlpDownload(url, formatArgs, outPattern, { cookieFile, logger } = {}) {
+    const baseArgs = [
+        url,
+        ...formatArgs,
+        '--no-playlist',
+        '--no-check-certificates',
+        '--extractor-args', 'youtube:player_client=android,ios',
+        '-o', outPattern
+    ];
+
+    if (cookieFile && fs.existsSync(cookieFile)) {
+        try {
+            logger?.info('[YouTube] Attempting download with cookies + mobile client...');
+            await ytdlp.execAsync([...baseArgs, '--cookies', cookieFile]);
+            return;
+        } catch (cookieErr) {
+            logger?.warn({ err: cookieErr.message }, '[YouTube] Cookie attempt failed/expired. Retrying automatically without cookies using mobile client...');
+        }
+    }
+
+    logger?.info('[YouTube] Running download with pure mobile client (no cookies)...');
+    await ytdlp.execAsync(baseArgs);
+}
+
 function normalizeParams(sockOrOpts, msg, args, ctx) {
     if (sockOrOpts && sockOrOpts.sock) {
         return {
@@ -173,9 +202,6 @@ module.exports = {
                 const safeTitle = sanitizeFileName(video.title);
                 const uniqueId = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
                 const cookieFile = getCookiesFilePath();
-                const authArgs = cookieFile 
-                    ? ['--cookies', cookieFile]
-                    : ['--extractor-args', 'youtube:player_client=android,ios,mweb'];
 
                 const workerUrl = process.env.YT_WORKER_URL || 'https://vpn.aryariap.my.id/api/yt/download';
                 const workerKey = process.env.YT_WORKER_KEY || 'yt_korea_worker_sec_9941a84f3c7e01';
@@ -216,14 +242,10 @@ module.exports = {
 
                     if (!videoBuffer) {
                         const outPattern = path.join(tempDir, `vid_${uniqueId}_${safeTitle}.%(ext)s`);
-                        await ytdlp.execAsync([
-                            video.url,
-                            '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best[height<=720]/best',
-                            '--no-playlist',
-                            '--no-check-certificates',
-                            ...authArgs,
-                            '-o', outPattern
-                        ]);
+                        const videoFormats = [
+                            '-f', 'best[ext=mp4]/bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[height<=720]/18/best'
+                        ];
+                        await runYtDlpDownload(video.url, videoFormats, outPattern, { cookieFile, logger });
 
                         const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`vid_${uniqueId}_`));
                         if (!foundFiles.length) {
@@ -285,16 +307,13 @@ module.exports = {
 
                     if (!audioBuffer) {
                         const outPattern = path.join(tempDir, `audio_${uniqueId}_${safeTitle}.%(ext)s`);
-                        await ytdlp.execAsync([
-                            video.url,
+                        const audioFormats = [
                             '-x',
                             '--audio-format', 'mp3',
                             '--audio-quality', '0',
-                            '--no-playlist',
-                            '--no-check-certificates',
-                            ...authArgs,
-                            '-o', outPattern
-                        ]);
+                            '-f', 'bestaudio/ba/b/18'
+                        ];
+                        await runYtDlpDownload(video.url, audioFormats, outPattern, { cookieFile, logger });
 
                         const foundFiles = fs.readdirSync(tempDir).filter(f => f.startsWith(`audio_${uniqueId}_`));
                         if (!foundFiles.length) {
