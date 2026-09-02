@@ -93,6 +93,19 @@ module.exports = {
         // ─── Animated Video Sticker ───
         const gifCmds = ['sgif', 'stickergif', 'stikergif'];
         if (gifCmds.includes(cmdName)) {
+            // If user typed !sgif <keyword> without quoting/attaching media, route to GIPHY sticker search
+            if (args.length > 0 && !this.hasMedia(msg, quotedMsg)) {
+                const { handleGiphySearch } = require('./reddit');
+                const query = args.join(' ').trim();
+                return handleGiphySearch(query, 'stickers', sock, msg, remoteJid, logger);
+            }
+
+            if (!this.hasMedia(msg, quotedMsg)) {
+                return sock.sendMessage(remoteJid, {
+                    text: '🎬 Balas video/GIF dengan *!sgif*, atau ketik *!sgif <kata kunci>* untuk cari stiker transparan.'
+                }, { quoted: msg });
+            }
+
             return createAnimated({
                 sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
                 downloadFn: this.download, parseArgsFn: this.parseArgs, MAX_FILE_SIZE

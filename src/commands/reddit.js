@@ -38,7 +38,7 @@ function toggleCronSender(enable) {
 const CANONICAL_MAP = {
   reddit: "reddit", meme: "reddit",
   gif: "gif", giphy: "gif",
-  sgif: "sgif",
+  sgif: "sgif", sgiphy: "sgif", gsticker: "sgif", gstick: "sgif",
   rbank: "rbank", memebank: "rbank",
   rrefresh: "rrefresh", memerefresh: "rrefresh",
   rmode: "rmode", mememode: "rmode",
@@ -49,7 +49,7 @@ const CANONICAL_MAP = {
 module.exports = {
   names: [
     "reddit", "meme",
-    "gif", "giphy", "sgif",
+    "gif", "giphy", "sgif", "sgiphy", "gsticker", "gstick",
     "rbank", "memebank",
     "rrefresh", "memerefresh",
     "rmode", "mememode",
@@ -59,6 +59,7 @@ module.exports = {
 
   isCronSenderEnabled,
   toggleCronSender,
+  handleGiphySearch,
 
   async execute({
     sock,

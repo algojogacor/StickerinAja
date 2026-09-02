@@ -37,14 +37,13 @@ async function createAnimated({
     sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
     downloadFn, parseArgsFn, MAX_FILE_SIZE
 }) {
-    await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker animasi...' }, { quoted: msg });
-
     await ffmpegQueue.add(async () => {
         let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
-        if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video dengan *!sgif*' }, { quoted: msg });
+        if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video/GIF dengan *!sgif*, atau ketik *!sgif <kata kunci>* untuk cari stiker transparan.' }, { quoted: msg });
         if (buffer.length > MAX_FILE_SIZE) {
             return sock.sendMessage(remoteJid, { text: '⚠️ Video terlalu besar! Maks 10MB' }, { quoted: msg });
         }
+        await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker animasi...' }, { quoted: msg });
 
         const uniqueId = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
         if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
