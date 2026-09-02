@@ -61,6 +61,13 @@ module.exports = {
 
         // ─── Meme, Quote, Emoji, and Template Cards ───
         if (['meme', 'smeme'].includes(cmdName)) {
+            // Smart routing: if user typed !meme <keyword> WITHOUT replying to any media and WITHOUT '|':
+            // they want to search for a meme on Reddit, not make a blank text box sticker!
+            const text = args.join(' ').trim();
+            if (cmdName === 'meme' && !this.hasMedia(msg, quotedMsg) && text && !text.includes('|')) {
+                const redditCmd = require('./reddit');
+                return redditCmd.handleSearch(text, sock, msg, remoteJid, logger);
+            }
             return this.createMeme({ sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger });
         }
         if (['quote', 'squote'].includes(cmdName)) {

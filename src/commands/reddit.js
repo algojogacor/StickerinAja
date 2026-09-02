@@ -36,7 +36,7 @@ function toggleCronSender(enable) {
 
 // All command names are normalized to canonical names for routing
 const CANONICAL_MAP = {
-  reddit: "reddit", meme: "reddit",
+  reddit: "reddit", meme: "reddit", rmeme: "reddit",
   gif: "gif", giphy: "gif",
   sgif: "sgif", sgiphy: "sgif", gsticker: "sgif", gstick: "sgif",
   rbank: "rbank", memebank: "rbank",
@@ -48,7 +48,7 @@ const CANONICAL_MAP = {
 
 module.exports = {
   names: [
-    "reddit", "meme",
+    "reddit", "meme", "rmeme",
     "gif", "giphy", "sgif", "sgiphy", "gsticker", "gstick",
     "rbank", "memebank",
     "rrefresh", "memerefresh",
@@ -60,6 +60,7 @@ module.exports = {
   isCronSenderEnabled,
   toggleCronSender,
   handleGiphySearch,
+  handleSearch,
 
   async execute({
     sock,
