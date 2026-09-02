@@ -15,13 +15,14 @@ function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, qualit
             .inputFormat('mp4')
             .outputOptions([
                 '-vcodec libwebp',
-                `-vf scale=512:512:force_original_aspect_ratio=decrease,fps=${fps},pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse`,
+                `-vf scale=512:512:force_original_aspect_ratio=decrease:flags=bicubic,fps=${fps},pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse`,
                 '-loop 0',
                 '-ss 00:00:00',
                 `-t 00:00:0${duration}`,
                 '-preset default',
                 '-an',
                 '-vsync 0',
+                '-compression_level 4',
                 `-q:v ${quality}`
             ])
             .toFormat('webp')

@@ -128,7 +128,7 @@ module.exports = {
     stickerCache: new LRUCache(50, 20 * 1024 * 1024),
     // ⚡ Text sticker cache: max 30 entries OR 10MB total (was 50, no byte limit)
     textStickerCache: new LRUCache(30, 10 * 1024 * 1024),
-    ffmpegQueue: new ProcessQueue(1, 45000),  // 1 video at a time (FFmpeg is memory-hungry)
+    ffmpegQueue: new ProcessQueue(2, 45000),  // Up to 2 concurrent video encodes (safe for 512MB RAM with ~324MB peak)
     imageQueue: new ProcessQueue(2, 30000),   // Max 2 sharp/sticker operations at a time
     heavyTaskQueue: new ProcessQueue(2, 60000), // Max 2 downloader / PDF operations at a time
     ProcessQueue,

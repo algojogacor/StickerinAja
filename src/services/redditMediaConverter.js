@@ -231,7 +231,7 @@ function encodeAnimatedWebp(inputPath, outputPath, attempt, timeoutMs) {
 
     const filter = [
       `fps=${attempt.fps}`,
-      `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=decrease:flags=lanczos`,
+      `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=decrease:flags=bicubic`,
       `pad=${STICKER_SIZE}:${STICKER_SIZE}:(ow-iw)/2:(oh-ih)/2:color=0x00000000`,
       "format=yuva420p",
     ].join(",");
@@ -245,7 +245,7 @@ function encodeAnimatedWebp(inputPath, outputPath, attempt, timeoutMs) {
         "-preset default",
         "-an",
         "-vsync 0",
-        "-compression_level 6",
+        "-compression_level 4",
         `-q:v ${attempt.quality}`,
       ])
       .toFormat("webp")
