@@ -341,7 +341,7 @@ function isAutomatedMemeCandidate(post) {
 
   if (AUTOMATED_MEME_SUBREDDITS.has(subreddit)) return true;
 
-  return /\b(?:meme|shitpost|reaction|funny|kocak|ngakak|wkwk|lucu|lol)\b/i.test(text);
+  return /\b(?:meme|shitpost|reaction|funny|kocak|ngakak|wkwk|lucu|lol|jomok|rusdi|jawir|ngawi|ambasing)\b/i.test(text);
 }
 
 function selectDiversePosts(posts, count = posts?.length || 0) {
@@ -553,11 +553,18 @@ const RANDOM_GIF_QUERIES = [
   "wkwk",
   "goyang",
   "joget",
-  // Brainrot / Tongkrongan Hype
+  // Komedi Jomok, Ngawi & Brainrot Lokal
   "jomok",
-  "ambasing",
   "rusdi",
+  "rusdi ngawi",
+  "si imut",
+  "jawir",
+  "meme jawir",
+  "ambasing",
+  "ambatukam",
   "ngawi",
+  "ironi",
+  "kak gem",
   "skibidi",
   "mewing",
   "sigma meme",
@@ -582,7 +589,7 @@ const RANDOM_STICKER_QUERIES = [
   "meme reaction transparent",
   "awkward sticker",
   "skull sticker",
-  // Stiker Transparan Tokoh Politik & Lokal
+  // Stiker Transparan Tokoh Politik, Jomok & Lokal
   "prabowo sticker",
   "gemoy sticker",
   "jokowi sticker",
@@ -593,6 +600,8 @@ const RANDOM_STICKER_QUERIES = [
   "dpr sticker",
   "jomok sticker",
   "rusdi sticker",
+  "si imut sticker",
+  "jawir sticker",
   "ambasing sticker",
   "meme indonesia sticker",
   "lucu sticker",
