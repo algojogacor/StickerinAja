@@ -44,11 +44,16 @@ Append-only development log. Newest session at the top.
    - Added proactive candidate filtering in `searchAndSendGiphy` candidate loop.
 3. **`.env.example`:**
    - Added `GIPHY_RATING="pg-13"` documentation and updated `REDDIT_SEARCH_SUBREDDITS` default list.
-4. **Testing & Verification:**
+4. **Bugfix for GIPHY sticker conversion path & manual search offset:**
+   - Enhanced `saveStickerFile` in `src/services/redditMediaConverter.js` to return `{ filePath, fileSizeBytes }` along with `toString()` for backward compatibility.
+   - Updated `processPost` in `src/services/redditStickerService.js` to safely resolve `savedFilePath` and `savedSizeBytes`, fixing `localPath: ""` bug where stickers were generated on disk but skipped from sending.
+   - Enforced `randomOffset: isProactiveRandom` in `searchAndSendGiphy`, guaranteeing manual user queries (`!gif rusdi`, `!gif jawir`, `!gif jomok`, `!gif hitam`) always query `offset: 0` for maximum relevance.
+5. **Testing & Verification:**
    - Updated `test/redditSticker.test.js` to assert the cleaned subreddit queries and candidate rejection for `wholesomememes`, `animemes`, `funny`, and cheesy foreign greetings.
    - Updated `test/giphyMemeIntegration.test.js` to verify curated fallback lists and candidate filtering.
    - Ran `node --test test/redditSticker.test.js`: 92 pass, 0 fail.
    - Ran `node --test test/giphyMemeIntegration.test.js`: 6 pass, 0 fail.
+   - Verified live conversion & sending for `rusdi`, `jawir`, `hitam`, `jomok`: 100% success.
    - Ran full test suite `node --test`: 338 pass, 0 fail across 76 test suites.
 
 ---
