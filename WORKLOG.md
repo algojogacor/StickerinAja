@@ -6,6 +6,44 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 45 — Fix Personal Bot Multi-Session Hang, Quoting Own Media in Groups, and Socket Auto-Reconnect Watchdog
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 22:12 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `c324c34` |
+| **Ending HEAD** | pending commit |
+| **Status** | Completed |
+
+### Implementation details
+
+1. **Self-Quoted Media Decryption in Groups (`src/commands/sticker.js`):**
+   - Fixed `fromMe` calculation in `download()`: properly checks if `contextInfo.participant` matches `sock.user.id` or `sock.user.lid` instead of unconditionally setting `fromMe = false`.
+   - Added support for `viewOnceMessageV2Extension` and unwrapped media messages before passing them to `downloadMediaMessage`.
+2. **Message Content Unwrapping (`src/handler.js`):**
+   - Added unwrapping for `viewOnceMessageV2Extension` and context extraction for `stickerMessage?.contextInfo`.
+3. **Heartbeat Watchdog & Auto-Reconnect (`src/baileys.js`):**
+   - Added 30-second interval checking `sock.ws.readyState`. If socket is dead/not OPEN while session status is `connected`, forces socket cleanup and automatic reconnect.
+   - Configured `keepAliveIntervalMs: 25000`, `connectTimeoutMs: 30000`, `defaultQueryTimeoutMs: 30000` in `makeWASocket`.
+   - Added `sessionControllers` map supporting programmatic `restartSession(sessionId)` and `logoutSession(sessionId)`.
+4. **Session Control API & Dual Mode (`index.js`):**
+   - Added `/api/restart-session` and `/api/logout-session` HTTP endpoints.
+   - Set default `botMode` for `pribadi` to `process.env.BOT_MODE_PRIBADI || 'dual'` so the personal number can serve commands in groups where the public bot number is absent, while continuing to yield to the public bot in shared groups.
+5. **Dashboard Management UI (`src/utils/login.html`):**
+   - Added action buttons: "🔄 Reconnect" and "🚪 Reset & Scan Ulang" directly in the web dashboard for all sessions.
+6. **Turso Database Auth State Cleanup:**
+   - Purged 6,826 stale/corrupted Signal session keys for `session_id: 'pribadi'` in Koyeb's Turso database (`forfhos-aryariap`), leaving only clean data and resetting the session for a fresh QR code.
+7. **Verification:**
+   - Ran `node --test test/multiSession.test.js`: 8/8 pass.
+   - Ran full test suite `node --test`: 343/343 pass across 76 test suites (0 fail).
+
+---
+
 ## Session 44 — YouTube Mobile Extractor Spoofing, Option 2 Staggered Scheduler & Dual-Sticker Unified Search
 
 | Field | Value |

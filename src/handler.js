@@ -88,6 +88,7 @@ function extractMessageContent(msg) {
     if (m.ephemeralMessage?.message) m = m.ephemeralMessage.message;
     if (m.viewOnceMessage?.message) m = m.viewOnceMessage.message;
     if (m.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+    if (m.viewOnceMessageV2Extension?.message) m = m.viewOnceMessageV2Extension.message;
     if (m.documentWithCaptionMessage?.message) m = m.documentWithCaptionMessage.message;
 
     const text = (
@@ -103,7 +104,8 @@ function extractMessageContent(msg) {
         m.extendedTextMessage?.contextInfo ||
         m.imageMessage?.contextInfo ||
         m.videoMessage?.contextInfo ||
-        m.documentMessage?.contextInfo;
+        m.documentMessage?.contextInfo ||
+        m.stickerMessage?.contextInfo;
 
     const quotedMsg = contextInfo?.quotedMessage || null;
     const quotedStanza = contextInfo?.stanzaId || null;

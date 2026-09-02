@@ -134,6 +134,7 @@ module.exports = {
         const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
             m?.viewOnceMessage?.message ||
             m?.viewOnceMessageV2?.message ||
+            m?.viewOnceMessageV2Extension?.message ||
             m?.documentWithCaptionMessage?.message ||
             m;
 
@@ -157,23 +158,42 @@ module.exports = {
 
     async download(sock, msg, quotedMsg, quotedStanza) {
         try {
+            const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
+                m?.viewOnceMessage?.message ||
+                m?.viewOnceMessageV2?.message ||
+                m?.viewOnceMessageV2Extension?.message ||
+                m?.documentWithCaptionMessage?.message ||
+                m;
+
             if (quotedMsg) {
                 const contextInfo =
                     msg.message?.extendedTextMessage?.contextInfo ||
                     msg.message?.imageMessage?.contextInfo ||
                     msg.message?.videoMessage?.contextInfo ||
-                    msg.message?.documentMessage?.contextInfo;
+                    msg.message?.documentMessage?.contextInfo ||
+                    msg.message?.stickerMessage?.contextInfo;
 
                 const participant = contextInfo?.participant || msg.key.participant || msg.key.remoteJid;
+
+                // Accurate check if quoted message was sent by myself
+                const myPn = sock?.user?.id?.split(':')[0]?.split('@')[0];
+                const myLid = sock?.user?.lid?.split(':')[0]?.split('@')[0];
+                const partClean = participant?.split(':')[0]?.split('@')[0];
+                const isQuotedFromMe = !contextInfo?.participant
+                    ? Boolean(msg.key?.fromMe)
+                    : Boolean((myPn && partClean === myPn) || (myLid && partClean === myLid));
+
+                const unwrapped = unwrapMsg(quotedMsg);
+
                 return await downloadMediaMessage(
                     {
                         key: {
                             id: quotedStanza,
                             remoteJid: msg.key.remoteJid,
-                            fromMe: Boolean(contextInfo?.participant ? false : msg.key.fromMe),
+                            fromMe: isQuotedFromMe,
                             participant
                         },
-                        message: quotedMsg
+                        message: unwrapped
                     },
                     'buffer',
                     {},
@@ -191,6 +211,7 @@ module.exports = {
         const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
             m?.viewOnceMessage?.message ||
             m?.viewOnceMessageV2?.message ||
+            m?.viewOnceMessageV2Extension?.message ||
             m?.documentWithCaptionMessage?.message ||
             m;
         const directM = unwrapMsg(msg?.message);

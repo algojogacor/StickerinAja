@@ -3,9 +3,11 @@ const { Boom } = require('@hapi/boom');
 const QR = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
-const { useTursoAuthState } = require('./utils/tursoAuthState');
+const { useTursoAuthState, deleteTursoSession } = require('./utils/tursoAuthState');
 const { setSock, getSock, clearSock } = require('./core/socket');
 const { shouldProcessMessage } = require('./handler');
+
+const sessionControllers = new Map();
 
 function initSessionState(sessionId, sessionName, botMode) {
     if (!global.botSessions) global.botSessions = {};
@@ -52,6 +54,9 @@ function startSession({
     const sessionLogger = logger.child({ session: sessionId });
 
     let reconnectTimer;
+    let activeSock = null;
+    let watchdogInterval = null;
+
     async function connect() {
         try {
             const authState = await useTursoAuthState({
@@ -78,10 +83,34 @@ function startSession({
                 browser: Browsers.windows(`Stickerin-${sessionId}`),
                 syncFullHistory: false,
                 markOnlineOnConnect: false,
+                keepAliveIntervalMs: 25000,
+                connectTimeoutMs: 30000,
+                defaultQueryTimeoutMs: 30000,
                 logger: sessionLogger.child({ module: 'baileys' }),
                 generateHighQualityLinkPreview: false,
                 shouldIgnoreJid: jid => !jid || jid.endsWith('@broadcast') || jid === 'status@broadcast' || jid.endsWith('@newsletter')
             });
+            activeSock = sock;
+
+            // Heartbeat watchdog: detect silent WebSocket stalls / query freezes
+            if (!watchdogInterval) {
+                watchdogInterval = setInterval(() => {
+                    const sess = global.botSessions?.[sessionId];
+                    if (sess?.status === 'connected' && activeSock?.ws) {
+                        const readyState = activeSock.ws.readyState;
+                        if (readyState !== 1) { // 1 = OPEN
+                            sessionLogger.warn(`[Watchdog] ${sessionName} socket readyState is ${readyState} (not OPEN), forcing reconnect...`);
+                            clearSock(activeSock, sessionId);
+                            try { activeSock.ws.close(); } catch {}
+                            try { activeSock.end?.(); } catch {}
+                            sess.status = 'connecting';
+                            syncGlobalBotState();
+                            if (reconnectTimer) clearTimeout(reconnectTimer);
+                            reconnectTimer = setTimeout(connect, 2000);
+                        }
+                    }
+                }, 30_000);
+            }
 
             sock.ev.on('connection.update', (update) => {
                 const { connection, lastDisconnect, qr } = update;
@@ -162,7 +191,72 @@ function startSession({
         }
     }
 
+    sessionControllers.set(sessionId, {
+        restart: async () => {
+            sessionLogger.info(`[${sessionName}] Manual restart requested`);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (activeSock) {
+                clearSock(activeSock, sessionId);
+                try { activeSock.ws?.close(); } catch {}
+                try { activeSock.end?.(); } catch {}
+                activeSock = null;
+            }
+            if (global.botSessions?.[sessionId]) {
+                global.botSessions[sessionId].status = 'connecting';
+                syncGlobalBotState();
+            }
+            return connect();
+        },
+        logout: async () => {
+            sessionLogger.info(`[${sessionName}] Manual logout requested, purging auth credentials`);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (activeSock) {
+                clearSock(activeSock, sessionId);
+                try { await activeSock.logout?.(); } catch {}
+                try { activeSock.ws?.close(); } catch {}
+                try { activeSock.end?.(); } catch {}
+                activeSock = null;
+            }
+            const targetTursoId = tursoSessionId || (sessionId === 'default' ? (process.env.TURSO_AUTH_SESSION_ID || 'default') : sessionId);
+            try {
+                await deleteTursoSession(targetTursoId);
+                sessionLogger.info(`[${sessionName}] Purged Turso session data for ${targetTursoId}`);
+            } catch (err) {
+                sessionLogger.warn({ err }, `[${sessionName}] Failed to purge Turso session data`);
+            }
+            try {
+                if (fs.existsSync(authDir)) {
+                    fs.rmSync(authDir, { recursive: true, force: true });
+                    sessionLogger.info(`[${sessionName}] Purged local auth dir: ${authDir}`);
+                }
+            } catch (err) {
+                sessionLogger.warn({ err }, `[${sessionName}] Failed to purge local auth dir`);
+            }
+            if (global.botSessions?.[sessionId]) {
+                global.botSessions[sessionId].status = 'connecting';
+                global.botSessions[sessionId].user = null;
+                global.botSessions[sessionId].qr = null;
+                syncGlobalBotState();
+            }
+            return connect();
+        }
+    });
+
     connect().catch(err => sessionLogger.error({ err }, `[${sessionName}] Fatal start error`));
+}
+
+async function restartSession(sessionId) {
+    const ctrl = sessionControllers.get(sessionId);
+    if (!ctrl) return false;
+    await ctrl.restart();
+    return true;
+}
+
+async function logoutSession(sessionId) {
+    const ctrl = sessionControllers.get(sessionId);
+    if (!ctrl) return false;
+    await ctrl.logout();
+    return true;
 }
 
 function startBot(config) {
@@ -194,5 +288,7 @@ function startBot(config) {
 
 module.exports = {
     startBot,
-    startSession
+    startSession,
+    restartSession,
+    logoutSession
 };

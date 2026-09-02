@@ -103,6 +103,17 @@ async function useTursoAuthState({ logger, sessionId = process.env.TURSO_AUTH_SE
     };
 }
 
+async function deleteTursoSession(sessionId) {
+    const client = createTursoClientFromEnv();
+    if (!client) return false;
+    await client.execute({
+        sql: `DELETE FROM ${TABLE_NAME} WHERE session_id = ?`,
+        args: [sessionId]
+    });
+    return true;
+}
+
 module.exports = {
-    useTursoAuthState
+    useTursoAuthState,
+    deleteTursoSession
 };

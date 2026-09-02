@@ -205,6 +205,33 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .action-btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 18px;
+        }
+        .btn-action {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .btn-action.danger {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+        .btn-action.danger:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
         .footer {
             margin-top: 24px;
             font-size: 12px;
@@ -287,6 +314,10 @@
                         Masuk sebagai: <b style="color: var(--text-main);">${session.user?.name || session.user?.id || 'WhatsApp User'}</b>
                     </p>
                     <p style="font-size: 13px; color: #64748b;">Sesi ini siap memproses perintah stiker WhatsApp.</p>
+                    <div class="action-btn-group">
+                        <button class="btn-action" onclick="restartSessionAction('${session.id}')">🔄 Reconnect</button>
+                        <button class="btn-action danger" onclick="logoutSessionAction('${session.id}')">🚪 Reset &amp; Scan Ulang</button>
+                    </div>
                 `;
             } else if (session.status === 'qr' && (session.qrSvg || session.qr)) {
                 card.innerHTML = `
@@ -301,6 +332,9 @@
                         ${session.qrSvg ? session.qrSvg : '<img src="/api/qr.svg?session=' + session.id + '&t=' + Date.now() + '" alt="QR Code" />'}
                     </div>
                     <p style="font-size: 12px; color: #64748b;">Kode QR diperbarui otomatis setiap beberapa detik.</p>
+                    <div class="action-btn-group">
+                        <button class="btn-action danger" onclick="logoutSessionAction('${session.id}')">🚪 Bersihkan &amp; QR Baru</button>
+                    </div>
                 `;
             } else {
                 card.innerHTML = `
@@ -311,7 +345,41 @@
                     <div><span class="mode-pill">${modeLabel}</span></div>
                     <div class="loading-spinner"></div>
                     <p style="color: var(--text-muted); font-size: 14px;">Menyiapkan koneksi WhatsApp...</p>
+                    <div class="action-btn-group">
+                        <button class="btn-action" onclick="restartSessionAction('${session.id}')">🔄 Coba Lagi</button>
+                        <button class="btn-action danger" onclick="logoutSessionAction('${session.id}')">🚪 Reset Auth</button>
+                    </div>
                 `;
+            }
+        }
+
+        async function restartSessionAction(sessionId) {
+            if (!confirm(`Restart koneksi sesi [${sessionId}]?`)) return;
+            try {
+                const res = await fetch(`/api/restart-session?session=${encodeURIComponent(sessionId)}`);
+                const json = await res.json();
+                if (json.success) {
+                    fetchStatus();
+                } else {
+                    alert('Gagal me-restart sesi: ' + (json.error || 'Sesi tidak ditemukan'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function logoutSessionAction(sessionId) {
+            if (!confirm(`PERINGATAN: Yakin ingin menghapus sesi [${sessionId}] dan memindai QR code ulang?`)) return;
+            try {
+                const res = await fetch(`/api/logout-session?session=${encodeURIComponent(sessionId)}`);
+                const json = await res.json();
+                if (json.success) {
+                    fetchStatus();
+                } else {
+                    alert('Gagal me-reset sesi: ' + (json.error || 'Sesi tidak ditemukan'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
             }
         }
 

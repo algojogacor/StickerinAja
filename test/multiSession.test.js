@@ -82,4 +82,55 @@ describe('Multi-Session Socket Manager', () => {
         const inSoloGroup = global.botGroupJids.has('ipho-group@g.us');
         assert.equal(inSoloGroup, false);
     });
+
+    it('correctly unwraps viewOnceMessage and viewOnceMessageV2 in extractMessageContent', () => {
+        const { extractMessageContent } = require('../src/handler');
+
+        const v1Msg = {
+            key: { remoteJid: 'test@g.us', id: '1' },
+            message: {
+                viewOnceMessage: {
+                    message: {
+                        imageMessage: { caption: '!s' }
+                    }
+                }
+            }
+        };
+        assert.equal(extractMessageContent(v1Msg).text, '!s');
+
+        const v2Msg = {
+            key: { remoteJid: 'test@g.us', id: '2' },
+            message: {
+                viewOnceMessageV2: {
+                    message: {
+                        imageMessage: { caption: '!s circle' }
+                    }
+                }
+            }
+        };
+        assert.equal(extractMessageContent(v2Msg).text, '!s circle');
+    });
+
+    it('accurately identifies self-quoted participant in group chats', () => {
+        const myPn = '628999021644';
+        const myLid = '244203384742140';
+
+        const checkQuotedFromMe = (participant, myPn, myLid) => {
+            const partClean = participant?.split(':')[0]?.split('@')[0];
+            return Boolean((myPn && partClean === myPn) || (myLid && partClean === myLid));
+        };
+
+        // Quoting another person in a group
+        assert.equal(checkQuotedFromMe('62812345678@s.whatsapp.net', myPn, myLid), false);
+        // Quoting myself via phone number JID in a group
+        assert.equal(checkQuotedFromMe('628999021644:48@s.whatsapp.net', myPn, myLid), true);
+        // Quoting myself via LID in a group
+        assert.equal(checkQuotedFromMe('244203384742140:48@lid', myPn, myLid), true);
+    });
+
+    it('exposes restartSession and logoutSession methods in baileys module', () => {
+        const { restartSession, logoutSession } = require('../src/baileys');
+        assert.equal(typeof restartSession, 'function');
+        assert.equal(typeof logoutSession, 'function');
+    });
 });

@@ -172,6 +172,18 @@ http.createServer(async (req, res) => {
         }
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end(targetQr || 'No QR code available. Already connected or connecting...');
+    } else if (url.pathname === '/api/restart-session') {
+        const reqSession = url.searchParams.get('session') || 'pribadi';
+        const { restartSession } = require('./src/baileys');
+        const success = await restartSession(reqSession);
+        res.writeHead(success ? 200 : 404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success, action: 'restart', session: reqSession }));
+    } else if (url.pathname === '/api/logout-session') {
+        const reqSession = url.searchParams.get('session') || 'pribadi';
+        const { logoutSession } = require('./src/baileys');
+        const success = await logoutSession(reqSession);
+        res.writeHead(success ? 200 : 404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success, action: 'logout', session: reqSession }));
     } else if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(loginHtml);
@@ -237,7 +249,7 @@ function resolveBotSessions() {
         return process.env.SESSIONS.split(',').map(s => {
             const parts = s.trim().split(':');
             const id = parts[0].trim();
-            const mode = parts[1] ? parts[1].trim() : (id === 'pribadi' ? 'self' : 'public');
+            const mode = parts[1] ? parts[1].trim() : (id === 'pribadi' ? 'dual' : 'public');
             const defaultName = id === 'pribadi' ? 'Nomor Pribadi (Selfbot)' : (id === 'bot' ? 'Nomor Bot (Publik)' : `Sesi ${id}`);
             const defaultTursoId = id === 'bot'
                 ? (process.env.TURSO_AUTH_SESSION_ID_BOT || process.env.TURSO_AUTH_SESSION_ID || 'default')
@@ -258,7 +270,7 @@ function resolveBotSessions() {
             sessionId: 'pribadi',
             sessionName: process.env.SESSION_NAME_PRIBADI || 'Nomor Pribadi (Selfbot)',
             authDir: process.env.AUTH_DIR_PRIBADI || './auth/pribadi',
-            botMode: process.env.BOT_MODE_PRIBADI || 'self',
+            botMode: process.env.BOT_MODE_PRIBADI || 'dual',
             tursoSessionId: process.env.TURSO_AUTH_SESSION_ID_PRIBADI || 'pribadi'
         },
         {
