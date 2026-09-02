@@ -258,14 +258,32 @@ async function sendSticker(slot) {
       logger?.info(`[Reddit Scheduler] Sent ${memeRes.sent} Photo Meme`);
     }
 
-    // Phase 2: Minute +5 (300s) — Send 1 Transparent Cutout Sticker
+    // Phase 2: Minute +5 (300s) — Send 1 Transparent Cutout / Telegram Sticker
     const t2 = setTimeout(async () => {
       pendingStaggerTimeouts.delete(t2);
       try {
         const liveSock = getBotSock();
         if (!liveSock || !groupJid) return;
-        logger?.info(`[Reddit Scheduler] Staggered #2/3: Sending 1 Transparent Sticker (+5m)...`);
-        await searchAndSendGiphy("", liveSock, groupJid, { type: "stickers", logger });
+
+        let sentTelegram = false;
+        if (process.env.TELEGRAM_BOT_TOKEN) {
+          try {
+            const { getRandomTelegramSticker } = require("../services/telegramStickerService");
+            const tgBuffer = await getRandomTelegramSticker({ logger });
+            if (tgBuffer) {
+              await liveSock.sendMessage(groupJid, { sticker: tgBuffer });
+              sentTelegram = true;
+              logger?.info("[Reddit Scheduler] Staggered #2/3: Sent Telegram transparent sticker (+5m)");
+            }
+          } catch (tgErr) {
+            logger?.warn({ err: tgErr?.message }, "[Reddit Scheduler] Telegram sticker fetch failed, falling back to GIPHY");
+          }
+        }
+
+        if (!sentTelegram) {
+          logger?.info("[Reddit Scheduler] Staggered #2/3: Sending 1 Transparent Sticker from GIPHY (+5m)...");
+          await searchAndSendGiphy("", liveSock, groupJid, { type: "stickers", logger });
+        }
       } catch (err) {
         logger?.warn({ err: err?.message }, "[Reddit Scheduler] Staggered transparent sticker failed");
       }

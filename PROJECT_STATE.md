@@ -1,7 +1,7 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-02 WIB (+0700)
-**Current implementation:** Telegram Sticker Importer (`!tg`) + Absurd Reaction Memes & WA Sticker Curation Revamp (viral streamers/cats/slapstick/local memes, pruned subreddits) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
+**Current implementation:** Telegram Sticker Importer (`!tg`) & Automated Scheduler Dispatch + Absurd Reaction Memes & WA Sticker Curation Revamp + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
 **Last verified tests:** 351/351 pass across 78 test suites; 100% pass rate
 
 ---

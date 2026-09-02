@@ -6,6 +6,33 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 50 — Connect Telegram Stickers to Automated Scheduled Dispatch and Koyeb Env Update
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 23:50 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `491346d` |
+| **Status** | Completed |
+
+### Implementation details
+
+1. **Automated Scheduler Integration (`src/scheduler/redditStickerCron.js`):**
+   - Connected `getRandomTelegramSticker` into Phase 2 (+5m) of the staggered automated sticker dispatch.
+   - When `TELEGRAM_BOT_TOKEN` is present, Phase 2 preferentially sends a transparent meme sticker from curated Telegram packs (`wunkus`, `catmemes`, `spongebob`, `pepe`, `Doge`, `CatReactions`, `indomeme`, `flightreacts`).
+   - Gracefully falls back to GIPHY transparent sticker search if Telegram fails or token is missing.
+
+2. **Environment & Koyeb Deployment Verification:**
+   - Configured `TELEGRAM_BOT_TOKEN` in local `.env` and verified via `getMe` API (`Vm_Hongkong_bot`, valid).
+   - Updated Koyeb service `usual-olwen/stickerinaja` environment variable with `TELEGRAM_BOT_TOKEN`.
+   - All 351/351 tests pass across 78 test suites.
+
+---
+
 ## Session 49 — Telegram Sticker Integration and Offset Quality Clarification
 
 | Field | Value |
