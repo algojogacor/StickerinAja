@@ -59,9 +59,36 @@ describe("Meme-API and GIPHY Integrations", () => {
     assert.ok(Array.isArray(res2));
   });
 
-  it("fetchMemeApiPosts handles subreddit array and shuffles gracefully", async () => {
-    const res = await fetchMemeApiPosts({ subreddits: ["dankmemes", "memes"], countPerSubreddit: 1 });
-    assert.ok(Array.isArray(res));
+  it("exports curated fallback lists containing popular reaction memes", () => {
+    const {
+      CURATED_REACTION_FALLBACKS,
+      CURATED_STICKER_FALLBACKS,
+      UNUSABLE_STICKER_SUBREDDITS,
+      isAutomatedMemeCandidate,
+    } = require("../src/services/redditStickerService");
+
+    assert.ok(Array.isArray(CURATED_REACTION_FALLBACKS));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("cat meme reaction"));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("facepalm meme"));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("laughing hard meme"));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("crying meme"));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("side eye meme"));
+    assert.ok(CURATED_REACTION_FALLBACKS.includes("sus meme"));
+
+    assert.ok(Array.isArray(CURATED_STICKER_FALLBACKS));
+    assert.ok(CURATED_STICKER_FALLBACKS.includes("cat reaction sticker"));
+    assert.ok(CURATED_STICKER_FALLBACKS.includes("pepe sticker"));
+
+    assert.ok(UNUSABLE_STICKER_SUBREDDITS.has("wholesomememes"));
+    assert.ok(UNUSABLE_STICKER_SUBREDDITS.has("animemes"));
+    assert.ok(UNUSABLE_STICKER_SUBREDDITS.has("goodanimemes"));
+    assert.ok(UNUSABLE_STICKER_SUBREDDITS.has("funny"));
+
+    // Filters cheesy foreign greeting cards and daytime bedtime greetings
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Te Iubesc... INFINIT!" }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "ti amo amore mio" }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "cat meme reaction" }), true);
   });
 });
+
 

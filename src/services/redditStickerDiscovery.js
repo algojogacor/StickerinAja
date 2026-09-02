@@ -9,6 +9,7 @@ const crypto = require("crypto");
 
 const YDC_API_KEY = () => process.env.YDC_API_KEY || "";
 const GIPHY_API_KEY = () => process.env.GIPHY_API_KEY || "";
+const GIPHY_RATING = () => process.env.GIPHY_RATING || "pg-13";
 const WEB_SEARCH_URL = "https://ydc-index.io/v1/search";
 const TIMEOUT_MS = 25000;
 
@@ -30,7 +31,7 @@ const DISCOVERY_QUERIES = () => {
 };
 
 const SEARCH_SUBREDDITS = () =>
-  (process.env.REDDIT_SEARCH_SUBREDDITS || "WkwkwkLand,aku_ddn,indonesia,indowibu,shitposting,okbuddyretard,memes,dankmemes,funny,starterpacks,memes_of_the_dank,dank_meme,Funnymemes,meme,wholesomememes,comedyheaven,bonehurtingjuice,BikiniBottomTwitter,animemes,goodanimemes,trippinthroughtime,AdviceAnimals,ProgrammerHumor,me_irl,therewasanattempt,mildlyinfuriating,wordington")
+  (process.env.REDDIT_SEARCH_SUBREDDITS || "WkwkwkLand,aku_ddn,indonesia,indowibu,shitposting,okbuddyretard,memes,dankmemes,dank_meme,meme,comedyheaven,bonehurtingjuice,BikiniBottomTwitter,memes_of_the_dank,trippinthroughtime,wordington,me_irl")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -151,7 +152,7 @@ async function fetchGiphyPosts({
   query,
   limit = 5,
   type = "gifs",
-  rating = "g",
+  rating = GIPHY_RATING(),
   offset,
   randomOffset = false,
   maxRandomOffset = 50,

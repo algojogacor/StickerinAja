@@ -65,11 +65,6 @@ const AUTOMATED_MEME_SUBREDDITS = new Set([
   "memes",
   "dankmemes",
   "me_irl",
-  "wholesomememes",
-  "funny",
-  "animemes",
-  "goodanimemes",
-  "dndmemes",
   "shitposting",
   "whenthe",
   "indonesia",
@@ -79,14 +74,12 @@ const AUTOMATED_MEME_SUBREDDITS = new Set([
   "okbuddyretard",
   "memes_of_the_dank",
   "dank_meme",
-  "funnymemes",
   "meme",
   "comedyheaven",
   "bonehurtingjuice",
   "bikinibottomtwitter",
   "trippinthroughtime",
   "wordington",
-  "adviceanimals",
   "giphy",
 ]);
 
@@ -302,15 +295,47 @@ const UNUSABLE_STICKER_SUBREDDITS = new Set([
   "mildlyinfuriating",
   "comedycemetery",
   "terriblefacebookmemes",
+  "wholesomememes",
+  "funny",
+  "funnymemes",
+  "animemes",
+  "goodanimemes",
+  "adviceanimals",
+  "dndmemes",
 ]);
+
+function getJakartaHour() {
+  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return wib.getUTCHours();
+}
+
+function isDaytimeJakarta() {
+  const hour = getJakartaHour();
+  // Daytime in WIB: 05:00 to 20:59 (5 AM to 8:59 PM WIB)
+  return hour >= 5 && hour < 21;
+}
+
+const SLEEP_GREETINGS_PATTERN = /\b(?:good\s*night|goodnight|sleep\s*tight|selamat\s*tidur|sweet\s*dreams|tidur\s*nyenyak|buonanotte|buenas\s*noches|gute\s*nacht)\b/i;
+const CHEESY_FOREIGN_GREETINGS_PATTERN = /\b(?:te\s*iubesc|ti\s*amo|te\s*quiero(?:\s*mucho)?|buongiorno|buon\s*compleanno)\b/i;
 
 function isAutomatedMemeCandidate(post) {
   const subreddit = String(post?.subreddit || "").trim().toLowerCase();
   if (UNUSABLE_STICKER_SUBREDDITS.has(subreddit)) return false;
 
   const text = `${post?.title || ""} ${post?._searchDescription || ""}`;
+
   // Reject starter packs, letters, articles, text walls, and infographics that make unreadable stickers
   if (/\b(?:starter\s*pack|starterpack|infographic|letter|article|essay|newspaper|receipt|chart|graph)\b/i.test(text)) {
+    return false;
+  }
+
+  // Reject cheesy foreign greetings without meme context (e.g. Romanian "Te Iubesc... INFINIT!", Italian "Buon compleanno")
+  if (CHEESY_FOREIGN_GREETINGS_PATTERN.test(text)) {
+    return false;
+  }
+
+  // Reject bedtime/sleeping greetings during daytime WIB (05:00 to 20:59 WIB)
+  if (isDaytimeJakarta() && SLEEP_GREETINGS_PATTERN.test(text)) {
     return false;
   }
 
@@ -476,32 +501,43 @@ async function sendOneSticker(sock, groupJid, { logger, count } = {}) {
 // ── Search + send GIPHY ──────────────────────────────────────
 
 const RANDOM_GIF_QUERIES = [
-  // Tokoh Politik & Pemerintah Indonesia
-  "prabowo",
-  "prabowo subianto",
-  "gemoy",
-  "prabowo joget",
-  "jokowi",
-  "joko widodo",
-  "jokowi ketawa",
-  "bahlil",
-  "bahlil lahadalia",
-  "gibran",
-  "pemerintah",
-  "dpr indonesia",
-  "pejabat lucu",
-  // Komedi Jomok & Brainrot Lokal / Global
-  "jomok",
-  "ambasing",
-  "rusdi",
-  "ngawi",
-  "skibidi",
-  "mewing",
-  "brainrot",
-  "sigma meme",
+  // Reaksi Populer & Reaksi Ekspresi (Prioritas Utama Chat WhatsApp)
+  "cat meme reaction",
+  "shocked face",
+  "facepalm",
+  "laughing hard",
+  "crying meme",
+  "side eye",
+  "sus meme",
+  "confused meme",
+  "awkward smile",
+  "wheezing laugh",
+  "spit take",
+  "disgusted reaction",
+  "eye roll meme",
+  "bruh reaction",
+  "facepalm meme",
+  "mind blown",
+  "shocked reaction",
+  "crying laughing",
+  "happy dance meme",
+  "dancing cat",
+  "doge meme",
+  "pepe the frog",
   "gigachad",
-  "si imut",
-  // Komedi & Reaksi Indonesia
+  "clown meme",
+  "troll face",
+  "spongebob meme",
+  "tom and jerry meme",
+  // Tokoh Publik & Komedi Lokal Indonesia
+  "prabowo joget",
+  "gemoy",
+  "prabowo",
+  "jokowi ketawa",
+  "jokowi",
+  "bahlil",
+  "gibran",
+  "pejabat lucu",
   "meme indonesia",
   "ngakak",
   "lucu",
@@ -509,60 +545,79 @@ const RANDOM_GIF_QUERIES = [
   "wkwk",
   "goyang",
   "joget",
-  "meme cringe",
-  "meme anime",
-  // Reaksi & Pop Culture Memes
-  "funny meme",
-  "dank meme",
-  "reaction meme",
-  "cat meme",
-  "comedy",
-  "laughing meme",
-  "spongebob meme",
-  "tom and jerry meme",
-  "shocked reaction",
-  "facepalm",
-  "mind blown",
-  "clown meme",
-  "pepe the frog",
-  "crying laughing",
-  "bruh",
-  "rolling eyes",
-  "dancing cat",
-  "doge meme",
-  "confused meme",
-  "happy dance",
-  "troll face",
-  "sus meme",
-];
-
-const RANDOM_STICKER_QUERIES = [
-  // Tokoh Politik Indonesia
-  "prabowo",
-  "gemoy",
-  "jokowi",
-  "bahlil",
-  "gibran",
-  // Jomok & Reaksi Lokal
+  // Brainrot / Tongkrongan Hype
   "jomok",
   "ambasing",
   "rusdi",
-  "meme indonesia",
-  "lucu",
-  "ngakak",
-  "kocak",
-  "wkwk",
-  // Stiker Reaksi & Kartun
-  "funny sticker",
-  "meme reaction",
-  "cat reaction",
-  "anime reaction",
-  "spongebob",
-  "emoji reaction",
+  "ngawi",
+  "skibidi",
+  "mewing",
+  "sigma meme",
+];
+
+const RANDOM_STICKER_QUERIES = [
+  // Reaksi Stiker Transparan & Cutout (WhatsApp-friendly)
+  "cat reaction sticker",
+  "shocked sticker",
   "facepalm sticker",
+  "laughing sticker",
+  "crying sticker",
+  "side eye sticker",
+  "confused sticker",
+  "sus sticker",
   "pepe sticker",
+  "spongebob sticker",
   "doge sticker",
   "gigachad sticker",
+  "clown sticker",
+  "emoji reaction sticker",
+  "meme reaction transparent",
+  "awkward sticker",
+  "skull sticker",
+  // Stiker Transparan Tokoh & Lokal
+  "prabowo sticker",
+  "gemoy sticker",
+  "jokowi sticker",
+  "meme indonesia sticker",
+  "lucu sticker",
+  "ngakak sticker",
+  "kocak sticker",
+  "wkwk sticker",
+];
+
+const CURATED_REACTION_FALLBACKS = [
+  "cat meme reaction",
+  "shocked face meme",
+  "facepalm meme",
+  "laughing hard meme",
+  "crying meme",
+  "side eye meme",
+  "sus meme",
+  "confused reaction",
+  "awkward smile meme",
+  "wheezing laugh",
+  "spit take meme",
+  "disgusted face reaction",
+  "eye roll meme",
+  "meme indonesia",
+  "pepe reaction",
+  "spongebob funny reaction",
+];
+
+const CURATED_STICKER_FALLBACKS = [
+  "cat reaction sticker",
+  "pepe sticker",
+  "shocked sticker",
+  "laughing sticker",
+  "crying sticker",
+  "facepalm sticker",
+  "side eye sticker",
+  "confused sticker",
+  "spongebob sticker",
+  "gigachad sticker",
+  "doge sticker",
+  "meme reaction transparent",
+  "skull sticker",
   "clown sticker",
 ];
 
@@ -593,6 +648,11 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
     }
 
     for (const candidate of candidates) {
+      if (isProactiveRandom && !isAutomatedMemeCandidate(candidate)) {
+        logger?.info({ id: candidate.id, title: candidate.title }, "[GIPHY Sticker] Proactive check rejected unusable candidate");
+        continue;
+      }
+
       const result = await processPost(candidate, { logger });
       if (result.success) {
         const sticker = await getStickerById(result.stickerId);
@@ -614,18 +674,21 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
     }
   }
 
-  // If specific query failed, try trending with random offset as fallback
+  // If specific query failed, try curated reaction fallback instead of raw empty trending
   if (isProactiveRandom) {
-    logger?.info({ type }, "[GIPHY Sticker] Trying trending fallback with random offset");
-    const trendingCandidates = await fetchGiphyPosts({
-      query: "",
+    const fallbackList = type === "stickers" ? CURATED_STICKER_FALLBACKS : CURATED_REACTION_FALLBACKS;
+    const fallbackQuery = fallbackList[Math.floor(Math.random() * fallbackList.length)];
+    logger?.info({ type, fallbackQuery }, "[GIPHY Sticker] Trying curated reaction fallback");
+    const fallbackCandidates = await fetchGiphyPosts({
+      query: fallbackQuery,
       limit: 8,
       type,
       randomOffset: true,
-      maxRandomOffset: 50,
+      maxRandomOffset: 30,
       logger,
     });
-    for (const candidate of trendingCandidates) {
+    for (const candidate of fallbackCandidates) {
+      if (!isAutomatedMemeCandidate(candidate)) continue;
       const result = await processPost(candidate, { logger });
       if (result.success) {
         const sticker = await getStickerById(result.stickerId);
@@ -904,4 +967,10 @@ module.exports = {
   selectDiversePosts,
   isAutomatedMemeCandidate,
   AUTOMATED_MEME_SUBREDDITS,
+  UNUSABLE_STICKER_SUBREDDITS,
+  CURATED_REACTION_FALLBACKS,
+  CURATED_STICKER_FALLBACKS,
+  isDaytimeJakarta,
+  SLEEP_GREETINGS_PATTERN,
+  CHEESY_FOREIGN_GREETINGS_PATTERN,
 };

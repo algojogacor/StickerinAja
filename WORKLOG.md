@@ -6,6 +6,52 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 43 — Curate GIPHY & Reddit Sticker Bank Quality (PG-13, Reaction Fallbacks, Subreddit Purge & Daytime Sleep Filter)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 09:37 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `f88c280` |
+| **Status** | Completed |
+
+### User request
+
+1. Raise GIPHY rating to "pg-13" (or "pg") to allow viral internet memes & pop culture reactions instead of sterile G-rated baby greetings.
+2. Replace GIPHY empty trending fallback (`query: ""`) with curated WhatsApp Reaction Meme queries (e.g., `cat meme reaction`, `shocked face`, `facepalm`, `laughing hard`, `crying meme`, `side eye`, `sus`).
+3. Clean up automated subreddit list: remove `wholesomememes`, `animemes`, `goodanimemes`, and `funny`, focusing on pure visual / shitpost / meme communities (`r/shitposting`, `r/okbuddyretard`, `r/WkwkwkLand`, `r/aku_ddn`, `r/BikiniBottomTwitter`).
+4. Avoid sending bedtime/sleeping greetings in the morning: filter keywords like `goodnight`, `good night`, `sleep`, `te iubesc` during daytime WIB hours.
+5. Emphasize transparent cutout stickers over generic rectangular photo frames.
+
+### Implementation details
+
+1. **`src/services/redditStickerDiscovery.js`:**
+   - Added `GIPHY_RATING = () => process.env.GIPHY_RATING || "pg-13"` and made `fetchGiphyPosts` default to `GIPHY_RATING()`.
+   - Cleaned default `SEARCH_SUBREDDITS` list by purging `wholesomememes`, `animemes`, `goodanimemes`, `funny`, `funnymemes`, `starterpacks`, `therewasanattempt`, `mildlyinfuriating`, `ProgrammerHumor`, and `AdviceAnimals`.
+   - Prioritized Indonesian communities (`r/WkwkwkLand`, `r/aku_ddn`, `r/indonesia`, `r/indowibu`) and visual comedy/shitposting subreddits (`r/shitposting`, `r/okbuddyretard`, `r/memes`, `r/dankmemes`, `r/dank_meme`, `r/meme`, `r/comedyheaven`, `r/bonehurtingjuice`, `r/BikiniBottomTwitter`, `r/trippinthroughtime`, `r/wordington`, `r/me_irl`).
+2. **`src/services/redditStickerService.js`:**
+   - Purged `wholesomememes`, `animemes`, `goodanimemes`, `funny`, `funnymemes`, `adviceanimals`, and `dndmemes` from `AUTOMATED_MEME_SUBREDDITS` into `UNUSABLE_STICKER_SUBREDDITS`.
+   - Added `isDaytimeJakarta()` check (05:00 to 20:59 WIB) and `SLEEP_GREETINGS_PATTERN` to reject bedtime greetings (`goodnight`, `good night`, `sleep tight`, `selamat tidur`, `sweet dreams`, `buonanotte`, etc.) from automated delivery during waking hours.
+   - Added `CHEESY_FOREIGN_GREETINGS_PATTERN` to reject irrelevant greeting cards without meme punchlines (`te iubesc`, `ti amo`, `te quiero`, `buongiorno`, etc.).
+   - Updated `RANDOM_GIF_QUERIES` with WhatsApp reaction memes (`cat meme reaction`, `shocked face`, `facepalm`, `laughing hard`, `crying meme`, `side eye`, `sus meme`, etc.).
+   - Updated `RANDOM_STICKER_QUERIES` with transparent cutout keywords (`cat reaction sticker`, `shocked sticker`, `pepe sticker`, `spongebob sticker`, `meme reaction transparent`, etc.).
+   - Replaced empty trending fallback in `searchAndSendGiphy` with `CURATED_REACTION_FALLBACKS` and `CURATED_STICKER_FALLBACKS`, ensuring fallback sends funny reactions instead of random international Hallmark cards.
+   - Added proactive candidate filtering in `searchAndSendGiphy` candidate loop.
+3. **`.env.example`:**
+   - Added `GIPHY_RATING="pg-13"` documentation and updated `REDDIT_SEARCH_SUBREDDITS` default list.
+4. **Testing & Verification:**
+   - Updated `test/redditSticker.test.js` to assert the cleaned subreddit queries and candidate rejection for `wholesomememes`, `animemes`, `funny`, and cheesy foreign greetings.
+   - Updated `test/giphyMemeIntegration.test.js` to verify curated fallback lists and candidate filtering.
+   - Ran `node --test test/redditSticker.test.js`: 92 pass, 0 fail.
+   - Ran `node --test test/giphyMemeIntegration.test.js`: 6 pass, 0 fail.
+   - Ran full test suite `node --test`: 338 pass, 0 fail across 76 test suites.
+
+---
+
 ## Session 42 — Fix Proactive Sticker Deduplication Starvation (GIPHY Random Offset & Full Meme Pool Traversal)
 
 | Field | Value |

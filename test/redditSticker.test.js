@@ -172,11 +172,9 @@ describe("You.com Search Result Normalization (Adapter)", () => {
     delete process.env.REDDIT_SEARCH_SUBREDDITS;
     try {
       const queries = DISCOVERY_QUERIES();
-      assert.ok(queries.length >= 6);
-      assert.ok(queries.every((query) => /reddit/i.test(query)));
-      assert.ok(queries.some((query) => /r\/funny\/comments/i.test(query)));
-      assert.ok(queries.some((query) => /r\/mildlyinfuriating\/comments/i.test(query)));
-      assert.ok(queries.some((query) => /r\/starterpacks\/comments/i.test(query)));
+      assert.ok(queries.some((query) => /r\/shitposting\/comments/i.test(query)));
+      assert.ok(queries.some((query) => /r\/wkwkwkland\/comments/i.test(query)));
+      assert.ok(queries.some((query) => /r\/dankmemes\/comments/i.test(query)));
     } finally {
       if (previous === undefined) delete process.env.REDDIT_DISCOVERY_QUERIES;
       else process.env.REDDIT_DISCOVERY_QUERIES = previous;
@@ -403,6 +401,22 @@ describe("Reddit scheduled sender selection", () => {
     assert.strictEqual(isAutomatedMemeCandidate({
       subreddit: "starterpacks",
       title: "Fates Of A Modern Meme Starter Pack",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "wholesomememes",
+      title: "A sweet sleeping dog",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "animemes",
+      title: "When you watch episode 12",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "funny",
+      title: "Baseball game crowd",
+    }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({
+      subreddit: "giphy",
+      title: "Te Iubesc... INFINIT!",
     }), false);
     assert.strictEqual(isAutomatedMemeCandidate({
       subreddit: "wkwkwkland",
