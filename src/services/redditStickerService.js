@@ -662,6 +662,21 @@ const CURATED_STICKER_FALLBACKS = [
   "clown sticker",
 ];
 
+const GIPHY_SLANG_SYNONYMS = {
+  esempeh: "jomok",
+  smp: "jomok",
+  "bocah smp": "jomok",
+  "anak smp": "jomok",
+  "puding hambali": "jomok",
+  hambali: "jomok",
+  "pop mie": "jomok",
+  "pop mie pop mie": "jomok",
+  "mas rusdi": "rusdi",
+  "pak rusdi": "rusdi",
+  ironi: "jomok",
+  ambas: "ambasing",
+};
+
 async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", logger } = {}) {
   const isProactiveRandom = !keyword || !String(keyword).trim();
   const list = type === "stickers" ? RANDOM_STICKER_QUERIES : RANDOM_GIF_QUERIES;
@@ -675,7 +690,7 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
 
     logger?.info({ keyword: cleanKeyword, type, attempt: attempt + 1 }, "[GIPHY Sticker] Search and send");
 
-    const candidates = await fetchGiphyPosts({
+    let candidates = await fetchGiphyPosts({
       query: cleanKeyword,
       limit: 8,
       type,
@@ -683,6 +698,21 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
       maxRandomOffset: 40,
       logger,
     });
+
+    if (candidates.length === 0 && !isProactiveRandom) {
+      const synonym = GIPHY_SLANG_SYNONYMS[cleanKeyword.toLowerCase()];
+      if (synonym) {
+        logger?.info({ original: cleanKeyword, fallback: synonym }, "[GIPHY Sticker] Fallback to slang synonym");
+        candidates = await fetchGiphyPosts({
+          query: synonym,
+          limit: 8,
+          type,
+          offset: 0,
+          randomOffset: false,
+          logger,
+        });
+      }
+    }
 
     if (candidates.length === 0) {
       continue;
