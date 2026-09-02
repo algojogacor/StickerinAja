@@ -169,12 +169,14 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-08-30 | `node --test` across all suites after Selfbot / Multi-Session implementation | 291 pass, 0 fail, 0 skipped; 62 suites |
 
 | 2026-09-02 | Live GIPHY animated conversion test | rusdi (24.5 KB), jawir (330.5 KB), hitam (619.6 KB), jomok (841.2 KB) pass 100% |
-| 2026-09-02 | Koyeb live deployment status | Deployment 80a52a4d (commit d23ac9c) built & HEALTHY |
+| 2026-09-02 | Koyeb live deployment status | Deployment 9d4b0f09 (commit 19dcc55) built & HEALTHY |
+| 2026-09-02 | Dual Sticker Unified Search | `!gif`, `!meme`, `!reddit` now output TWO stickers: 1 Animated GIF (GIPHY) + 1 Photo Meme (Reddit via Meme-API) |
+| 2026-09-02 | Pure Meme-API Discovery | You.com discovery completely replaced with pure multi-subreddit `meme-api.com` integration |
 | 2026-09-02 | YouTube Downloader bypass fix | Android & iOS player client spoofing enabled; auto-retries without cookies on Google bot challenge |
 | 2026-09-02 | Staggered Scheduler (Option 2) | Dispatches 1 Meme at :00, 1 Transparent Sticker at +5m, 1 Animated GIF at +10m across 15m windows |
 | 2026-09-02 | Slang synonym mapping | Added Jomok/Ngawi fallback dictionary for Indonesian slang (esempeh, pop mie, hambali) |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb deployment 80a52a4d is running healthy on commit d23ac9c with Option 2 staggered scheduler, mobile YouTube extractor, and slang synonym mapping.
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits directly via `meme-api.com` and GIPHY API without You.com. Koyeb deployment 9d4b0f09 is running healthy on commit 19dcc55 with dual-sticker unified search, Option 2 staggered scheduler, and mobile YouTube extractor.
 
 ---
 
@@ -182,7 +184,7 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 
 | Limitation | Status |
 |---|---|
-| Koyeb deployment health after this migration | Verified healthy (deployment 80a52a4d on commit d23ac9c) |
+| Koyeb deployment health after this migration | Verified healthy (deployment 9d4b0f09 on commit 19dcc55) |
 | Live WhatsApp scheduled-delivery smoke test | Verified locally: one generated Reddit sticker was sent after the next five-minute tick |
 | Live News + Groq + You.com scheduled run | Not verified |
 | Live FX provider and Turso reconnect retry | Not verified |
