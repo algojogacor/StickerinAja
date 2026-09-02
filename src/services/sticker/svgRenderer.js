@@ -238,16 +238,65 @@ async function renderQuoteSticker(text, author = '', quality = 90) {
         .toBuffer();
 }
 
+function getTwemojiUrls(emojiStr) {
+    const raw = Array.from(emojiStr).map(c => c.codePointAt(0).toString(16));
+    const fullHex = raw.join('-');
+    const noFe0f = raw.filter(cp => cp !== 'fe0f').join('-');
+    const urls = [
+        `https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${fullHex}.svg`,
+        `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${fullHex}.svg`
+    ];
+    if (noFe0f !== fullHex) {
+        urls.push(`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/${noFe0f}.svg`);
+        urls.push(`https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${noFe0f}.svg`);
+    }
+    return urls;
+}
+
+async function fetchEmojiSvg(emojiStr) {
+    for (const u of getTwemojiUrls(emojiStr)) {
+        try {
+            const res = await fetch(u, { signal: AbortSignal.timeout(4000) });
+            if (res.ok) {
+                const text = await res.text();
+                if (text && text.includes('<svg')) {
+                    return Buffer.from(text);
+                }
+            }
+        } catch {}
+    }
+    return null;
+}
+
 /**
  * Render Emoji sticker
  */
 async function renderEmojiSticker(emoji, quality = 90) {
+    const cleanEmoji = Array.from(String(emoji || '').trim()).slice(0, 4).join('');
+    if (!cleanEmoji) {
+        throw new Error('EMOJI_REQUIRED');
+    }
+
+    // 1. Try fetching high-res vector SVG from Twemoji CDN (bypasses missing Linux server fonts)
+    try {
+        const svgBuf = await fetchEmojiSvg(cleanEmoji);
+        if (svgBuf) {
+            return sharp(svgBuf)
+                .resize(512, 512, {
+                    fit: 'contain',
+                    background: { r: 0, g: 0, b: 0, alpha: 0 }
+                })
+                .webp({ quality })
+                .toBuffer();
+        }
+    } catch {}
+
+    // 2. Fallback to local SVG font rendering
     const W = 512;
     const H = 512;
-
     const svg = `
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <text x="256" y="320" text-anchor="middle" font-size="260px" font-family="'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif">${escapeXml(emoji)}</text>
+        <text x="256" y="320" text-anchor="middle" font-size="260px" font-family="'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif">${escapeXml(cleanEmoji)}</text>
     </svg>
     `;
 

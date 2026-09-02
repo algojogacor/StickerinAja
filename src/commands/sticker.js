@@ -119,9 +119,14 @@ module.exports = {
             });
         }
 
-        // ─── Text Sticker ───
-        const text = args.join(' ');
+        // ─── Text / Emoji Sticker ───
+        const text = args.join(' ').trim();
         if (text && !this.hasMedia(msg, quotedMsg)) {
+            // If the text is purely emoji (e.g. !s 🪔 or !s 😂), route to high-res emoji sticker!
+            const stripped = text.replace(/\s+/g, '');
+            if (/^\p{Extended_Pictographic}+$/u.test(stripped)) {
+                return this.createEmoji({ sock, msg, args, remoteJid, session, logger });
+            }
             return this.createFromText({ sock, msg, text, remoteJid, session, logger });
         }
 
@@ -370,6 +375,8 @@ module.exports = {
         if (!emoji) {
             return sock.sendMessage(remoteJid, { text: 'Gunakan: *!emoji 😂*' }, { quoted: msg });
         }
+
+        await sock.sendMessage(remoteJid, { text: '⏳ Membuat stiker emoji...' }, { quoted: msg });
 
         await imageQueue.add(async () => {
             const stickerBuffer = await renderEmojiSticker(Array.from(emoji).slice(0, 4).join(''), session.quality || 90);
