@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-02 WIB (+0700)
-**Current implementation:** Absurd Reaction Memes & WA Sticker Curation Revamp (eliminated clipart/political cartoons, curated viral streamers/cats/slapstick/local memes, pruned subreddits) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
-**Last verified tests:** 347/347 pass across 77 test suites; 100% pass rate
+**Current implementation:** Telegram Sticker Importer (`!tg`) + Absurd Reaction Memes & WA Sticker Curation Revamp (viral streamers/cats/slapstick/local memes, pruned subreddits) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
+**Last verified tests:** 351/351 pass across 78 test suites; 100% pass rate
 
 ---
 
@@ -31,6 +31,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Feature | Status | Files |
 |---|---|---|
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
+| Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
 | Groq AI Vision & Chat | Active; multimodal image analysis (`qwen/qwen3.8-27b`), OCR/text reading, meme explanation, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
 | Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication, bot priority, socket heartbeat watchdog (30s interval), `/api/restart-session` and `/api/logout-session` endpoints, plus automatic Turso auth state garbage collection (startup + 6h interval) | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `src/utils/tursoAuthState.js`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |

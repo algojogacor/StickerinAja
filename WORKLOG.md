@@ -6,6 +6,38 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 49 — Telegram Sticker Integration and Offset Quality Clarification
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 23:35 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `191f700` |
+| **Status** | Completed |
+
+### Implementation details
+
+1. **Telegram Sticker Service & Pack Importer (`src/services/telegramStickerService.js`):**
+   - Implemented `getTelegramStickerSet`, `downloadTelegramSticker`, and `getRandomTelegramSticker`.
+   - Supports importing sticker packs via Telegram link (`https://t.me/addstickers/...`, `tg://addstickers?set=...`) or pack name.
+   - Converts and resizes to 512x512 transparent WebP stickers via Sharp with embedded EXIF metadata.
+   - Built-in popular absurd & reaction pack presets (`wunkus`, `catmemes`, `spongebob`, `pepe`, `Doge`, `CatReactions`, `indomeme`, `flightreacts`).
+   - Supports optional `TELEGRAM_BOT_TOKEN` for full-resolution official Telegram Bot API access.
+
+2. **Telegram Sticker Command (`src/commands/telegram.js`):**
+   - Added command aliases: `!tg`, `!telegram`, `!tgpack`.
+   - Provides usage help, pack previews, and sends random or selected stickers from Telegram packs directly into WhatsApp chats.
+
+3. **Verification & Testing (`test/telegramSticker.test.js`):**
+   - Added unit test suite validating pack name extraction, pack presets, command structure, and missing input replies.
+   - All 351/351 tests pass across 78 test suites.
+
+---
+
 ## Session 48 — Revamp Sticker Curation: Absurd Reaction Memes, Visual Humor, and Indonesian WA Cultural Relevance
 
 | Field | Value |
