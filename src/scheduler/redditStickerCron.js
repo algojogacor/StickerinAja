@@ -1,6 +1,4 @@
-// Reddit Sticker scheduler. The filename remains for command compatibility.
-
-const { getSock } = require("../core/socket");
+const { getBotSock } = require("../core/socket");
 const { shouldSuppressCron } = require("../services/birthdayTakeoverService");
 const { createWindowedScheduler } = require("./windowedScheduler");
 const { generateStickers, sendOneSticker } = require("../services/redditStickerService");
@@ -242,9 +240,9 @@ async function sendSticker(slot) {
     return true;
   }
 
-  const sock = getSock();
+  const sock = getBotSock();
   if (!sock) {
-    logger?.warn("[Reddit Scheduler] WhatsApp unavailable — pending until reconnect");
+    logger?.warn("[Reddit Scheduler] Bot session unavailable — skipping scheduled task to isolate personal session");
     return false;
   }
   if (!groupJid) return true;

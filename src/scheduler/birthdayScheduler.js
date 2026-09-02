@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { getSock } = require("../core/socket");
+const { getBotSock } = require("../core/socket");
 const { createWindowedScheduler } = require("./windowedScheduler");
 const repository = require("../repositories/birthdayRepository");
 const birthday = require("../services/birthdayService");
@@ -30,9 +30,9 @@ async function runEvent(eventOrSlot, personsOverride) {
 
     const persons = personsOverride || await birthday.getTakeoverBirthdayPersons(groupJid);
     if (!persons.length) return true;
-    const sock = getSock();
+    const sock = getBotSock();
     if (!sock) {
-      logger?.warn({ event }, "[Birthday] WhatsApp unavailable; event remains retryable");
+      logger?.warn({ event }, "[Birthday] Bot session unavailable — skipping event to isolate personal session");
       return false;
     }
 

@@ -4,6 +4,7 @@ const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 // In-memory active PDF creation sessions (keyed by user JID)
 const pdfSessions = new Map();
 const SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes TTL
+const MAX_PAGES = 10; // OOM guard: max 10 pages per PDF on 512MB RAM
 
 function cleanExpiredSessions() {
     const now = Date.now();
@@ -424,7 +425,19 @@ module.exports = {
         if (!imageBuffer) return false;
 
         const session = pdfSessions.get(senderJid);
-        session.rawBuffers.push(imageBuffer);
+        if (session.rawBuffers.length >= MAX_PAGES) {
+            await sock.sendMessage(remoteJid, {
+                text: `⚠️ *Batas Maksimal Halaman Tercapai (${MAX_PAGES} Halaman)!*\n\n` +
+                      `Silakan ketik \`${PREFIX}pdfdone\` untuk memproses PDF atau \`${PREFIX}pdfcancel\` untuk membatalkan.`
+            }, { quoted: msg });
+            return true;
+        }
+
+        const compressed = await sharp(imageBuffer)
+            .resize(1600, 1600, { fit: 'inside' })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+        session.rawBuffers.push(compressed);
         session.lastActive = Date.now();
 
         const count = session.rawBuffers.length;
@@ -587,7 +600,17 @@ module.exports = {
             session.lastActive = Date.now();
 
             if (imageBuffer) {
-                session.rawBuffers.push(imageBuffer);
+                if (session.rawBuffers.length >= MAX_PAGES) {
+                    return sock.sendMessage(remoteJid, {
+                        text: `⚠️ *Batas Maksimal Halaman Tercapai (${MAX_PAGES} Halaman)!*\n\n` +
+                              `Silakan ketik \`${PREFIX}pdfdone\` untuk memproses PDF atau \`${PREFIX}pdfcancel\` untuk membatalkan.`
+                    }, { quoted: msg });
+                }
+                const compressed = await sharp(imageBuffer)
+                    .resize(1600, 1600, { fit: 'inside' })
+                    .jpeg({ quality: 80 })
+                    .toBuffer();
+                session.rawBuffers.push(compressed);
                 return sock.sendMessage(remoteJid, {
                     text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF (Magic Color & Clear B&W).`
                 }, { quoted: msg });
@@ -603,9 +626,17 @@ module.exports = {
         }
 
         // Case C: Start new multi-page PDF session
+        let initialBuffer = null;
+        if (imageBuffer) {
+            initialBuffer = await sharp(imageBuffer)
+                .resize(1600, 1600, { fit: 'inside' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
+        }
+
         pdfSessions.set(sender, {
             title: customTitle || '',
-            rawBuffers: imageBuffer ? [imageBuffer] : [],
+            rawBuffers: initialBuffer ? [initialBuffer] : [],
             lastActive: Date.now(),
             createdAt: Date.now()
         });

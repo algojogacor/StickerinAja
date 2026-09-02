@@ -1,6 +1,6 @@
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { setSock, getSock, clearSock, getAllSocks } = require('../src/core/socket');
+const { setSock, getSock, getBotSock, clearSock, getAllSocks } = require('../src/core/socket');
 
 describe('Multi-Session Socket Manager', () => {
     beforeEach(() => {
@@ -54,6 +54,9 @@ describe('Multi-Session Socket Manager', () => {
         // If bot disconnects -> getSock() falls back to pribadi
         clearSock(mockBotSock, 'bot');
         assert.equal(getSock(), mockPribadiSock);
+
+        // But getBotSock() NEVER falls back to pribadi (schedulers isolated)
+        assert.equal(getBotSock(), null);
     });
 
     it('supports full socket clear on shutdown', () => {

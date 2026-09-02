@@ -2,25 +2,54 @@
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { analyzeImage, chatText } = require('../services/aiVisionService');
 
-async function downloadMedia(msg, quotedMsg, quotedStanza) {
+async function downloadMedia(sockOrMsg, msgOrQuoted, quotedMsgOrStanza, quotedStanzaParam) {
+    let sock = null, msg, quotedMsg, quotedStanza;
+    if (sockOrMsg && sockOrMsg.user) {
+        sock = sockOrMsg;
+        msg = msgOrQuoted;
+        quotedMsg = quotedMsgOrStanza;
+        quotedStanza = quotedStanzaParam;
+    } else {
+        msg = sockOrMsg;
+        quotedMsg = msgOrQuoted;
+        quotedStanza = quotedMsgOrStanza;
+        sock = require('../core/socket').getSock();
+    }
+
     try {
+        const unwrap = (m) => m?.ephemeralMessage?.message ||
+            m?.viewOnceMessage?.message ||
+            m?.viewOnceMessageV2?.message ||
+            m?.viewOnceMessageV2Extension?.message ||
+            m?.documentWithCaptionMessage?.message ||
+            m;
+
         if (quotedMsg) {
             const contextInfo =
                 msg.message?.extendedTextMessage?.contextInfo ||
                 msg.message?.imageMessage?.contextInfo ||
                 msg.message?.videoMessage?.contextInfo ||
-                msg.message?.documentMessage?.contextInfo;
+                msg.message?.documentMessage?.contextInfo ||
+                msg.message?.stickerMessage?.contextInfo;
 
             const participant = contextInfo?.participant || msg.key.participant || msg.key.remoteJid;
+
+            const myPn = sock?.user?.id?.split(':')[0]?.split('@')[0];
+            const myLid = sock?.user?.lid?.split(':')[0]?.split('@')[0];
+            const partClean = participant?.split(':')[0]?.split('@')[0];
+            const isQuotedFromMe = !contextInfo?.participant
+                ? Boolean(msg.key?.fromMe)
+                : Boolean((myPn && partClean === myPn) || (myLid && partClean === myLid));
+
             return await downloadMediaMessage(
                 {
                     key: {
                         id: quotedStanza,
                         remoteJid: msg.key.remoteJid,
-                        fromMe: Boolean(contextInfo?.participant ? false : msg.key.fromMe),
+                        fromMe: isQuotedFromMe,
                         participant
                     },
-                    message: quotedMsg
+                    message: unwrap(quotedMsg)
                 },
                 'buffer',
                 {},
@@ -37,6 +66,7 @@ function hasImageMedia(msg, quotedMsg) {
     const unwrap = (m) => m?.ephemeralMessage?.message ||
         m?.viewOnceMessage?.message ||
         m?.viewOnceMessageV2?.message ||
+        m?.viewOnceMessageV2Extension?.message ||
         m?.documentWithCaptionMessage?.message ||
         m;
     const directM = unwrap(msg?.message);
@@ -62,7 +92,7 @@ module.exports = {
             );
 
             try {
-                const buffer = await downloadMedia(msg, quotedMsg, quotedStanza);
+                const buffer = await downloadMedia(sock, msg, quotedMsg, quotedStanza);
                 if (!buffer) {
                     return sock.sendMessage(
                         remoteJid,

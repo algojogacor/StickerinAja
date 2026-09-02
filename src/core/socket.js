@@ -66,4 +66,12 @@ function getAllSocks() {
   return Array.from(_socks.values());
 }
 
-module.exports = { setSock, getSock, clearSock, getAllSocks };
+function getBotSock() {
+  const preferredId = process.env.SCHEDULER_SESSION_ID || 'bot';
+  if (_socks.has(preferredId)) return _socks.get(preferredId);
+  if (_socks.has('bot')) return _socks.get('bot');
+  if (_socks.has('default')) return _socks.get('default');
+  return null;
+}
+
+module.exports = { setSock, getSock, getBotSock, clearSock, getAllSocks };

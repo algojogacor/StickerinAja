@@ -80,25 +80,71 @@ async function useTursoAuthState({ logger, sessionId = process.env.TURSO_AUTH_SE
             keys: {
                 get: async (type, ids) => {
                     const data = {};
-                    await Promise.all(ids.map(async (id) => {
-                        let value = await readData(`${type}-${id}.json`);
-                        if (type === 'app-state-sync-key' && value) {
-                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                    if (!ids || ids.length === 0) return data;
+
+                    const keyToId = new Map();
+                    const fixedKeys = [];
+                    for (const id of ids) {
+                        const keyName = fixKeyName(`${type}-${id}.json`);
+                        keyToId.set(keyName, id);
+                        fixedKeys.push(keyName);
+                        data[id] = null;
+                    }
+
+                    const placeholders = fixedKeys.map(() => '?').join(',');
+                    try {
+                        const res = await client.execute({
+                            sql: `SELECT key, value FROM ${TABLE_NAME} WHERE session_id = ? AND key IN (${placeholders})`,
+                            args: [sessionId, ...fixedKeys]
+                        });
+
+                        for (const row of res.rows) {
+                            const id = keyToId.get(row.key);
+                            if (id !== undefined && row.value) {
+                                let value = JSON.parse(row.value, BufferJSON.reviver);
+                                if (type === 'app-state-sync-key' && value) {
+                                    value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                                }
+                                data[id] = value;
+                            }
                         }
-                        data[id] = value;
-                    }));
+                    } catch (err) {
+                        logger?.error?.({ err, type }, 'Failed to batch get auth keys from Turso');
+                    }
+
                     return data;
                 },
                 set: async (data) => {
-                    const tasks = [];
+                    const statements = [];
                     for (const category in data) {
                         for (const id in data[category]) {
                             const value = data[category][id];
-                            const key = `${category}-${id}.json`;
-                            tasks.push(value ? writeData(value, key) : removeData(key));
+                            const fixedKey = fixKeyName(`${category}-${id}.json`);
+                            if (value) {
+                                statements.push({
+                                    sql: `
+                                        INSERT INTO ${TABLE_NAME} (session_id, key, value, updated_at)
+                                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                                        ON CONFLICT(session_id, key)
+                                        DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                                    `,
+                                    args: [sessionId, fixedKey, JSON.stringify(value, BufferJSON.replacer)]
+                                });
+                            } else {
+                                statements.push({
+                                    sql: `DELETE FROM ${TABLE_NAME} WHERE session_id = ? AND key = ?`,
+                                    args: [sessionId, fixedKey]
+                                });
+                            }
                         }
                     }
-                    await Promise.all(tasks);
+                    if (statements.length > 0) {
+                        try {
+                            await client.batch(statements, 'write');
+                        } catch (err) {
+                            logger?.error?.({ err, count: statements.length }, 'Failed to atomic batch write auth keys to Turso');
+                        }
+                    }
                 }
             }
         },

@@ -1,13 +1,16 @@
 const https = require('https');
 const http = require('http');
 
-async function fetchBuffer(url) {
+async function fetchBuffer(url, signal = null) {
     return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            return reject(new Error('Download aborted by timeout signal'));
+        }
         const req = (url.startsWith('https') ? https : http).get(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
         }, (res) => {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return fetchBuffer(res.headers.location).then(resolve).catch(reject);
+                return fetchBuffer(res.headers.location, signal).then(resolve).catch(reject);
             }
             if (res.statusCode !== 200) {
                 return reject(new Error(`HTTP ${res.statusCode}`));
@@ -16,7 +19,23 @@ async function fetchBuffer(url) {
             res.on('data', c => chunks.push(c));
             res.on('end', () => resolve(Buffer.concat(chunks)));
         });
-        req.on('error', reject);
+
+        function onAbort() {
+            try { req.destroy(new Error('Download aborted by timeout signal')); } catch {}
+            reject(new Error('Download aborted by timeout signal'));
+        }
+
+        if (signal) {
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        req.on('error', (err) => {
+            if (signal) signal.removeEventListener('abort', onAbort);
+            reject(err);
+        });
+        req.on('close', () => {
+            if (signal) signal.removeEventListener('abort', onAbort);
+        });
         req.setTimeout(30000, () => {
             req.destroy();
             reject(new Error('Timeout downloading media'));
@@ -108,7 +127,7 @@ module.exports = {
 
 const { heavyTaskQueue } = require('../utils/cache');
 
-        return heavyTaskQueue.add(async () => {
+        return heavyTaskQueue.add(async (signal) => {
             // ==========================================
             // 1. INSTAGRAM DOWNLOADER
             // ==========================================
@@ -122,7 +141,7 @@ const { heavyTaskQueue } = require('../utils/cache');
 
                     for (let i = 0; i < mediaList.length; i++) {
                         const item = mediaList[i];
-                        const buffer = await fetchBuffer(item.url);
+                        const buffer = await fetchBuffer(item.url, signal);
 
                         if (isSticker) {
                             const { convertVideoToSticker, convertImageToSticker } = require('../services/sticker/converterService');
@@ -178,7 +197,7 @@ const { heavyTaskQueue } = require('../utils/cache');
                 const info = await getTikTokData(urlArg);
 
                 if (isAudioOnly && info.musicUrl) {
-                    const audioBuffer = await fetchBuffer(info.musicUrl);
+                    const audioBuffer = await fetchBuffer(info.musicUrl, signal);
                     return sock.sendMessage(remoteJid, {
                         audio: audioBuffer,
                         mimetype: 'audio/mp4',
@@ -190,7 +209,7 @@ const { heavyTaskQueue } = require('../utils/cache');
                 if (isSticker && info.playUrl) {
                     const { convertVideoToSticker } = require('../services/sticker/converterService');
                     const { prepareStickerWithExif } = require('../utils/exifHelper');
-                    const videoBuffer = await fetchBuffer(info.playUrl);
+                    const videoBuffer = await fetchBuffer(info.playUrl, signal);
                     const webpBuffer = await convertVideoToSticker(videoBuffer);
                     const finalSticker = prepareStickerWithExif(webpBuffer);
                     return sock.sendMessage(remoteJid, { sticker: finalSticker }, { quoted: msg });
@@ -200,7 +219,7 @@ const { heavyTaskQueue } = require('../utils/cache');
                     throw new Error('Link video tidak ditemukan');
                 }
 
-                const videoBuffer = await fetchBuffer(info.playUrl);
+                const videoBuffer = await fetchBuffer(info.playUrl, signal);
                 return sock.sendMessage(remoteJid, {
                     video: videoBuffer,
                     caption: `🎬 *TIKTOK VIDEO (NO WATERMARK)*\n\n` +

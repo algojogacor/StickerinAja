@@ -3,16 +3,15 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 const fs = require('fs');
 const path = require('path');
-const { ffmpegQueue } = require('../../utils/cache');
+const { ffmpegQueue, registerFfmpegCommand } = require('../../utils/cache');
 const { addExifToWebp } = require('../../utils/exifHelper');
 
 const TEMP_DIR = path.join(__dirname, '../../../temp');
 const MAX_STICKER_BYTES = 950 * 1024; // 950KB safe limit for WhatsApp
 
-function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, quality = 50 } = {}) {
+function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, quality = 50, signal = null } = {}) {
     return new Promise((resolve, reject) => {
-        ffmpeg(inputPath)
-            .inputFormat('mp4')
+        const command = ffmpeg(inputPath)
             .outputOptions([
                 '-vcodec libwebp',
                 `-vf scale=512:512:force_original_aspect_ratio=decrease:flags=bicubic,fps=${fps},pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse`,
@@ -25,9 +24,29 @@ function runFfmpegEncode(inputPath, outputPath, { duration = 8, fps = 15, qualit
                 '-compression_level 4',
                 `-q:v ${quality}`
             ])
-            .toFormat('webp')
-            .on('end', resolve)
-            .on('error', reject)
+            .toFormat('webp');
+
+        registerFfmpegCommand(command);
+
+        function onAbort() {
+            try { command.kill('SIGKILL'); } catch {}
+            reject(new Error('FFmpeg encoding aborted by timeout signal'));
+        }
+
+        if (signal) {
+            if (signal.aborted) return onAbort();
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        command
+            .on('end', () => {
+                if (signal) signal.removeEventListener('abort', onAbort);
+                resolve();
+            })
+            .on('error', (err) => {
+                if (signal) signal.removeEventListener('abort', onAbort);
+                reject(err);
+            })
             .save(outputPath);
     });
 }
@@ -38,7 +57,7 @@ async function createAnimated({
     sock, msg, args, remoteJid, quotedMsg, quotedStanza, session, logger,
     downloadFn, parseArgsFn, MAX_FILE_SIZE
 }) {
-    await ffmpegQueue.add(async () => {
+    await ffmpegQueue.add(async (signal) => {
         let buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
         if (!buffer) return sock.sendMessage(remoteJid, { text: '🎬 Balas video/GIF dengan *!sgif*, atau ketik *!sgif <kata kunci>* untuk cari stiker transparan.' }, { quoted: msg });
         if (buffer.length > MAX_FILE_SIZE) {
@@ -57,14 +76,14 @@ async function createAnimated({
             buffer = null;
 
             // Attempt 1: Adaptive up to 8s, 15fps, quality 50
-            await runFfmpegEncode(tempInput, tempOutput, { duration: 8, fps: 15, quality: 50 });
+            await runFfmpegEncode(tempInput, tempOutput, { duration: 8, fps: 15, quality: 50, signal });
             let stat = await fs.promises.stat(tempOutput);
 
             // Attempt 2: If > 950KB (over WA limit), re-encode with 6s, 12fps, quality 40
             if (stat.size > MAX_STICKER_BYTES) {
                 logger.info({ size: stat.size }, 'Animated sticker exceeded 950KB, optimizing...');
                 try { if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput); } catch {}
-                await runFfmpegEncode(tempInput, tempOutput, { duration: 6, fps: 12, quality: 40 });
+                await runFfmpegEncode(tempInput, tempOutput, { duration: 6, fps: 12, quality: 40, signal });
                 stat = await fs.promises.stat(tempOutput);
             }
 

@@ -8,6 +8,8 @@ const { setSock, getSock, clearSock } = require('./core/socket');
 const { shouldProcessMessage } = require('./handler');
 
 const sessionControllers = new Map();
+const consecutiveQrTimeouts = new Map();
+const reconnectAttempts = new Map();
 
 function initSessionState(sessionId, sessionName, botMode) {
     if (!global.botSessions) global.botSessions = {};
@@ -130,6 +132,8 @@ function startSession({
                 }
                 if (connection === 'open') {
                     setSock(sock, sessionId);
+                    consecutiveQrTimeouts.set(sessionId, 0);
+                    reconnectAttempts.set(sessionId, 0);
                     global.botSessions[sessionId].status = 'connected';
                     global.botSessions[sessionId].qr = null;
                     global.botSessions[sessionId].user = sock.user;
@@ -163,10 +167,32 @@ function startSession({
                         syncGlobalBotState();
                     }
                     const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+                    const isQrTimeout = reason === 408 || reason === DisconnectReason.timedOut;
+
+                    if (isQrTimeout) {
+                        const count = (consecutiveQrTimeouts.get(sessionId) || 0) + 1;
+                        consecutiveQrTimeouts.set(sessionId, count);
+                        if (count >= 3) {
+                            if (global.botSessions?.[sessionId]) {
+                                global.botSessions[sessionId].status = 'idle_qr';
+                                syncGlobalBotState();
+                            }
+                            sessionLogger.warn(`⏸️ [${sessionName}] QR timeout reached limit (${count} cycles). Halting auto-reconnect to save resources. Use dashboard to scan.`);
+                            return;
+                        }
+                    }
+
                     const shouldReconnect = reason !== DisconnectReason.loggedOut && reason !== 440;
                     sessionLogger.info(`🔌 [${sessionName}] Disconnected: ${reason || 'unknown'} | Reconnect: ${shouldReconnect}`);
                     if (shouldReconnect) {
-                        reconnectTimer = setTimeout(connect, 3000);
+                        const attempts = isQrTimeout
+                            ? (consecutiveQrTimeouts.get(sessionId) || 1)
+                            : ((reconnectAttempts.get(sessionId) || 0) + 1);
+                        if (!isQrTimeout) reconnectAttempts.set(sessionId, attempts);
+
+                        const backoffMs = Math.min(60000, Math.round(3000 * Math.pow(2, Math.min(attempts - 1, 4)) + Math.random() * 1000));
+                        sessionLogger.info(`⏱️ [${sessionName}] Reconnecting in ${backoffMs}ms (attempt ${attempts})...`);
+                        reconnectTimer = setTimeout(connect, backoffMs);
                     } else {
                         sessionLogger.warn(reason === 440
                             ? `🔀 [${sessionName}] Conflict (440) — yielding. Will retry in 60s...`
@@ -201,6 +227,8 @@ function startSession({
     sessionControllers.set(sessionId, {
         restart: async () => {
             sessionLogger.info(`[${sessionName}] Manual restart requested`);
+            consecutiveQrTimeouts.set(sessionId, 0);
+            reconnectAttempts.set(sessionId, 0);
             if (reconnectTimer) clearTimeout(reconnectTimer);
             if (activeSock) {
                 clearSock(activeSock, sessionId);
@@ -216,6 +244,8 @@ function startSession({
         },
         logout: async () => {
             sessionLogger.info(`[${sessionName}] Manual logout requested, purging auth credentials`);
+            consecutiveQrTimeouts.set(sessionId, 0);
+            reconnectAttempts.set(sessionId, 0);
             if (reconnectTimer) clearTimeout(reconnectTimer);
             if (activeSock) {
                 clearSock(activeSock, sessionId);

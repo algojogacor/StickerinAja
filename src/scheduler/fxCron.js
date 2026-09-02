@@ -6,7 +6,7 @@
 // One failure does not stop the other job.
 // Persistent idempotency via fx_execution_slots table.
 
-const { getSock } = require("../core/socket");
+const { getBotSock } = require("../core/socket");
 const { createWindowedScheduler } = require("./windowedScheduler");
 const { shouldSuppressCron } = require("../services/birthdayTakeoverService");
 const provider = require("../services/fxRateProvider");
@@ -253,8 +253,8 @@ async function handleHourlyDelivery({ slot, deliveryKey, snapshot }) {
     return true;
   }
 
-  if (targetJid && !getSock()) {
-    logger?.warn({ slot }, "[FX Scheduler] WhatsApp unavailable — pending until reconnect");
+  if (targetJid && !getBotSock()) {
+    logger?.warn({ slot }, "[FX Scheduler] Bot session unavailable — skipping delivery to isolate personal session");
     return false;
   }
 
@@ -332,9 +332,9 @@ async function handleHourlyDelivery({ slot, deliveryKey, snapshot }) {
 
     // Send via WhatsApp
     if (targetJid) {
-      const sock = getSock();
+      const sock = getBotSock();
       if (!sock) {
-        throw new Error("WhatsApp socket not available");
+        throw new Error("Bot WhatsApp socket not available");
       }
       await sock.sendMessage(targetJid, { text: report });
       logger?.info({ slot }, "[FX Scheduler] Report delivered");

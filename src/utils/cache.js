@@ -89,6 +89,7 @@ class ProcessQueue {
         this.running++;
         const { task, resolve, reject, timeoutMs } = this.queue.shift();
 
+        const controller = new AbortController();
         let timer = null;
         let isDone = false;
 
@@ -97,6 +98,7 @@ class ProcessQueue {
                 timer = setTimeout(() => {
                     if (!isDone) {
                         isDone = true;
+                        try { controller.abort(); } catch {}
                         rej(new Error(`Task timeout exceeded (${Math.round(timeoutMs / 1000)}s)`));
                     }
                 }, timeoutMs);
@@ -104,7 +106,7 @@ class ProcessQueue {
         });
 
         try {
-            const taskPromise = Promise.resolve().then(() => task());
+            const taskPromise = Promise.resolve().then(() => task(controller.signal));
             const result = await Promise.race([taskPromise, timeoutPromise]);
             isDone = true;
             if (timer) clearTimeout(timer);
@@ -112,6 +114,7 @@ class ProcessQueue {
         } catch (err) {
             isDone = true;
             if (timer) clearTimeout(timer);
+            try { controller.abort(); } catch {}
             reject(err);
         } finally {
             this.running--;
@@ -123,6 +126,21 @@ class ProcessQueue {
     get active() { return this.running; }
 }
 
+const activeFfmpegCommands = new Set();
+function registerFfmpegCommand(cmd) {
+    activeFfmpegCommands.add(cmd);
+    const cleanup = () => activeFfmpegCommands.delete(cmd);
+    cmd.on('end', cleanup);
+    cmd.on('error', cleanup);
+}
+
+function killActiveFfmpegCommands() {
+    for (const cmd of activeFfmpegCommands) {
+        try { cmd.kill('SIGKILL'); } catch {}
+    }
+    activeFfmpegCommands.clear();
+}
+
 module.exports = {
     // ⚡ Sticker cache: max 50 entries OR 20MB total (was 100 entries, no byte limit)
     stickerCache: new LRUCache(50, 20 * 1024 * 1024),
@@ -132,5 +150,7 @@ module.exports = {
     imageQueue: new ProcessQueue(2, 30000),   // Max 2 sharp/sticker operations at a time
     heavyTaskQueue: new ProcessQueue(2, 60000), // Max 2 downloader / PDF operations at a time
     ProcessQueue,
-    LRUCache
+    LRUCache,
+    registerFfmpegCommand,
+    killActiveFfmpegCommands
 };

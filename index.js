@@ -48,6 +48,14 @@ const logger = pino({
     level: process.env.LOG_LEVEL || 'info'
 });
 
+// ⚡ Global Process Crash Handlers to prevent container teardown on transient rejections
+process.on('unhandledRejection', (reason) => {
+    logger.error({ err: reason }, '[Process] Unhandled Promise Rejection');
+});
+process.on('uncaughtException', (err) => {
+    logger.fatal({ err }, '[Process] Uncaught Exception — process may be unstable');
+});
+
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 

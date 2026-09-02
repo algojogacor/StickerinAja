@@ -1,6 +1,6 @@
 // News delivery scheduler using absolute daily WIB slots.
 
-const { getSock } = require("../core/socket");
+const { getBotSock } = require("../core/socket");
 const { shouldSuppressCron } = require("../services/birthdayTakeoverService");
 const newsService = require("../services/newsService");
 const { createWindowedScheduler } = require("./windowedScheduler");
@@ -18,9 +18,9 @@ let groupJid = "";
 const pendingDeliveries = new Map();
 
 async function sendNewsSlot(slot) {
-  const sock = getSock();
+  const sock = getBotSock();
   if (!sock) {
-    logger?.warn({ slot: slot.key }, "[News Scheduler] WhatsApp unavailable — pending until reconnect");
+    logger?.warn({ slot: slot.key }, "[News Scheduler] Bot session unavailable — skipping broadcast to isolate personal session");
     return false;
   }
 
