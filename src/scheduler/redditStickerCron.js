@@ -105,6 +105,14 @@ let running = false;
 let logger = null;
 let groupJid = "";
 const generatedSlots = new Set();
+const pendingStaggerTimeouts = new Set();
+
+function clearPendingStaggerTimeouts() {
+  for (const t of pendingStaggerTimeouts) {
+    clearTimeout(t);
+  }
+  pendingStaggerTimeouts.clear();
+}
 
 function getJakartaDate() {
   const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -161,6 +169,7 @@ function start({ logger: log, groupJid: gid } = {}) {
 
 function stop() {
   running = false;
+  clearPendingStaggerTimeouts();
   generatorScheduler?.stop();
   senderScheduler?.stop();
   generatorScheduler = null;
@@ -243,35 +252,43 @@ async function sendSticker(slot) {
   try {
     const { searchAndSendGiphy, sendOneSticker } = require("../services/redditStickerService");
 
-    // 1. Send 2 Photo Memes (Meme-API / Ready Bank)
-    logger?.info(`[Reddit Scheduler] Sending 2 Photo Memes for slot ${slot?.time || slot?.id}...`);
-    const memeRes = await sendOneSticker(sock, groupJid, { logger, count: 2 });
+    // ── Option 2: Staggered Sending (Sebar Acak di sepanjang jeda 15 menit) ──
+    // Phase 1: Minute +0 — Send 1 Photo Meme from Reddit
+    logger?.info(`[Reddit Scheduler] Staggered #1/3: Sending 1 Photo Meme for slot ${slot?.time || slot?.id}...`);
+    const memeRes = await sendOneSticker(sock, groupJid, { logger, count: 1 });
     if (memeRes?.sent > 0) {
-      logger?.info(`[Reddit Scheduler] Sent ${memeRes.sent} Photo Meme(s)`);
+      logger?.info(`[Reddit Scheduler] Sent ${memeRes.sent} Photo Meme`);
     }
 
-    // 1.5s gap between sends
-    await new Promise((r) => setTimeout(r, 1500));
+    // Phase 2: Minute +5 (300s) — Send 1 Transparent Cutout Sticker
+    const t2 = setTimeout(async () => {
+      pendingStaggerTimeouts.delete(t2);
+      try {
+        const liveSock = getSock();
+        if (!liveSock || !groupJid) return;
+        logger?.info(`[Reddit Scheduler] Staggered #2/3: Sending 1 Transparent Sticker (+5m)...`);
+        await searchAndSendGiphy("", liveSock, groupJid, { type: "stickers", logger });
+      } catch (err) {
+        logger?.warn({ err: err?.message }, "[Reddit Scheduler] Staggered transparent sticker failed");
+      }
+    }, 5 * 60 * 1000);
+    pendingStaggerTimeouts.add(t2);
 
-    // 2. Send 1 Transparent Cutout Sticker (GIPHY Stickers)
-    logger?.info(`[Reddit Scheduler] Sending 1 Transparent Sticker for slot ${slot?.time || slot?.id}...`);
-    try {
-      await searchAndSendGiphy("", sock, groupJid, { type: "stickers", logger });
-    } catch (stickerErr) {
-      logger?.warn({ err: stickerErr?.message }, "[Reddit Scheduler] Transparent sticker send failed");
-    }
+    // Phase 3: Minute +10 (600s) — Send 1 Animated Video GIF
+    const t3 = setTimeout(async () => {
+      pendingStaggerTimeouts.delete(t3);
+      try {
+        const liveSock = getSock();
+        if (!liveSock || !groupJid) return;
+        logger?.info(`[Reddit Scheduler] Staggered #3/3: Sending 1 Animated GIF (+10m)...`);
+        await searchAndSendGiphy("", liveSock, groupJid, { type: "gifs", logger });
+      } catch (err) {
+        logger?.warn({ err: err?.message }, "[Reddit Scheduler] Staggered animated GIF failed");
+      }
+    }, 10 * 60 * 1000);
+    pendingStaggerTimeouts.add(t3);
 
-    await new Promise((r) => setTimeout(r, 1500));
-
-    // 3. Send 1 Animated Video GIF (GIPHY GIFs)
-    logger?.info(`[Reddit Scheduler] Sending 1 Animated GIF for slot ${slot?.time || slot?.id}...`);
-    try {
-      await searchAndSendGiphy("", sock, groupJid, { type: "gifs", logger });
-    } catch (gifErr) {
-      logger?.warn({ err: gifErr?.message }, "[Reddit Scheduler] Animated GIF send failed");
-    }
-
-    logger?.info(`[Reddit Scheduler] Batch complete for slot ${slot?.time || slot?.id} (2 Memes + 1 Sticker + 1 GIF)`);
+    logger?.info(`[Reddit Scheduler] Staggered dispatch scheduled for slot ${slot?.time || slot?.id} (Meme now, Sticker +5m, GIF +10m)`);
     return true;
   } catch (error) {
     logger?.error({ err: error }, "[Reddit Scheduler] Send batch failed — pending until reconnect");

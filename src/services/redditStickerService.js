@@ -355,6 +355,12 @@ function isAutomatedMemeCandidate(post) {
     return false;
   }
 
+  // Reject non-meme cultural dance and stock footage (e.g. saungbudaya)
+  if (/\b(?:saungbudaya|traditional\s*dance|tari\s*tradisional|stock\s*footage)\b/i.test(text) ||
+      /\b(?:saungbudaya)\b/i.test(post?.author || "")) {
+    return false;
+  }
+
   if (AUTOMATED_MEME_SUBREDDITS.has(subreddit)) return true;
 
   return /\b(?:meme|shitpost|reaction|funny|kocak|ngakak|wkwk|lucu|lol|jomok|rusdi|jawir|ngawi|ambasing)\b/i.test(text);
@@ -385,13 +391,38 @@ function selectDiversePosts(posts, count = posts?.length || 0) {
 }
 
 function selectScheduledStickers(stickers, count = 1) {
-  return (Array.isArray(stickers) ? stickers : [])
-    .filter((sticker) => sticker?.status === "ready")
-    .filter((sticker) => {
-      if (!sticker?.subreddit && !sticker?.title) return true;
-      return isAutomatedMemeCandidate(sticker);
-    })
-    .slice(0, Math.max(0, count));
+  const seenAuthors = new Set();
+  const selected = [];
+
+  for (const sticker of Array.isArray(stickers) ? stickers : []) {
+    if (sticker?.status !== "ready") continue;
+    if (sticker?.subreddit || sticker?.title) {
+      if (!isAutomatedMemeCandidate(sticker)) continue;
+    }
+    const author = String(sticker?.author || "").trim().toLowerCase();
+    if (author && seenAuthors.has(author)) {
+      continue;
+    }
+    if (author) seenAuthors.add(author);
+    selected.push(sticker);
+    if (selected.length >= count) break;
+  }
+
+  // Fallback if not enough unique authors
+  if (selected.length < count) {
+    for (const sticker of Array.isArray(stickers) ? stickers : []) {
+      if (!selected.includes(sticker) && sticker?.status === "ready") {
+        if (!sticker?.subreddit && !sticker?.title) {
+          selected.push(sticker);
+        } else if (isAutomatedMemeCandidate(sticker)) {
+          selected.push(sticker);
+        }
+        if (selected.length >= count) break;
+      }
+    }
+  }
+
+  return selected.slice(0, Math.max(0, count));
 }
 
 // ── Full generation cycle ────────────────────────────────────
