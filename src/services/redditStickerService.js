@@ -229,11 +229,12 @@ async function processPost(post, { logger } = {}) {
   cleanupTempFile(downloadResult.filePath);
 
   // 6. Save permanent sticker file
+  const stickerType = convertResult.stickerType || (isAnimatedMedia(media.mediaType) ? "animated" : "static");
   let savedSticker;
   try {
     savedSticker = saveStickerFile(
       convertResult.buffer,
-      convertResult.stickerType
+      stickerType
     );
   } catch (err) {
     cleanupTempFile(convertResult.filePath);
@@ -247,11 +248,16 @@ async function processPost(post, { logger } = {}) {
   // Clean up converter temp file
   cleanupTempFile(convertResult.filePath);
 
+  const savedFilePath = typeof savedSticker === "string" ? savedSticker : savedSticker?.filePath;
+  const savedSizeBytes = typeof savedSticker === "object" && savedSticker?.fileSizeBytes
+    ? savedSticker.fileSizeBytes
+    : (convertResult.buffer?.length || convertResult.fileSizeBytes || 0);
+
   // 7. Store in Sticker Bank repository
   const stickerRecord = buildStickerRecord(
     post,
     downloadResult,
-    { ...convertResult, filePath: savedSticker.filePath, fileSizeBytes: savedSticker.fileSizeBytes }
+    { ...convertResult, stickerType, filePath: savedFilePath, fileSizeBytes: savedSizeBytes }
   );
 
   try {
@@ -270,10 +276,10 @@ async function processPost(post, { logger } = {}) {
     subreddit: post.subreddit,
     mediaType: media.mediaType,
     stickerType: stickerRecord.stickerType,
-    fileSizeBytes: savedSticker.fileSizeBytes,
+    fileSizeBytes: savedSizeBytes,
     durationSeconds: stickerRecord.durationSeconds,
     status: "ready",
-  }, `Sticker generated: ${postId} (${(savedSticker.fileSizeBytes / 1024).toFixed(1)} KB)`);
+  }, `Sticker generated: ${postId} (${(savedSizeBytes / 1024).toFixed(1)} KB)`);
 
   return {
     success: true,
@@ -281,7 +287,7 @@ async function processPost(post, { logger } = {}) {
     postId,
     subreddit: post.subreddit,
     title: post.title,
-    fileSizeBytes: savedSticker.fileSizeBytes,
+    fileSizeBytes: savedSizeBytes,
     stickerType: stickerRecord.stickerType,
   };
 }
@@ -663,7 +669,7 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
       query: cleanKeyword,
       limit: 8,
       type,
-      randomOffset: true,
+      randomOffset: isProactiveRandom,
       maxRandomOffset: 40,
       logger,
     });

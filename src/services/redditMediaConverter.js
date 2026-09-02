@@ -119,6 +119,7 @@ async function convertStaticSticker(buffer) {
     buffer: bestResult.buffer,
     filePath: bestResult.filePath,
     fileSizeBytes: bestResult.fileSizeBytes,
+    stickerType: "static",
     durationSeconds: null,
   };
 }
@@ -215,6 +216,7 @@ async function convertAnimatedSticker(inputPath) {
     buffer,
     filePath: bestResult.filePath,
     fileSizeBytes: bestResult.fileSizeBytes,
+    stickerType: "animated",
     durationSeconds: bestResult.durationSeconds,
   };
 }
@@ -334,14 +336,18 @@ function ensureStickerDir() {
 /**
  * Save sticker buffer to persistent storage and return the path.
  */
-function saveStickerFile(buffer, stickerType) {
+function saveStickerFile(buffer, stickerType = "static") {
   const dir = ensureStickerDir();
   const time = Date.now();
   const rand = Math.random().toString(36).slice(2, 8);
   const filename = `rs_${stickerType}_${time}_${rand}.webp`;
   const filePath = path.join(dir, filename);
   fs.writeFileSync(filePath, buffer);
-  return filePath;
+  return {
+    filePath,
+    fileSizeBytes: buffer?.length || 0,
+    toString() { return filePath; },
+  };
 }
 
 module.exports = {
