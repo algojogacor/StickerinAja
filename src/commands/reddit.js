@@ -15,6 +15,7 @@ const {
   sendReadyFromBank,
   searchAndSend,
   searchAndSendGiphy,
+  searchAndSendRedditMeme,
   importFromUrl,
   getBankStats,
   getStickerSource,
@@ -61,6 +62,7 @@ module.exports = {
   toggleCronSender,
   handleGiphySearch,
   handleSearch,
+  handleDualSearch,
 
   async execute({
     sock,
@@ -130,19 +132,26 @@ module.exports = {
       return;
     }
 
-    // ── gif / giphy / sgif (GIPHY commands) ───────────
-    if (canonical === "gif" || canonical === "sgif") {
+    // ── gif / giphy (Unified dual search: GIPHY + Reddit) ──
+    if (canonical === "gif") {
       const query = args.join(" ").trim();
-      await handleGiphySearch(query, canonical === "sgif" ? "stickers" : "gifs", sock, msg, remoteJid, logger);
+      await handleDualSearch(query, sock, msg, remoteJid, logger);
       return;
     }
 
-    // ── reddit / meme (main command) ────────────────────
+    // ── sgif (Transparent cutout sticker search) ──────
+    if (canonical === "sgif") {
+      const query = args.join(" ").trim();
+      await handleGiphySearch(query, "stickers", sock, msg, remoteJid, logger);
+      return;
+    }
+
+    // ── reddit / meme / rmeme (Unified dual search) ───
     const input = args.join(" ").trim();
 
     if (!input) {
-      // No args → send fresh meme
-      await handleSendFromBank(sock, msg, remoteJid, logger);
+      // No args → send dual fresh stickers (1 GIPHY + 1 Reddit)
+      await handleDualSearch("", sock, msg, remoteJid, logger);
       return;
     }
 
@@ -152,12 +161,56 @@ module.exports = {
       return;
     }
 
-    // Otherwise, treat as keyword search
-    await handleSearch(input, sock, msg, remoteJid, logger);
+    // Otherwise, treat as dual keyword search (GIPHY + Reddit)
+    await handleDualSearch(input, sock, msg, remoteJid, logger);
   },
 };
 
 // ── Command handlers ─────────────────────────────────────
+
+async function handleDualSearch(keyword, sock, msg, remoteJid, logger) {
+  const cleanKeyword = String(keyword || "").trim();
+  const searchMsg = cleanKeyword
+    ? `🔍 Mencari stiker "${cleanKeyword}" (GIPHY & Reddit)...`
+    : `🔍 Mengambil stiker terbaru (GIPHY & Reddit)...`;
+
+  await sock.sendMessage(remoteJid, { text: searchMsg }, { quoted: msg });
+
+  // 1. Send Animated GIF Sticker from GIPHY
+  let giphySuccess = false;
+  try {
+    const giphyRes = await searchAndSendGiphy(cleanKeyword, sock, remoteJid, { type: "gifs", logger });
+    if (giphyRes?.success) {
+      giphySuccess = true;
+      logger?.info({ chat: remoteJid, postId: giphyRes.postId }, "✅ GIPHY sticker sent (1/2)");
+    }
+  } catch (err) {
+    logger?.warn({ err: err?.message }, "[Dual Search] GIPHY send failed");
+  }
+
+  // 1.5s gap between sends to prevent WhatsApp dropping concurrent media
+  await new Promise((r) => setTimeout(r, 1500));
+
+  // 2. Send Photo Meme Sticker from Reddit (Meme-API)
+  let redditSuccess = false;
+  try {
+    const redditRes = await searchAndSendRedditMeme(cleanKeyword, sock, remoteJid, { logger });
+    if (redditRes?.success) {
+      redditSuccess = true;
+      logger?.info({ chat: remoteJid }, "✅ Reddit meme sticker sent (2/2)");
+    }
+  } catch (err) {
+    logger?.warn({ err: err?.message }, "[Dual Search] Reddit send failed");
+  }
+
+  if (!giphySuccess && !redditSuccess) {
+    await sock.sendMessage(remoteJid, {
+      text: cleanKeyword
+        ? `❌ Tidak ditemukan stiker untuk "${cleanKeyword}". Coba kata kunci lain.`
+        : `❌ Gagal mengambil stiker. Coba lagi sebentar.`,
+    }, { quoted: msg });
+  }
+}
 
 async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
   const typeLabel = type === "stickers" ? "stiker transparan" : "animasi GIF";
@@ -187,49 +240,11 @@ async function handleGiphySearch(keyword, type, sock, msg, remoteJid, logger) {
 }
 
 async function handleSendFromBank(sock, msg, remoteJid, logger) {
-  await sock.sendMessage(remoteJid, { text: "🎭 Mencari meme terbaru..." }, { quoted: msg });
-
-  try {
-    const result = await sendReadyFromBank(sock, remoteJid, { logger });
-    if (!result.success) {
-      await sock.sendMessage(remoteJid, {
-        text: "🎭 Sedang tidak ada meme baru yang tersedia. Coba ketik *!gif <kata kunci>* atau coba lagi sebentar.",
-      }, { quoted: msg });
-    }
-    logger?.info({ chat: remoteJid, postId: result.postId }, "✅ Fresh meme sticker sent");
-  } catch (err) {
-    logger?.error({ err }, "Fresh meme sticker error");
-    await sock.sendMessage(remoteJid, {
-      text: "❌ Gagal mengambil meme baru. Coba lagi.",
-    }, { quoted: msg });
-  }
+  return handleDualSearch("", sock, msg, remoteJid, logger);
 }
 
 async function handleSearch(keyword, sock, msg, remoteJid, logger) {
-  await sock.sendMessage(remoteJid, {
-    text: `🔍 Mencari "${keyword}" di Reddit...`,
-  }, { quoted: msg });
-
-  try {
-    const result = await searchAndSend(keyword, sock, remoteJid, { logger });
-    if (!result.success) {
-      const reasonMessages = {
-        no_results: "❌ Tidak ditemukan hasil untuk keyword tersebut.",
-        no_eligible: "❌ Hasil pencarian tidak memenuhi kriteria stiker.",
-        conversion_failed: "❌ Media Reddit ini tidak dapat dijadikan stiker.",
-      };
-      await sock.sendMessage(remoteJid, {
-        text: reasonMessages[result.reason] || `❌ Gagal: ${result.reason}`,
-      }, { quoted: msg });
-    } else {
-      logger?.info({ chat: remoteJid, postId: result.postId, subreddit: result.subreddit }, "✅ Search sticker sent");
-    }
-  } catch (err) {
-    logger?.error({ err }, "Search sticker error");
-    await sock.sendMessage(remoteJid, {
-      text: "❌ Gagal mencari di Reddit. Coba keyword lain.",
-    }, { quoted: msg });
-  }
+  return handleDualSearch(keyword, sock, msg, remoteJid, logger);
 }
 
 async function handleUrlImport(urlStr, sock, msg, remoteJid, logger) {

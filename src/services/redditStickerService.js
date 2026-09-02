@@ -7,6 +7,7 @@ const {
   discoverTrendingPosts,
   discoverByKeyword,
   fetchGiphyPosts,
+  fetchMemeApiPosts,
   fetchRedditPageMetadata,
 } = require("./redditStickerDiscovery");
 const { parseRedditPostUrl } = require("../utils/redditUrlParser");
@@ -829,6 +830,64 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
   return { success: false, reason: "conversion_failed" };
 }
 
+// ── Search Reddit meme specifically (Meme-API + Bank) ────────
+
+async function searchAndSendRedditMeme(keyword, sock, remoteJid, { logger } = {}) {
+  const cleanKeyword = String(keyword || "").replace(/[\x00-\x1f]/g, "").trim().slice(0, 100);
+
+  // 1. Fetch fresh meme candidates from Meme-API
+  let candidates = [];
+  try {
+    const memePosts = await fetchMemeApiPosts({ logger, countPerSubreddit: 4 });
+    if (cleanKeyword) {
+      const kwLower = cleanKeyword.toLowerCase();
+      const matched = memePosts.filter((p) => (p.title || "").toLowerCase().includes(kwLower));
+      candidates = matched.length > 0 ? matched : memePosts;
+    } else {
+      candidates = memePosts;
+    }
+  } catch (err) {
+    logger?.warn({ err: err?.message }, "[Reddit Meme] Meme-API fetch error");
+  }
+
+  // 2. Process candidate and send
+  if (candidates.length > 0) {
+    const eligible = filterAndRankPosts(candidates);
+    const memeCandidates = eligible.filter(isAutomatedMemeCandidate);
+    const pool = memeCandidates.length > 0 ? memeCandidates : eligible;
+
+    for (const candidate of pool.slice(0, 4)) {
+      const result = await processPost(candidate, { logger });
+      if (result.success) {
+        const sticker = await getStickerById(result.stickerId);
+        if (sticker && sticker.localPath) {
+          const fs = require("fs");
+          if (fs.existsSync(sticker.localPath)) {
+            const buffer = fs.readFileSync(sticker.localPath);
+            await sock.sendMessage(remoteJid, { sticker: prepareStickerWithExif(buffer) });
+            await markStickerSent(sticker.id);
+            return {
+              success: true,
+              postId: candidate.id,
+              subreddit: candidate.subreddit,
+              title: candidate.title,
+              stickerId: sticker.id,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Fallback to ready sticker from database bank
+  const bankResult = await sendOneSticker(sock, remoteJid, { logger, count: 1 });
+  if (bankResult?.sent > 0) {
+    return { success: true, source: "bank" };
+  }
+
+  return { success: false, reason: "no_candidates" };
+}
+
 // ── Search + send (general) ──────────────────────────────────
 
 async function searchAndSend(keyword, sock, remoteJid, { logger } = {}) {
@@ -1071,6 +1130,7 @@ module.exports = {
   sendReadyFromBank,
   searchAndSend,
   searchAndSendGiphy,
+  searchAndSendRedditMeme,
   importFromUrl,
   getBankStats,
   getStickerSource,

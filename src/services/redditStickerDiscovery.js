@@ -537,18 +537,21 @@ async function discoverByKeyword(keyword, { logger, type = "all" } = {}) {
     }
   }
 
-  // Search Meme-API or You.com if needed
-  if (candidates.length === 0 && YDC_API_KEY()) {
-    const subreddits = SEARCH_SUBREDDITS();
-    const subredditConstraint = subreddits.map((s) => `site:reddit.com/r/${s}/comments`).join(" OR ");
-    const query = `(${subredditConstraint}) "${sanitized}" meme`;
-    const youResults = await searchReddit(query, { logger, freshness: FALLBACK_FRESHNESS(), count: 10 });
-    for (const p of youResults) {
+  // Search Meme-API for Reddit memes
+  try {
+    const memePosts = await fetchMemeApiPosts({ logger, countPerSubreddit: 4 });
+    const kwLower = sanitized.toLowerCase();
+    const matched = memePosts.filter((p) => (p.title || "").toLowerCase().includes(kwLower));
+    const pool = matched.length > 0 ? matched : memePosts;
+
+    for (const p of pool) {
       if (!seen.has(p.id)) {
         seen.add(p.id);
         candidates.push(p);
       }
     }
+  } catch (e) {
+    logger?.warn({ err: e.message }, "[Discovery] Meme-API fetch error in discoverByKeyword");
   }
 
   return candidates;

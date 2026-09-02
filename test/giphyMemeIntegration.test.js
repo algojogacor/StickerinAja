@@ -95,6 +95,27 @@ describe("Meme-API and GIPHY Integrations", () => {
     assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Blackpink Dance Fancam" }), false);
     assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Jomok Rusdi Ngawi" }), true);
   });
+
+  it("exports handleDualSearch and searchAndSendRedditMeme", () => {
+    const { searchAndSendRedditMeme } = require("../src/services/redditStickerService");
+    assert.strictEqual(typeof searchAndSendRedditMeme, "function");
+    assert.strictEqual(typeof redditCommand.handleDualSearch, "function");
+    assert.strictEqual(typeof redditCommand.handleSearch, "function");
+  });
+
+  it("handles dual search execution acknowledging GIPHY & Reddit", async () => {
+    const sent = [];
+    const dummySock = {
+      sendMessage: async (jid, content) => {
+        sent.push({ jid, content });
+        return {};
+      },
+    };
+
+    await redditCommand.handleDualSearch("test", dummySock, { key: {} }, "dummy@g.us");
+    assert.ok(sent.length >= 1);
+    assert.ok(sent[0].content.text.includes("GIPHY & Reddit"));
+  });
 });
 
 
