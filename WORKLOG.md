@@ -6,6 +6,36 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 46 — Automatic Turso Auth State Garbage Collector (Pruning Stale Keys)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 22:26 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `17e8a17` |
+| **Ending HEAD** | pending commit |
+| **Status** | Completed |
+
+### Implementation details
+
+1. **Automatic Turso Auth State Garbage Collection (`src/utils/tursoAuthState.js`):**
+   - Added `pruneTursoAuthState({ sessionId, maxSenderKeys = 500, maxPreKeys = 100, logger })`.
+   - Prunes `sender-key-%` and `sender-key-memory-%` exceeding the 500 most recently updated keys.
+   - Prunes `pre-key-%` exceeding the 100 most recently updated keys.
+   - Master login credentials (`creds.json`), `session-*`, and `app-state-sync-key-*` are preserved and never touched.
+   - Non-blocking execution triggered on initial auth load in `useTursoAuthState`.
+2. **Periodic 6-Hour Background Pruning (`src/baileys.js`):**
+   - Added `setInterval` running `pruneTursoAuthState` every 6 hours per session with `.unref()` to avoid blocking test runners or process termination.
+3. **Verification:**
+   - Ran `node --test test/multiSession.test.js`: 9/9 pass.
+   - Ran full test suite `node --test`: 344/344 pass across 76 test suites (0 fail).
+
+---
+
 ## Session 45 — Fix Personal Bot Multi-Session Hang, Quoting Own Media in Groups, and Socket Auto-Reconnect Watchdog
 
 | Field | Value |

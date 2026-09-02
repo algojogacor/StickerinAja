@@ -3,7 +3,7 @@ const { Boom } = require('@hapi/boom');
 const QR = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
-const { useTursoAuthState, deleteTursoSession } = require('./utils/tursoAuthState');
+const { useTursoAuthState, deleteTursoSession, pruneTursoAuthState } = require('./utils/tursoAuthState');
 const { setSock, getSock, clearSock } = require('./core/socket');
 const { shouldProcessMessage } = require('./handler');
 
@@ -56,6 +56,13 @@ function startSession({
     let reconnectTimer;
     let activeSock = null;
     let watchdogInterval = null;
+
+    // Periodic garbage collector: runs every 6 hours to keep Turso auth state lean
+    const targetTursoId = tursoSessionId || (sessionId === 'default' ? (process.env.TURSO_AUTH_SESSION_ID || 'default') : sessionId);
+    const gcInterval = setInterval(() => {
+        pruneTursoAuthState({ sessionId: targetTursoId, logger: sessionLogger }).catch(() => {});
+    }, 6 * 60 * 60 * 1000);
+    if (gcInterval?.unref) gcInterval.unref();
 
     async function connect() {
         try {
@@ -290,5 +297,6 @@ module.exports = {
     startBot,
     startSession,
     restartSession,
-    logoutSession
+    logoutSession,
+    pruneTursoAuthState
 };

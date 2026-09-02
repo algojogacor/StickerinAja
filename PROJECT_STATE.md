@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-02 WIB (+0700)
-**Current implementation:** Multi-Session Watchdog & Auto-Reconnect + Self-Quoted Group Decryption Fix + Dynamic Group Delegation + Groq AI Vision & Text Chat (`!ai`, `!tanya`, `!vision`, `!gpt`) + Curated Meme-API & GIPHY + 24-Hour Round-the-Clock Scheduler + Fresh On-Demand Delivery + EXIF Metadata Injection committed on `main`; `.env` remains local/ignored
-**Last verified tests:** 343/343 pass across 76 test suites; 100% pass rate
+**Current implementation:** Turso Auth State Garbage Collection + Multi-Session Watchdog & Auto-Reconnect + Self-Quoted Group Decryption Fix + Dynamic Group Delegation + Groq AI Vision & Text Chat (`!ai`, `!tanya`, `!vision`, `!gpt`) + Curated Meme-API & GIPHY + 24-Hour Round-the-Clock Scheduler + Fresh On-Demand Delivery + EXIF Metadata Injection committed on `main`; `.env` remains local/ignored
+**Last verified tests:** 344/344 pass across 76 test suites; 100% pass rate
 
 ---
 
@@ -32,7 +32,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 |---|---|---|
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Groq AI Vision & Chat | Active; multimodal image analysis (`qwen/qwen3.8-27b`), OCR/text reading, meme explanation, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
-| Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication, bot priority, socket heartbeat watchdog (30s interval), `/api/restart-session` and `/api/logout-session` endpoints | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `index.js` |
+| Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication, bot priority, socket heartbeat watchdog (30s interval), `/api/restart-session` and `/api/logout-session` endpoints, plus automatic Turso auth state garbage collection (startup + 6h interval) | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `src/utils/tursoAuthState.js`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
 | Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), EXIF metadata injection (`STICKERIN_BOT_NAME` & `STICKERIN_AUTHOR`), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour via bot session) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
@@ -176,8 +176,9 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-02 | Staggered Scheduler (Option 2) | Dispatches 1 Meme at :00, 1 Transparent Sticker at +5m, 1 Animated GIF at +10m across 15m windows |
 | 2026-09-02 | Slang synonym mapping | Added Jomok/Ngawi fallback dictionary for Indonesian slang (esempeh, pop mie, hambali) |
 | 2026-09-02 | Multi-Session Watchdog & Group Decryption Fix | Heartbeat watchdog (30s), `/api/restart-session`, `/api/logout-session`, self-quoted group decryption fix, and clean Turso state |
+| 2026-09-02 | Automatic Turso Auth State Garbage Collection | Non-blocking startup prune + 6h periodic background cleanup keeping sender keys <= 500 and pre-keys <= 100 |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog and self-quoted media decryption tests pass 100% (343/343 tests).
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, and Turso GC tests pass 100% (344/344 tests).
 
 ---
 

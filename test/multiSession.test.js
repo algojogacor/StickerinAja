@@ -133,4 +133,11 @@ describe('Multi-Session Socket Manager', () => {
         assert.equal(typeof restartSession, 'function');
         assert.equal(typeof logoutSession, 'function');
     });
+
+    it('exports pruneTursoAuthState garbage collection function in tursoAuthState and baileys', () => {
+        const { pruneTursoAuthState } = require('../src/utils/tursoAuthState');
+        const baileys = require('../src/baileys');
+        assert.equal(typeof pruneTursoAuthState, 'function');
+        assert.equal(typeof baileys.pruneTursoAuthState, 'function');
+    });
 });

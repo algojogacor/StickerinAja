@@ -33,6 +33,9 @@ async function useTursoAuthState({ logger, sessionId = process.env.TURSO_AUTH_SE
         )
     `);
 
+    // Non-blocking background prune on startup
+    Promise.resolve(pruneTursoAuthState({ sessionId, logger })).catch(() => {});
+
     const readData = async (key) => {
         const fixedKey = fixKeyName(key);
         const result = await client.execute({
@@ -113,7 +116,58 @@ async function deleteTursoSession(sessionId) {
     return true;
 }
 
+async function pruneTursoAuthState({ sessionId = 'default', maxSenderKeys = 500, maxPreKeys = 100, logger } = {}) {
+    const client = createTursoClientFromEnv();
+    if (!client) return { senderKeysPruned: 0, preKeysPruned: 0 };
+
+    try {
+        // Prune sender keys exceeding maxSenderKeys
+        const r1 = await client.execute({
+            sql: `
+                DELETE FROM ${TABLE_NAME}
+                WHERE session_id = ?
+                  AND (key LIKE 'sender-key-%' OR key LIKE 'sender-key-memory-%')
+                  AND key NOT IN (
+                      SELECT key FROM ${TABLE_NAME}
+                      WHERE session_id = ?
+                        AND (key LIKE 'sender-key-%' OR key LIKE 'sender-key-memory-%')
+                      ORDER BY updated_at DESC
+                      LIMIT ?
+                  )
+            `,
+            args: [sessionId, sessionId, maxSenderKeys]
+        });
+
+        // Prune pre-keys exceeding maxPreKeys
+        const r2 = await client.execute({
+            sql: `
+                DELETE FROM ${TABLE_NAME}
+                WHERE session_id = ?
+                  AND key LIKE 'pre-key-%'
+                  AND key NOT IN (
+                      SELECT key FROM ${TABLE_NAME}
+                      WHERE session_id = ?
+                        AND key LIKE 'pre-key-%'
+                      ORDER BY updated_at DESC
+                      LIMIT ?
+                  )
+            `,
+            args: [sessionId, sessionId, maxPreKeys]
+        });
+
+        const totalPruned = (r1.rowsAffected || 0) + (r2.rowsAffected || 0);
+        if (totalPruned > 0) {
+            logger?.info?.(`[Turso GC] Pruned ${totalPruned} stale auth keys for session [${sessionId}] (SenderKeys: ${r1.rowsAffected}, PreKeys: ${r2.rowsAffected})`);
+        }
+        return { senderKeysPruned: r1.rowsAffected || 0, preKeysPruned: r2.rowsAffected || 0 };
+    } catch (err) {
+        logger?.warn?.({ err: err?.message }, `[Turso GC] Failed to prune auth state for [${sessionId}]`);
+        return { senderKeysPruned: 0, preKeysPruned: 0 };
+    }
+}
+
 module.exports = {
     useTursoAuthState,
-    deleteTursoSession
+    deleteTursoSession,
+    pruneTursoAuthState
 };
