@@ -37,8 +37,9 @@ Append-only development log. Newest session at the top.
    - Purged `wholesomememes`, `animemes`, `goodanimemes`, `funny`, `funnymemes`, `adviceanimals`, and `dndmemes` from `AUTOMATED_MEME_SUBREDDITS` into `UNUSABLE_STICKER_SUBREDDITS`.
    - Added `isDaytimeJakarta()` check (05:00 to 20:59 WIB) and `SLEEP_GREETINGS_PATTERN` to reject bedtime greetings (`goodnight`, `good night`, `sleep tight`, `selamat tidur`, `sweet dreams`, `buonanotte`, etc.) from automated delivery during waking hours.
    - Added `CHEESY_FOREIGN_GREETINGS_PATTERN` to reject irrelevant greeting cards without meme punchlines (`te iubesc`, `ti amo`, `te quiero`, `buongiorno`, etc.).
-   - Updated `RANDOM_GIF_QUERIES` with WhatsApp reaction memes (`cat meme reaction`, `shocked face`, `facepalm`, `laughing hard`, `crying meme`, `side eye`, `sus meme`, etc.).
-   - Updated `RANDOM_STICKER_QUERIES` with transparent cutout keywords (`cat reaction sticker`, `shocked sticker`, `pepe sticker`, `spongebob sticker`, `meme reaction transparent`, etc.).
+   - Updated `RANDOM_GIF_QUERIES` with WhatsApp reaction memes, political figures, and full Jomok/Ngawi universe keywords (`rusdi`, `rusdi ngawi`, `si imut`, `jawir`, `meme jawir`, `ambasing`, `ambatukam`, `ngawi`, `ironi`, `kak gem`).
+   - Updated `RANDOM_STICKER_QUERIES` with transparent cutout keywords including `jomok sticker`, `rusdi sticker`, `si imut sticker`, `jawir sticker`, `ambasing sticker`.
+   - Added `jomok`, `rusdi`, `jawir`, `ngawi`, `ambasing` to `isAutomatedMemeCandidate` keyword detection.
    - Replaced empty trending fallback in `searchAndSendGiphy` with `CURATED_REACTION_FALLBACKS` and `CURATED_STICKER_FALLBACKS`, ensuring fallback sends funny reactions instead of random international Hallmark cards.
    - Added proactive candidate filtering in `searchAndSendGiphy` candidate loop.
 3. **`.env.example`:**
