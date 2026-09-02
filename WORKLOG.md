@@ -6,6 +6,52 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 44 — YouTube Mobile Extractor Spoofing, Option 2 Staggered Scheduler & Dual-Sticker Unified Search
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 12:00 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.7 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `ed5f037` |
+| **Ending HEAD** | `19dcc55` |
+| **Status** | Completed |
+
+### User request
+
+1. Resolve YouTube `!ytmp4` error: `"Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies for the authentication."` without requiring daily manual browser cookie exports.
+2. Implement staggered proactive sticker sending (Option 2: 1 sticker every ~5 minutes) to eliminate queue spikes and fix duplicate traditional dance stickers (`saungbudaya`).
+3. Add slang synonym mapping for Indonesian slang (e.g. `esempeh`, `bocah smp`, `puding hambali`) so `!gif esempeh` returns relevant memes instead of empty results.
+4. Replace You.com search with pure Meme-API (`meme-api.com`) for Reddit meme discovery.
+5. Unify `!gif`, `!meme`, and `!reddit` command behavior: when triggered with a keyword, search both GIPHY and Reddit and output **two stickers** (1 animated GIF from GIPHY + 1 photo meme from Reddit).
+
+### Implementation details
+
+1. **YouTube Mobile Extractor (`src/commands/youtube.js`):**
+   - Added `runYtDlpDownload` wrapper passing `--extractor-args "youtube:player_client=android,ios"` to spoof YouTube official mobile apps.
+   - Built automatic fallback: if cookies fail or expire with a bot challenge, it catches the error and immediately retries without cookies using the pure mobile client.
+   - Set muxed format fallbacks (`/18/best` and `360p/720p`) to bypass SABR audio/video split limitations on datacenter IPs.
+2. **Option 2 Staggered Proactive Sending (`src/scheduler/redditStickerCron.js`):**
+   - Distributed the 15-minute slot delivery: Minute +0m (Photo Meme), Minute +5m (Cutout Transparent Sticker), Minute +10m (Animated GIF).
+   - Managed timeouts via `pendingStaggerTimeouts` and cleanly flushed on `stop()`.
+3. **Slang Mapping & Author Deduplication (`src/services/redditStickerService.js`):**
+   - Added `GIPHY_SLANG_SYNONYMS` fallback dictionary (`esempeh`, `bocah smp`, `puding hambali`, `pop mie`) mapping to `jomok` and `rusdi`.
+   - Added `seenAuthors` tracking in `selectScheduledStickers` and blocked traditional dance stock footage (`saungbudaya`, `traditional dance`, `tari tradisional`).
+4. **Meme-API Reddit Discovery (`src/services/redditStickerDiscovery.js`):**
+   - Replaced You.com search fallback in `discoverByKeyword` with direct `meme-api.com` multi-subreddit querying (`wkwkwkland`, `shitposting`, `dankmemes`, `okbuddyretard`, `memes`).
+5. **Unified Dual-Sticker Search (`src/commands/reddit.js`, `src/services/redditStickerService.js`):**
+   - Added `searchAndSendRedditMeme` in `redditStickerService.js` to search and send memes from Meme-API / Turso Sticker Bank.
+   - Implemented `handleDualSearch` in `reddit.js`: acknowledges with `🔍 Mencari stiker "..." (GIPHY & Reddit)...`, sends 1 animated GIF from GIPHY, waits 1.5s, then sends 1 photo meme from Reddit.
+   - Mapped `!gif <kw>`, `!meme <kw>`, and `!reddit <kw>` to `handleDualSearch`.
+6. **Testing & Verification:**
+   - Added tests in `test/giphyMemeIntegration.test.js` verifying `handleDualSearch` and `searchAndSendRedditMeme`.
+   - Ran `node --test test/redditSticker.test.js test/giphyMemeIntegration.test.js test/stickerModularServices.test.js`: 107/107 tests passed (0 fail).
+
+---
+
 ## Session 43 — Curate GIPHY & Reddit Sticker Bank Quality (PG-13, Reaction Fallbacks, Subreddit Purge & Daytime Sleep Filter)
 
 | Field | Value |
