@@ -88,6 +88,12 @@ describe("Meme-API and GIPHY Integrations", () => {
     assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Te Iubesc... INFINIT!" }), false);
     assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "ti amo amore mio" }), false);
     assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "cat meme reaction" }), true);
+
+    // Filters K-Pop and commercial brand ads
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Rose Reaction Meme GIF", author: "cozytalki" }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Travel Curry GIF by Wings Corporation", author: "wingscorp" }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Blackpink Dance Fancam" }), false);
+    assert.strictEqual(isAutomatedMemeCandidate({ subreddit: "giphy", title: "Jomok Rusdi Ngawi" }), true);
   });
 });
 

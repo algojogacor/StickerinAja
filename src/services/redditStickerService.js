@@ -323,6 +323,8 @@ function isDaytimeJakarta() {
 
 const SLEEP_GREETINGS_PATTERN = /\b(?:good\s*night|goodnight|sleep\s*tight|selamat\s*tidur|sweet\s*dreams|tidur\s*nyenyak|buonanotte|buenas\s*noches|gute\s*nacht)\b/i;
 const CHEESY_FOREIGN_GREETINGS_PATTERN = /\b(?:te\s*iubesc|ti\s*amo|te\s*quiero(?:\s*mucho)?|buongiorno|buon\s*compleanno)\b/i;
+const KPOP_PATTERN = /\b(?:kpop|k-pop|fancam|blackpink|bts|twice|aespa|newjeans|ive|nct|seventeen|stray\s*kids|exo|itzy|le\s*sserafim|gidle|enhypen|rose\b|jennie\b|jisoo\b|lisa\b)\b/i;
+const COMMERCIAL_ADS_PATTERN = /\b(?:wingscorp|official\s*brand|sponsored|advertisement|commercial|promo\b|promosi|travel\s*curry|mie\s*sedaap)\b/i;
 
 function isAutomatedMemeCandidate(post) {
   const subreddit = String(post?.subreddit || "").trim().toLowerCase();
@@ -342,6 +344,14 @@ function isAutomatedMemeCandidate(post) {
 
   // Reject bedtime/sleeping greetings during daytime WIB (05:00 to 20:59 WIB)
   if (isDaytimeJakarta() && SLEEP_GREETINGS_PATTERN.test(text)) {
+    return false;
+  }
+
+  // Reject K-Pop / idol fancams and corporate brand advertisements
+  if (KPOP_PATTERN.test(text) || KPOP_PATTERN.test(post?.author || "")) {
+    return false;
+  }
+  if (COMMERCIAL_ADS_PATTERN.test(text) || COMMERCIAL_ADS_PATTERN.test(post?.author || "")) {
     return false;
   }
 
@@ -684,6 +694,20 @@ async function searchAndSendGiphy(keyword, sock, remoteJid, { type = "gifs", log
         continue;
       }
 
+      // Always filter K-pop unless user explicitly searched for K-pop
+      const isExplicitKpop = /\b(?:kpop|k-pop|fancam|blackpink|bts|twice|aespa|newjeans|ive)\b/i.test(cleanKeyword);
+      if (!isExplicitKpop && (KPOP_PATTERN.test(candidate.title || "") || KPOP_PATTERN.test(candidate.author || ""))) {
+        logger?.info({ id: candidate.id, title: candidate.title }, "[GIPHY Sticker] Rejected K-pop candidate");
+        continue;
+      }
+
+      // Always filter corporate brand ads unless user explicitly searched for it
+      const isExplicitBrand = /\b(?:wingscorp|mie\s*sedaap)\b/i.test(cleanKeyword);
+      if (!isExplicitBrand && (COMMERCIAL_ADS_PATTERN.test(candidate.title || "") || COMMERCIAL_ADS_PATTERN.test(candidate.author || ""))) {
+        logger?.info({ id: candidate.id, title: candidate.title }, "[GIPHY Sticker] Rejected commercial ad candidate");
+        continue;
+      }
+
       const result = await processPost(candidate, { logger });
       if (result.success) {
         const sticker = await getStickerById(result.stickerId);
@@ -1004,4 +1028,6 @@ module.exports = {
   isDaytimeJakarta,
   SLEEP_GREETINGS_PATTERN,
   CHEESY_FOREIGN_GREETINGS_PATTERN,
+  KPOP_PATTERN,
+  COMMERCIAL_ADS_PATTERN,
 };
