@@ -262,7 +262,7 @@ async function sendSticker(slot) {
     const t2 = setTimeout(async () => {
       pendingStaggerTimeouts.delete(t2);
       try {
-        const liveSock = getSock();
+        const liveSock = getBotSock();
         if (!liveSock || !groupJid) return;
         logger?.info(`[Reddit Scheduler] Staggered #2/3: Sending 1 Transparent Sticker (+5m)...`);
         await searchAndSendGiphy("", liveSock, groupJid, { type: "stickers", logger });
@@ -276,7 +276,7 @@ async function sendSticker(slot) {
     const t3 = setTimeout(async () => {
       pendingStaggerTimeouts.delete(t3);
       try {
-        const liveSock = getSock();
+        const liveSock = getBotSock();
         if (!liveSock || !groupJid) return;
         logger?.info(`[Reddit Scheduler] Staggered #3/3: Sending 1 Animated GIF (+10m)...`);
         await searchAndSendGiphy("", liveSock, groupJid, { type: "gifs", logger });

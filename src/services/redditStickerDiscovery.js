@@ -31,7 +31,7 @@ const DISCOVERY_QUERIES = () => {
 };
 
 const SEARCH_SUBREDDITS = () =>
-  (process.env.REDDIT_SEARCH_SUBREDDITS || "WkwkwkLand,aku_ddn,indonesia,indowibu,shitposting,okbuddyretard,memes,dankmemes,dank_meme,meme,comedyheaven,bonehurtingjuice,BikiniBottomTwitter,memes_of_the_dank,trippinthroughtime,wordington,me_irl")
+  (process.env.REDDIT_SEARCH_SUBREDDITS || "WkwkwkLand,aku_ddn,indonesia,indowibu,shitposting,okbuddyretard,dankmemes,wunkus,hmmm,BikiniBottomTwitter,blurrypicturesofcats,Catmemes")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);

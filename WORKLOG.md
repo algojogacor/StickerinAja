@@ -6,6 +6,39 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 48 — Revamp Sticker Curation: Absurd Reaction Memes, Visual Humor, and Indonesian WA Cultural Relevance
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-02 |
+| **Start time** | 23:28 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `7f7199e` |
+| **Status** | Completed |
+
+### Implementation details
+
+1. **Rombak Total Keyword GIPHY & Stiker Transparan (`src/services/redditStickerService.js`):**
+   - Eliminated all Western decorative clipart keywords (`skull sticker`, `emoji reaction sticker`, `clown sticker`, `political cartoon`).
+   - Replaced with viral absurd reaction memes, funny cats, slapstick cartoons, and Indonesian pop culture:
+     - Absurd cats & animals: `"who me cat"`, `"cat staring meme"`, `"crying cat"`, `"confused cat"`, `"wi fi acting up cat"`, `"hamster stare"`, `"silly cat dancing"`, `"popcat"`.
+     - Streamer & viral human reactions: `"flightreacts screaming"`, `"talking to a brick wall"`, `"lebron james confused"`, `"what is bro talking about"`, `"side eye"`, `"wheezing laugh"`, `"crying laughing"`, `"ratio failed meme"`, `"gigachad"`, `"pepe"`, `"spongebob reaction"`, `"squidward tired"`, `"tom and jerry"`, `"ishowspeed"`.
+     - Indonesian humor: `"prabowo joget"`, `"gemoy"`, `"jokowi ketawa"`, `"windah basudara"`, `"bahlil"`, `"gibran"`, `"meme bapak bapak"`, `"stiker wa kocak"`, `"ngakak kocak"`, `"mas rusdi"`, `"jomok"`, `"jawir"`, `"ambasing"`, `"waduh"`, `"siap komandan"`.
+   - Capped `maxRandomOffset` from 40 to 6 in `searchAndSendGiphy` so searches always return the top-relevance viral hits instead of obscure buried cliparts.
+
+2. **Pembersihan Daftar Subreddit (`src/services/redditStickerDiscovery.js` & `src/services/redditStickerService.js`):**
+   - Removed unreadable text-heavy, political, and anti-humor subreddits: `trippinthroughtime` (classical art/politics), `bonehurtingjuice` (anti-humor text edits), `memes` (Twitter screenshot walls of text), `memes_of_the_dank`, `comedyheaven`, `me_irl`.
+   - Replaced with pure visual, absurd, and local meme subreddits: `WkwkwkLand`, `aku_ddn`, `indonesia`, `indowibu`, `shitposting`, `okbuddyretard`, `dankmemes`, `wunkus` (goofy absurd animals), `hmmm` (pure visual absurd WTF images), `BikiniBottomTwitter` (SpongeBob memes), `blurrypicturesofcats` (derpy cats), `Catmemes`.
+   - Added automated candidate filters in `isAutomatedMemeCandidate` rejecting foreign political figures (Trump, Biden, Kamala, etc.) and lengthy Twitter/X tweet text dumps.
+
+3. **Scheduler Bot Isolation Enforcement (`src/scheduler/redditStickerCron.js`):**
+   - Switched staggered timeouts `t2` (+5m) and `t3` (+10m) from `getSock()` to `getBotSock()`, preventing any delayed callback from falling back to `pribadi`.
+
+---
+
 ## Session 47 — Hardening Resilience: Batch Turso, Crash Handlers, AI Self-Quote, FFmpeg, PDF OOM Guard, Scheduler Isolation, Sharp In-Memory, QR Loop Halt, and Queue Abort
 
 | Field | Value |
