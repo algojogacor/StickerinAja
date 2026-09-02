@@ -168,7 +168,10 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-08-30 | `node --test test/stickerModularServices.test.js test/stickerModuleLoad.test.js` | 8 pass, 0 fail, 0 skipped; SVG text/meme/quote/emoji/template rendering & QR SVG generation verified |
 | 2026-08-30 | `node --test` across all suites after Selfbot / Multi-Session implementation | 291 pass, 0 fail, 0 skipped; 62 suites |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb remains stopped and was not redeployed.
+| 2026-09-02 | Live GIPHY animated conversion test | rusdi (24.5 KB), jawir (330.5 KB), hitam (619.6 KB), jomok (841.2 KB) pass 100% |
+| 2026-09-02 | Koyeb live deployment status | Deployment 2f123d39 (commit e7cf688) built & HEALTHY |
+
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Discovery now targets multiple meme/comedy subreddits, rejects removed/deleted/generic shell results, rejects known over-limit videos, and scheduled delivery also skips historical photo-only rows. Koyeb deployment 2f123d39 is running healthy on commit e7cf688.
 
 ---
 
@@ -176,7 +179,7 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 
 | Limitation | Status |
 |---|---|
-| Koyeb deployment health after this migration | Not verified |
+| Koyeb deployment health after this migration | Verified healthy (deployment 2f123d39 on commit e7cf688) |
 | Live WhatsApp scheduled-delivery smoke test | Verified locally: one generated Reddit sticker was sent after the next five-minute tick |
 | Live News + Groq + You.com scheduled run | Not verified |
 | Live FX provider and Turso reconnect retry | Not verified |
