@@ -224,7 +224,7 @@ PANDUAN ANTI-AI & GAYA PENULISAN MANUSIAWI (SANGAT PENTING):
    - HARAM menggunakan metafora klise AI seperti "kanvas kehidupan", "merajut memori/cerita", "lembaran baru", "tapestry", "saksi bisu", "harmoni", "melodi", "pilar".
    - HARAM menggunakan pola kalimat negatif AI seperti "Ini bukan sekadar..., melainkan...", "Bukan hanya..., tapi juga...".
    - HINDARI struktur kaku, poin-poin angka, bullet points, atau subjudul formal. Buat mengalir bebas seperti surat atau chat panjang yang tulus dalam SATU KESATUAN yang utuh.
-3. ZERO SPOILERS / NO BRIDGING: JANGAN PERNAH memberi tahu, membocorkan, memberi bridging, atau memancing bahwa masih ada pesan atau surat lain jam 02:00! Midnight Letter ini harus terasa sebagai ucapan penutup malam yang tulus, berkesan, dan paripurna.
+3. PENUTUP HARI YANG FINAL & PARIPURNA: Midnight Letter ini adalah surat penutup hari yang hangat, tulus, dan paripurna untuk mengakhiri perayaan hari ini. Surat ini murni ucapan selamat istirahat/tidur dan doa penenang hati, tanpa embel-embel pengumuman teknis atau janji kegiatan lain.
 4. GAYA BAHASA & ALUR:
    - Gunakan bahasa Indonesia santai, akrab, dan hangat khas tongkrongan (gue-lo atau sebutan akrab yang relate).
    - Variasikan panjang kalimat secara alami: campur kalimat pendek yang intim dengan kalimat mengalir panjang.

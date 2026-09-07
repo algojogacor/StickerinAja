@@ -6,6 +6,30 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 72 — Refine Midnight Letter Prompt to Eliminate 02:00 Pink Elephant Risk
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:17 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `17aa914` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User feedback:** User correctly pointed out that explicitly writing "JANGAN PERNAH membocorkan bahwa ada surat jam 02:00" in the LLM prompt is risky ("pink elephant paradox"), because the LLM did not know about 02:00 in the first place, and mentioning it could inadvertently trigger references to it.
+- **Solution:**
+  1. Removed any mention of "jam 02:00" from the system prompt in `generateMidnightLetter` in `src/services/birthdayAiService.js`.
+  2. Reframed the guidance purely as a positive final closure: "PENUTUP HARI YANG FINAL & PARIPURNA: Midnight Letter ini adalah surat penutup hari yang hangat, tulus, dan paripurna untuk mengakhiri perayaan hari ini. Surat ini murni ucapan selamat istirahat/tidur dan doa penenang hati, tanpa embel-embel pengumuman teknis atau janji kegiatan lain."
+  3. Context payload passed to the LLM verified: it contains only today's events (07:00 to 23:30) with zero knowledge of future events.
+  4. Verified all 24 birthday tests pass.
+
+---
+
 ## Session 71 — Integrate Anti-AI Writing Guidelines & Guarantee Zero Bridging for Midnight Letter
 
 | Field | Value |
