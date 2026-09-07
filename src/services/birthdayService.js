@@ -474,13 +474,14 @@ async function getTruthInteractions(groupJid) {
   return meta.truthData?.questions || [];
 }
 
-async function recordMemoryWallItem(groupJid, senderId, senderName, text) {
+async function recordMemoryWallItem(groupJid, senderId, senderName, text, photoUrl = "") {
   return updateTakeoverMetadata(groupJid, (meta) => {
     const items = Array.isArray(meta.memoryWall) ? meta.memoryWall : [];
     items.push({
       senderId: bareJid(senderId),
       senderName: senderName || "Teman",
       text: String(text || "").trim(),
+      photoUrl: photoUrl || "",
       timestamp: Date.now(),
     });
     return { ...meta, memoryWall: items };
@@ -514,13 +515,14 @@ async function recordRoast(groupJid, senderId, senderName, text) {
   });
 }
 
-async function recordQuestReply(groupJid, senderId, text) {
+async function recordQuestReply(groupJid, senderId, text, photoUrl = "") {
   return updateTakeoverMetadata(groupJid, (meta) => {
     return {
       ...meta,
       questReply: {
         senderId: bareJid(senderId),
         text: String(text || "").trim(),
+        photoUrl: photoUrl || "",
         answeredAt: Date.now(),
       },
     };

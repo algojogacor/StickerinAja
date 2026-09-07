@@ -6,6 +6,43 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 62 — Photo Upload Support for Memory Wall & Birthday Quests
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:33 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `b82ce20` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Diagnosis
+- **User report:** User uploaded a memory photo at 13:15 WIB replying to the Memory Wall message. The bot reacted with ❤️, but the image did not appear in Cloudinary.
+- **Root Cause:**
+  1. The 12:00 WIB slot (`memory_wall`) previously only captured text string `messageText` via `recordMemoryWallItem` and acknowledged with ❤️. It did not download media buffers or upload to Cloudinary.
+  2. Cloudinary image upload was originally restricted exclusively to the 15:00 WIB slot (`photo_story`).
+  3. Quests (`questMessageId`) also lacked media buffer download & Cloudinary upload.
+  4. Direct photo messages with `#ceritafoto` were skipped if sent without quoting a message due to an early `!quotedStanza` check.
+
+### Implementation & Fix
+1. **Media Extraction Helper:**
+   - Implemented `extractImageBuffer` in `src/services/birthdayTakeoverService.js` supporting direct images, viewOnce images, and quoted images.
+2. **Memory Wall & Quest Media Handling:**
+   - In `memory_wall` reply handler: if an image is present, automatically download buffer, upload to Cloudinary (`folder: "birthday_memories"`), run AI photo description, save to `repository.addMemoryPhoto`, and attach `photoUrl` to `recordMemoryWallItem`.
+   - In `birthday_quest` reply handler: if an image is present, download buffer, upload to Cloudinary (`folder: "birthday_quests"`), save to `repository.addMemoryPhoto`, and attach `photoUrl` to `recordQuestReply`.
+   - In `photo_story` handler: supported standalone `#ceritafoto` captions even without quoting previous messages.
+3. **Repository & Service Updates:**
+   - Extended `recordMemoryWallItem` and `recordQuestReply` in `src/services/birthdayService.js` to accept `photoUrl = ""` and persist it in takeover metadata.
+4. **Testing & Verification:**
+   - Added unit test in `test/birthday.test.js` validating `photoUrl` persistence in `memoryWall` and `questReply`.
+   - Full test suite passed: 366/366 tests across 79 suites (100% pass rate).
+
+---
+
 ## Session 61 — Cloudinary Live Verification & Birthday Takeover Event Rundown
 
 | Field | Value |

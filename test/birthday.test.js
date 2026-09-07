@@ -455,4 +455,32 @@ describe("Birthday command", () => {
     // Verify birthdayService export
     assert.equal(typeof birthdayService.getWishMessageId, "function");
   });
+
+  it("stores photoUrl in Memory Wall and Quest replies", async () => {
+    await birthdayRepository.init();
+    await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
+
+    await birthdayService.recordMemoryWallItem(
+      "120@g.us",
+      "628999@s.whatsapp.net",
+      "Budi",
+      "Foto kenangan liburan",
+      "https://res.cloudinary.com/test/image/upload/v1/liburan.png"
+    );
+
+    await birthdayService.recordQuestReply(
+      "120@g.us",
+      "628123@s.whatsapp.net",
+      "Ini foto sarapanku",
+      "https://res.cloudinary.com/test/image/upload/v1/sarapan.png"
+    );
+
+    const meta = await birthdayService.getTakeoverMetadata("120@g.us");
+    assert.equal(meta.memoryWall.length, 1);
+    assert.equal(meta.memoryWall[0].text, "Foto kenangan liburan");
+    assert.equal(meta.memoryWall[0].photoUrl, "https://res.cloudinary.com/test/image/upload/v1/liburan.png");
+
+    assert.equal(meta.questReply.text, "Ini foto sarapanku");
+    assert.equal(meta.questReply.photoUrl, "https://res.cloudinary.com/test/image/upload/v1/sarapan.png");
+  });
 });
