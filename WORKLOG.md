@@ -6,6 +6,33 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 73 — Harden Narrator Letter (02:00) Anti-AI & Formatting Rules
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:19 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `d9f155c` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User inquiry:** User asked whether the 02:00 prompt (Surat Dini Hari) is already completely safe and free from robotic AI formatting or tone issues.
+- **Audit & Hardening:**
+  1. Inspected `generateNarratorLetter` in `src/services/birthdayAiService.js` and confirmed its input payload: only incorporates today's memories, photos, wishJar, and chat summary.
+  2. Enhanced the Anti-AI writing rules for `generateNarratorLetter`:
+     - Added strict ban on formal subheadings, chapter titles, bold headers, and bullet points/numbered lists.
+     - Added strict ban on negative parallelism (`"bukan sekadar..., melainkan..."`).
+     - Preserved ban on em dashes (`—`), double-hyphens (`--`), and empty metaphors (`"kanvas"`, `"merajut"`, `"mozaik"`, `"simfoni"`).
+     - Enforced pure flowing literary paragraphs grounded in the quiet Indonesian early morning.
+  3. Verified tests: 24/24 passed.
+
+---
+
 ## Session 72 — Refine Midnight Letter Prompt to Eliminate 02:00 Pink Elephant Risk
 
 | Field | Value |

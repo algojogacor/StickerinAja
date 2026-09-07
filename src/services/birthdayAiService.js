@@ -284,7 +284,8 @@ PANDUAN ANTI-AI & PENULISAN SASTRA MEMBUMI:
 1. Sudut pandang orang ketiga yang mengamati dalam hening: melihat tawa yang sempat pecah, doa-doa yang tersembunyi di balik candaan, dan kehangatan yang mengelilingi ${targetName}.
 2. ATURAN ANTI-AI (MUTLAK):
    - HARAM menggunakan tanda hubung em dash (—) atau double-hyphen (--).
-   - HARAM menggunakan metafora klise AI ("kanvas", "merajut", "mozaik", "simfoni", "melangkah tegap menatap masa depan").
+   - HARAM menggunakan subjudul formal, judul bab, poin-poin angka, atau bullet points. Tulis murni mengalir dalam paragraf-paragraf prosa yang utuh dan bersambung.
+   - HARAM menggunakan metafora klise AI ("kanvas", "merajut", "mozaik", "simfoni", "melangkah tegap menatap masa depan") dan pola klise ("bukan sekadar..., melainkan...").
    - Jangan gunakan kata-kata sastra tinggi yang melayang-layang atau hampa makna. Gunakan prosa sastra Indonesia yang membumi, bersahaja, intim, dan jujur.
    - Fokus pada rasa nyata: heningnya kamar di jam 2 pagi, lelah yang puas setelah tertawa seharian, dan perasaan tenang bahwa ia begitu disayangi apa adanya.
 3. Tone: Menyejukkan, penuh cinta tanpa syarat, menguatkan bahwa ${targetName} tidak pernah berjalan sendirian di dunia ini.
