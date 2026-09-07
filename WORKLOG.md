@@ -6,6 +6,37 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 68 — Make Birthday Roast Session Unconditionally Active & Reschedule to 16:30 WIB
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 16:10 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `545a85b` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User inquiry & decision:**
+  1. User asked why the roast session was skipped at 16:00 WIB ("Kok sesi roast dilewati?").
+  2. Inquired if any other features had opt-in/exclusions. (Confirmed: NO other feature has exclusions; all 17 other events are 100% unconditional).
+  3. Demanded to make all features active unconditionally without opt-in ("better semua aktif aja. tidak ada terkecuali. kita ga perlu opt-in").
+  4. Selected 16:30 WIB slot for the roast session (30-minute interactive window before DM Outreach at 17:00 WIB).
+- **Implementation:**
+  1. `src/config/birthdayConfig.js`: Rescheduled `roast_session` from 16:00 to 16:30.
+  2. `src/scheduler/birthdayScheduler.js`:
+     - Removed `isOptedIn` check and the "Sesi Roast Dilewati" skip message.
+     - Added recovery check in `hasSentEvent` so that groups where roast was skipped at 16:00 without opening an interactive session will automatically execute the real roast prompt at 16:30.
+  3. `src/commands/birthday.js`: Defaulted `roastOptIn` to 1 and cleaned up usage strings.
+  4. `test/birthday.test.js`: Updated timeline assertion to 16:30.
+  5. Full verification: 371/371 tests passed across 79 test suites.
+
+---
+
 ## Session 67 — PDF Scanner Optimization: Dual Output (Original & Gentle Filter)
 
 | Field | Value |

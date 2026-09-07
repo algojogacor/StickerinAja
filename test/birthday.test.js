@@ -130,7 +130,7 @@ describe("Birthday formatting and configuration", () => {
     assert.ok(times.includes("12:00"));
     assert.ok(times.includes("14:00"));
     assert.ok(times.includes("15:00"));
-    assert.ok(times.includes("16:00"));
+    assert.ok(times.includes("16:30"));
     assert.ok(times.includes("17:00"));
     assert.ok(times.includes("18:00"));
     assert.ok(times.includes("18:30"));

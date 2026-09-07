@@ -119,7 +119,7 @@ function extractCustomName(args, dateArg, participant) {
 }
 
 function usage(PREFIX) {
-  return `🎂 *Birthday Takeover*\n\n${PREFIX}ultah tambah DD-MM [@mention] [nama] [--roast]\n${PREFIX}ultah ubah DD-MM [@mention] [nama] [--roast]\n${PREFIX}ultah hapus [@mention]\n${PREFIX}ultah list\n${PREFIX}ultah hariini | besok\n${PREFIX}ultah mode on|off|status\n${PREFIX}ultah test [slot_name]`;
+  return `🎂 *Birthday Takeover*\n\n${PREFIX}ultah tambah DD-MM [@mention] [nama]\n${PREFIX}ultah ubah DD-MM [@mention] [nama]\n${PREFIX}ultah hapus [@mention]\n${PREFIX}ultah list\n${PREFIX}ultah hariini | besok\n${PREFIX}ultah mode on|off|status\n${PREFIX}ultah test [slot_name]`;
 }
 
 async function reply(sock, remoteJid, msg, text, mentions) {
@@ -232,19 +232,19 @@ module.exports = {
     if (!dateArg) { await reply(sock, remoteJid, msg, usage(PREFIX)); return; }
     const date = parseDate(dateArg);
     const name = extractCustomName(args, dateArg, participant);
-    const roastOptIn = args.some((arg) => arg.toLowerCase() === "--roast") ? 1 : 0;
+    const roastOptIn = 1;
     if (sub === "tambah" || sub === "add") {
       await birthday.addBirthday(remoteJid, target, name, date.day, date.month, date.year, senderId(msg), roastOptIn);
-      await reply(sock, remoteJid, msg, `✅ Ulang tahun ${name || "anggota"} disimpan pada ${String(date.day).padStart(2, "0")}-${String(date.month).padStart(2, "0")}.${roastOptIn ? " (Roast session aktif 🔥)" : ""}`, [target]);
+      await reply(sock, remoteJid, msg, `✅ Ulang tahun ${name || "anggota"} disimpan pada ${String(date.day).padStart(2, "0")}-${String(date.month).padStart(2, "0")}.`, [target]);
     } else {
       await birthday.updateBirthday(remoteJid, target, {
         name,
         birthDay: date.day,
         birthMonth: date.month,
         birthYear: date.year ?? undefined,
-        ...(args.some((a) => a.toLowerCase() === "--roast") ? { roastOptIn: 1 } : {}),
+        roastOptIn: 1,
       });
-      await reply(sock, remoteJid, msg, `✅ Data ulang tahun diperbarui.${roastOptIn ? " (Roast session aktif 🔥)" : ""}`, [target]);
+      await reply(sock, remoteJid, msg, `✅ Data ulang tahun diperbarui.`, [target]);
     }
     logger?.info({ command: CANONICAL[cmdName], group: remoteJid }, "[Birthday] command completed");
   },

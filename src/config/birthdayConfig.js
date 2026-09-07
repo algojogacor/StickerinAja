@@ -6,7 +6,7 @@ const EVENT_SCHEDULES = [
   { id: "memory_wall", time: "12:00" },
   { id: "truth_questions", time: "14:00" },
   { id: "photo_story", time: "15:00" },
-  { id: "roast_session", time: "16:00" },
+  { id: "roast_session", time: "16:30" },
   { id: "dm_outreach", time: "17:00" },
   { id: "confess_reveal", time: "18:00" },
   { id: "hot_take", time: "18:30" },

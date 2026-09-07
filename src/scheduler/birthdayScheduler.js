@@ -145,7 +145,14 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       return true;
     }
 
-    if (await birthday.hasSentEvent(targetJid, event)) return true;
+    if (await birthday.hasSentEvent(targetJid, event)) {
+      if (event === "roast_session") {
+        const meta = await birthday.getTakeoverMetadata(targetJid);
+        if (meta.roastSessionMessageId) return true;
+      } else {
+        return true;
+      }
+    }
 
     const persons = personsOverride || await birthday.getTakeoverBirthdayPersons(targetJid);
     if (!persons.length) return true;
@@ -223,27 +230,13 @@ async function runEventForGroup(event, targetJid, personsOverride) {
         await birthday.updateTakeoverMetadata(targetJid, { photoStoryMessageId: sentMessage.key.id });
       }
 
-    // --- 16:00 Slot: Roast Session ---
+    // --- 16:30 Slot: Roast Session ---
     } else if (event === "roast_session") {
-      let isOptedIn = false;
-      try {
-        const rows = await repository.getBirthdays(targetJid);
-        const targetRow = rows.find((r) => birthday.bareJid(r.participantId) === birthday.bareJid(persons[0]?.participantId));
-        isOptedIn = Boolean(targetRow?.roastOptIn);
-      } catch {}
-
-      if (isOptedIn) {
-        const msg = formatter.formatRoastPrompt(persons);
-        msg.mentions = groupMentions;
-        sentMessage = await sock.sendMessage(targetJid, msg);
-        if (sentMessage?.key?.id) {
-          await birthday.updateTakeoverMetadata(targetJid, { roastSessionMessageId: sentMessage.key.id });
-        }
-      } else {
-        sentMessage = await sock.sendMessage(targetJid, {
-          text: `🔥 *Sesi Roast Dilewati*\n\nKarena @${persons[0]?.participantId.split("@")[0]} memilih perayaan yang damai, sesi roast ditiadakan hari ini! Siapkan doa dan kenangan terbaik kalian untuk sesi berikutnya ya! ✨`,
-          mentions: groupMentions,
-        });
+      const msg = formatter.formatRoastPrompt(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
+      if (sentMessage?.key?.id) {
+        await birthday.updateTakeoverMetadata(targetJid, { roastSessionMessageId: sentMessage.key.id });
       }
 
     // --- 17:00 Slot: Dual DM Outreach ---
