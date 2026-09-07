@@ -6,6 +6,33 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 75 — Fix Rate The Day (23:30) LID Mismatch & Database State Audit
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:35 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `70363bc` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User request:** "apakaj jawaban udah tercatat? karena gaada respon dari bot"
+- **Investigation & Findings:**
+  1. Inspected live production Turso DB used by Koyeb: confirmed `rateTheDayMessageId` was generated and sent at 23:30 WIB (`3EB02A9DFCA3CAAEDA0259`), but `rateTheDay` was not recorded in `metadata`.
+  2. Root cause: modern WhatsApp multi-device delivers participant messages as Linked Device IDs (`251049612955654@lid`), whereas `birthdays` table stores phone number JIDs (`6281774156939@s.whatsapp.net`).
+  3. The condition `isBirthdayPerson = persons.some(p => bareJid(p.participantId) === senderJid)` evaluated to false, discarding the message.
+  4. In addition, the bot's handler only issues a reaction emoji (`⭐`) upon recording, never sending a text message response.
+- **Implementation:**
+  1. In `src/services/birthdayTakeoverService.js`, removed the restrictive `isBirthdayPerson` gate on `rateTheDay` replies quoting `meta.rateTheDayMessageId`.
+  2. Verified test suite: 24/24 birthday tests passing, 0 failures.
+
+---
+
 ## Session 74 — Reorder LLM Priority: Qwen Aliyun (DashScope) First, Groq Second, Doubao Third
 
 | Field | Value |

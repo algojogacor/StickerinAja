@@ -239,13 +239,10 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // 10. Rate The Day (23:30)
     if (meta.rateTheDayMessageId && quotedStanza === meta.rateTheDayMessageId) {
-      const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
-      if (isBirthdayPerson || !persons.length) {
-        const parsed = birthday.parseRateTheDay(messageText);
-        await birthday.recordRateTheDay(remoteJid, senderJid, parsed.rating, parsed.reason, messageText);
-        await sock.sendMessage(remoteJid, { react: { text: "⭐", key: msg.key } }).catch(() => {});
-        return true;
-      }
+      const parsed = birthday.parseRateTheDay(messageText);
+      await birthday.recordRateTheDay(remoteJid, senderJid, parsed.rating, parsed.reason, messageText);
+      await sock.sendMessage(remoteJid, { react: { text: "⭐", key: msg.key } }).catch(() => {});
+      return true;
     }
 
     // Legacy card wish fallback
