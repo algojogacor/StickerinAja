@@ -488,26 +488,28 @@ async function recordMemoryWallItem(groupJid, senderId, senderName, text, photoU
   });
 }
 
-async function recordWishJarItem(groupJid, senderId, senderName, text) {
+async function recordWishJarItem(groupJid, senderId, senderName, text, photoUrl = "") {
   return updateTakeoverMetadata(groupJid, (meta) => {
     const items = Array.isArray(meta.wishJar) ? meta.wishJar : [];
     items.push({
       senderId: bareJid(senderId),
       senderName: senderName || "Teman",
       text: String(text || "").trim(),
+      photoUrl: photoUrl || "",
       timestamp: Date.now(),
     });
     return { ...meta, wishJar: items };
   });
 }
 
-async function recordRoast(groupJid, senderId, senderName, text) {
+async function recordRoast(groupJid, senderId, senderName, text, photoUrl = "") {
   return updateTakeoverMetadata(groupJid, (meta) => {
     const items = Array.isArray(meta.roasts) ? meta.roasts : [];
     items.push({
       senderId: bareJid(senderId),
       senderName: senderName || "Teman",
       text: String(text || "").trim(),
+      photoUrl: photoUrl || "",
       timestamp: Date.now(),
       score: 1,
     });

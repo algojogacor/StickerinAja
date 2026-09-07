@@ -31,14 +31,15 @@ Append-only development log. Newest session at the top.
 ### Implementation & Fix
 1. **Media Extraction Helper:**
    - Implemented `extractImageBuffer` in `src/services/birthdayTakeoverService.js` supporting direct images, viewOnce images, and quoted images.
-2. **Memory Wall & Quest Media Handling:**
-   - In `memory_wall` reply handler: if an image is present, automatically download buffer, upload to Cloudinary (`folder: "birthday_memories"`), run AI photo description, save to `repository.addMemoryPhoto`, and attach `photoUrl` to `recordMemoryWallItem`.
-   - In `birthday_quest` reply handler: if an image is present, download buffer, upload to Cloudinary (`folder: "birthday_quests"`), save to `repository.addMemoryPhoto`, and attach `photoUrl` to `recordQuestReply`.
-   - In `photo_story` handler: supported standalone `#ceritafoto` captions even without quoting previous messages.
+2. **Unified Blanket Auto-Upload for Birthday Takeover:**
+   - Evaluated globally in `handleInteractiveGroupMessage`: if any user replies or tags with an image during an active takeover, the photo is automatically downloaded, uploaded to Cloudinary (`folder: "birthday_memories"`), described via AI vision, and recorded in `repository.addMemoryPhoto` under `group_memories`.
+   - Propagates `photoUrl` to all events: Memory Wall, Birthday Quest, Photo Story, Roast Session, Wish Jar, and general takeover replies.
+   - Quoting any takeover message with a photo acknowledges with 📸 / ❤️ and guarantees Cloudinary archival.
+   - Supported standalone `#ceritafoto` captions even without quoting previous messages.
 3. **Repository & Service Updates:**
-   - Extended `recordMemoryWallItem` and `recordQuestReply` in `src/services/birthdayService.js` to accept `photoUrl = ""` and persist it in takeover metadata.
+   - Extended `recordMemoryWallItem`, `recordQuestReply`, `recordRoast`, and `recordWishJarItem` in `src/services/birthdayService.js` to accept and persist `photoUrl`.
 4. **Testing & Verification:**
-   - Added unit test in `test/birthday.test.js` validating `photoUrl` persistence in `memoryWall` and `questReply`.
+   - Added unit test in `test/birthday.test.js` validating `photoUrl` persistence across all takeover modules.
    - Full test suite passed: 366/366 tests across 79 suites (100% pass rate).
 
 ---

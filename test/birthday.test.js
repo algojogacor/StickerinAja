@@ -475,6 +475,22 @@ describe("Birthday command", () => {
       "https://res.cloudinary.com/test/image/upload/v1/sarapan.png"
     );
 
+    await birthdayService.recordRoast(
+      "120@g.us",
+      "628999@s.whatsapp.net",
+      "Budi",
+      "Muka lu pas tidur",
+      "https://res.cloudinary.com/test/image/upload/v1/roast.png"
+    );
+
+    await birthdayService.recordWishJarItem(
+      "120@g.us",
+      "628999@s.whatsapp.net",
+      "Budi",
+      "Tahun ini semoga sukses",
+      "https://res.cloudinary.com/test/image/upload/v1/wish.png"
+    );
+
     const meta = await birthdayService.getTakeoverMetadata("120@g.us");
     assert.equal(meta.memoryWall.length, 1);
     assert.equal(meta.memoryWall[0].text, "Foto kenangan liburan");
@@ -482,5 +498,11 @@ describe("Birthday command", () => {
 
     assert.equal(meta.questReply.text, "Ini foto sarapanku");
     assert.equal(meta.questReply.photoUrl, "https://res.cloudinary.com/test/image/upload/v1/sarapan.png");
+
+    assert.equal(meta.roasts.length, 1);
+    assert.equal(meta.roasts[0].photoUrl, "https://res.cloudinary.com/test/image/upload/v1/roast.png");
+
+    assert.equal(meta.wishJar.length, 1);
+    assert.equal(meta.wishJar[0].photoUrl, "https://res.cloudinary.com/test/image/upload/v1/wish.png");
   });
 });

@@ -98,6 +98,45 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
   const birthdayPerson = persons[0] || { participantId: "", name: "Teman" };
 
   try {
+    let uploadedPhotoUrl = "";
+    let uploadedPublicId = "";
+    let uploadedAiStory = "";
+
+    const imageBuffer = isImage ? await extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, senderJid, logger) : null;
+    if (imageBuffer) {
+      try {
+        const uploadRes = await cloudinaryService.uploadImage(imageBuffer, "birthday_memories");
+        if (uploadRes.success) {
+          uploadedPhotoUrl = uploadRes.url || "";
+          uploadedPublicId = uploadRes.publicId || "";
+        }
+      } catch (uploadErr) {
+        logger?.warn({ err: uploadErr }, "[Birthday] Auto Cloudinary upload failed");
+      }
+
+      try {
+        uploadedAiStory = await birthdayAi.describeMemoryPhoto({
+          imageBuffer,
+          senderName,
+          caption: messageText,
+          logger,
+        });
+      } catch {}
+
+      if (uploadedPhotoUrl) {
+        await repository.addMemoryPhoto({
+          groupJid: remoteJid,
+          cloudinaryUrl: uploadedPhotoUrl,
+          cloudinaryPublicId: uploadedPublicId,
+          senderId: senderJid,
+          senderName,
+          caption: messageText,
+          aiDescription: uploadedAiStory,
+          sourceType: "birthday_takeover",
+        });
+      }
+    }
+
     // 1. Truth Questions: reply to truth opening message
     if (meta.truthSessionMessageId && quotedStanza === meta.truthSessionMessageId) {
       const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
@@ -133,118 +172,31 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // 2. Birthday Quest Reply
     if (meta.questMessageId && quotedStanza === meta.questMessageId) {
-      let photoUrl = "";
-      const imageBuffer = await extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, senderJid, logger);
-      if (imageBuffer) {
-        try {
-          const uploadRes = await cloudinaryService.uploadImage(imageBuffer, "birthday_quests");
-          if (uploadRes.success) photoUrl = uploadRes.url;
-        } catch (err) {
-          logger?.warn({ err }, "[Birthday] Failed to upload quest photo to Cloudinary");
-        }
-        if (photoUrl) {
-          await repository.addMemoryPhoto({
-            groupJid: remoteJid,
-            cloudinaryUrl: photoUrl,
-            senderId: senderJid,
-            senderName,
-            caption: messageText,
-            sourceType: "birthday_quest",
-          });
-        }
-      }
-      await birthday.recordQuestReply(remoteJid, senderJid, messageText, photoUrl);
+      await birthday.recordQuestReply(remoteJid, senderJid, messageText, uploadedPhotoUrl);
       await sock.sendMessage(remoteJid, { react: { text: "🎯", key: msg.key } }).catch(() => {});
       return true;
     }
 
     // 3. Memory Wall
     if (meta.memoryWallMessageId && quotedStanza === meta.memoryWallMessageId) {
-      let photoUrl = "";
-      let aiStory = "";
-      const imageBuffer = await extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, senderJid, logger);
-      if (imageBuffer) {
-        try {
-          const uploadRes = await cloudinaryService.uploadImage(imageBuffer, "birthday_memories");
-          if (uploadRes.success) photoUrl = uploadRes.url;
-        } catch (err) {
-          logger?.warn({ err }, "[Birthday] Failed to upload memory wall photo to Cloudinary");
-        }
-
-        try {
-          aiStory = await birthdayAi.describeMemoryPhoto({
-            imageBuffer,
-            senderName,
-            caption: messageText,
-            logger,
-          });
-        } catch {}
-
-        if (photoUrl) {
-          await repository.addMemoryPhoto({
-            groupJid: remoteJid,
-            cloudinaryUrl: photoUrl,
-            senderId: senderJid,
-            senderName,
-            caption: messageText,
-            aiDescription: aiStory,
-            sourceType: "memory_wall",
-          });
-        }
-      }
-
-      await birthday.recordMemoryWallItem(remoteJid, senderJid, senderName, messageText, photoUrl);
+      await birthday.recordMemoryWallItem(remoteJid, senderJid, senderName, messageText, uploadedPhotoUrl);
       await sock.sendMessage(remoteJid, { react: { text: "❤️", key: msg.key } }).catch(() => {});
       return true;
     }
 
     // 4. Photo Story
     if ((meta.photoStoryMessageId && quotedStanza === meta.photoStoryMessageId) || isPhotoStoryHashtag) {
-      const imageBuffer = await extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, senderJid, logger);
-
-      let aiStory = "";
-      let photoUrl = "";
-      if (imageBuffer) {
-        try {
-          const uploadRes = await cloudinaryService.uploadImage(imageBuffer, "birthday_stories");
-          if (uploadRes.success) photoUrl = uploadRes.url;
-        } catch (err) {
-          logger?.warn({ err }, "[Birthday] Failed to upload photo story image to Cloudinary");
-        }
-
-        try {
-          aiStory = await birthdayAi.describeMemoryPhoto({
-            imageBuffer,
-            senderName,
-            caption: messageText,
-            logger,
-          });
-        } catch {}
-
-        if (photoUrl) {
-          await repository.addMemoryPhoto({
-            groupJid: remoteJid,
-            cloudinaryUrl: photoUrl,
-            senderId: senderJid,
-            senderName,
-            caption: messageText,
-            aiDescription: aiStory,
-            sourceType: "birthday_story",
-          });
-        }
-      }
-
       await birthday.recordPhotoStory(remoteJid, {
         senderId: senderJid,
         senderName,
         caption: messageText,
-        photoUrl,
-        aiStory,
+        photoUrl: uploadedPhotoUrl,
+        aiStory: uploadedAiStory,
         timestamp: Date.now(),
       });
 
-      if (aiStory) {
-        await sock.sendMessage(remoteJid, { text: `📸 *Satu Foto Satu Cerita*\n\n${aiStory}` }, { quoted: msg });
+      if (uploadedAiStory) {
+        await sock.sendMessage(remoteJid, { text: `📸 *Satu Foto Satu Cerita*\n\n${uploadedAiStory}` }, { quoted: msg });
       } else {
         await sock.sendMessage(remoteJid, { react: { text: "📸", key: msg.key } }).catch(() => {});
       }
@@ -253,14 +205,14 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // 5. Roast Session
     if (meta.roastSessionMessageId && quotedStanza === meta.roastSessionMessageId) {
-      await birthday.recordRoast(remoteJid, senderJid, senderName, messageText);
+      await birthday.recordRoast(remoteJid, senderJid, senderName, messageText, uploadedPhotoUrl);
       await sock.sendMessage(remoteJid, { react: { text: "🔥", key: msg.key } }).catch(() => {});
       return true;
     }
 
     // 6. Wish Jar
     if (meta.wishJarMessageId && quotedStanza === meta.wishJarMessageId) {
-      await birthday.recordWishJarItem(remoteJid, senderJid, senderName, messageText);
+      await birthday.recordWishJarItem(remoteJid, senderJid, senderName, messageText, uploadedPhotoUrl);
       await birthday.recordWishFromMessage(msg);
       await sock.sendMessage(remoteJid, { react: { text: "🌟", key: msg.key } }).catch(() => {});
       return true;
@@ -270,6 +222,12 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
     if ((await birthday.getWishMessageId(remoteJid)) === quotedStanza) {
       await birthday.recordWishFromMessage(msg);
       await sock.sendMessage(remoteJid, { react: { text: "🎂", key: msg.key } }).catch(() => {});
+      return true;
+    }
+
+    // Fallback: any other photo replied during active takeover
+    if (isImage && uploadedPhotoUrl) {
+      await sock.sendMessage(remoteJid, { react: { text: "📸", key: msg.key } }).catch(() => {});
       return true;
     }
   } catch (err) {
