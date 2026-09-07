@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
-**Last updated:** 2026-09-02 WIB (+0700)
-**Current implementation:** Telegram Sticker Importer (`!tg`) & Automated Scheduler Dispatch + Absurd Reaction Memes & WA Sticker Curation Revamp + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
-**Last verified tests:** 351/351 pass across 78 test suites; 100% pass rate
+**Last updated:** 2026-09-07 WIB (+0700)
+**Current implementation:** Telegram Sticker Importer (`!tg`) & Automated Scheduler Dispatch + Absurd Reaction Memes & WA Sticker Curation Revamp + Birthday Takeover LID Support (`@lid`) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
+**Last verified tests:** 355/355 pass across 78 test suites; 100% pass rate
 
 ---
 
@@ -38,7 +38,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), EXIF metadata injection (`STICKERIN_BOT_NAME` & `STICKERIN_AUTHOR`), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour via bot session) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
-| Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, and windowed WIB scheduler | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js` |
+| Birthday Takeover | Active; Turso-backed CRUD, idempotent daily takeover events, wish collection, windowed WIB scheduler, and full WhatsApp LID (`@lid`) addressing mode compatibility | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js`, `test/birthday.test.js` |
 | Document Scanner & PDF | Active; CamScanner-style dual output (Magic Color + Clear B&W), Python FastAPI microservice (`scanner/`) with OpenCV 4-point perspective warp + adaptive thresholding, with pure Node.js/Sharp Retinex illumination division fallback | `src/commands/pdf.js`, `scanner/main.py`, `scanner/processor.py`, `scanner/Dockerfile` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
 

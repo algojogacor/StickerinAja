@@ -70,6 +70,32 @@ describe("Birthday repository and service", () => {
     assert.equal(wishes.length, 1);
     assert.equal(wishes[0].messageText, "Selamat ulang tahun!");
   });
+
+  it("persists, updates, and deletes birthday records for @lid participants", async () => {
+    await birthdayRepository.init();
+    await birthdayService.addBirthday(
+      "120@g.us",
+      "244203384742140:47@lid",
+      "Wirtz",
+      7,
+      9,
+      2001,
+      "admin@s.whatsapp.net"
+    );
+
+    const rows = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].name, "Wirtz");
+    assert.equal(rows[0].participantId, "244203384742140@lid");
+
+    await birthdayService.updateBirthday("120@g.us", "244203384742140@lid", { name: "Wirtz Updated" });
+    const updated = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(updated[0].name, "Wirtz Updated");
+
+    await birthdayService.removeBirthday("120@g.us", "244203384742140@lid");
+    const afterDelete = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(afterDelete.length, 0);
+  });
 });
 
 describe("Birthday formatting and configuration", () => {
@@ -126,5 +152,109 @@ describe("Birthday command", () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0].participantId, "628123@s.whatsapp.net");
     assert.equal(sent.length, 1);
+  });
+
+  it("allows adding a member using @lid mention", async () => {
+    const sent = [];
+    const sock = {
+      sendMessage: async (...args) => { sent.push(args); return { key: { id: "cmd-lid-1" } }; },
+      groupMetadata: async () => ({
+        participants: [
+          { id: "260227974823977@lid", lid: "260227974823977@lid", notify: "wirtz meatsucker icir" },
+        ],
+      }),
+    };
+    await birthdayCommand.execute({
+      sock,
+      msg: {
+        key: { remoteJid: "120@g.us", participant: "628999@s.whatsapp.net", fromMe: true, id: "m2" },
+        message: {
+          conversation: "!ultah tambah 07-09 @wirtz meatsucker icir rtlkntl",
+          extendedTextMessage: { contextInfo: { mentionedJid: ["260227974823977@lid"] } },
+        },
+      },
+      args: ["tambah", "07-09", "@wirtz", "meatsucker", "icir", "rtlkntl"],
+      cmdName: "ultah",
+      remoteJid: "120@g.us",
+      PREFIX: "!",
+      logger: { info() {} },
+    });
+    const rows = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].participantId, "260227974823977@lid");
+    assert.equal(rows[0].name, "rtlkntl");
+    assert.equal(sent.length, 1);
+    assert.ok(sent[0][1].text.includes("rtlkntl"));
+  });
+
+  it("allows adding a member by replying to their message with @lid participant", async () => {
+    const sent = [];
+    const sock = {
+      sendMessage: async (...args) => { sent.push(args); return { key: { id: "cmd-lid-2" } }; },
+      groupMetadata: async () => ({
+        participants: [
+          { id: "260227974823977@lid", lid: "260227974823977@lid", jid: "628111222333@s.whatsapp.net" },
+        ],
+      }),
+    };
+    await birthdayCommand.execute({
+      sock,
+      msg: {
+        key: { remoteJid: "120@g.us", participant: "244203384742140:47@lid", fromMe: true, id: "m3" },
+        message: {
+          extendedTextMessage: {
+            text: "!ultah tambah 07-09 rtlkntl",
+            contextInfo: { participant: "260227974823977:12@lid" },
+          },
+        },
+      },
+      args: ["tambah", "07-09", "rtlkntl"],
+      cmdName: "ultah",
+      remoteJid: "120@g.us",
+      PREFIX: "!",
+      logger: { info() {} },
+    });
+    const rows = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(rows.length, 1);
+    // Resolved to canonical phone JID via groupMetadata
+    assert.equal(rows[0].participantId, "628111222333@s.whatsapp.net");
+    assert.equal(rows[0].name, "rtlkntl");
+    assert.equal(sent.length, 1);
+  });
+
+  it("validates isPrivileged when sender uses @lid matching owner or admin", async () => {
+    const prevOwner = process.env.OWNER_JID;
+    process.env.OWNER_JID = "628999@s.whatsapp.net";
+    try {
+      const sock = {
+        groupMetadata: async () => ({
+          participants: [
+            { id: "244203384742140@lid", lid: "244203384742140@lid", jid: "628999@s.whatsapp.net", admin: null },
+            { id: "111111111111111@lid", lid: "111111111111111@lid", jid: "628111@s.whatsapp.net", admin: "admin" },
+            { id: "222222222222222@lid", lid: "222222222222222@lid", jid: "628222@s.whatsapp.net", admin: null },
+          ],
+        }),
+      };
+
+      // Owner via LID -> JID mapping
+      const isOwnerPriv = await birthdayCommand.isPrivileged(sock, {
+        key: { remoteJid: "120@g.us", participant: "244203384742140:47@lid", fromMe: false },
+      }, "120@g.us");
+      assert.equal(isOwnerPriv, true);
+
+      // Group admin via LID
+      const isAdminPriv = await birthdayCommand.isPrivileged(sock, {
+        key: { remoteJid: "120@g.us", participant: "111111111111111@lid", fromMe: false },
+      }, "120@g.us");
+      assert.equal(isAdminPriv, true);
+
+      // Regular member
+      const isRegularPriv = await birthdayCommand.isPrivileged(sock, {
+        key: { remoteJid: "120@g.us", participant: "222222222222222@lid", fromMe: false },
+      }, "120@g.us");
+      assert.equal(isRegularPriv, false);
+    } finally {
+      process.env.OWNER_JID = prevOwner;
+    }
   });
 });

@@ -6,6 +6,50 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 51 — Diagnose and Fix Birthday Takeover Support for WhatsApp Groups with LID Addressing Mode
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 08:31 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `759f5ae` |
+| **Ending HEAD** | Working tree modified (ready for commit) |
+| **Status** | Completed |
+
+### Investigation & Root Cause
+- Investigated live Koyeb runtime logs for `usual-olwen/stickerinaja` during the user's `!ultah` commands.
+- Confirmed WhatsApp group `120363253471284606@g.us` operates with `addressing_mode: "lid"`, where participant identities are emitted as `@lid` (e.g. `244203384742140@lid`, `260227974823977@lid`).
+- In `src/commands/birthday.js`, `mentionedIds` filtered exclusively for `.includes("@s.whatsapp.net")`, stripping `@lid` mentions and triggering `⚠️ Mention anggota yang dimaksud atau reply pesannya.`
+- When replying to a message, quoted participant JID (`260227974823977@lid`) bypassed `mentionedIds` into `birthdayService.addBirthday`, which explicitly threw `Participant ulang tahun tidak valid` because it required `@s.whatsapp.net`.
+- In `isPrivileged`, sender comparison and group participant lookup did not cross-reference `lid`, `jid`, or `id` attributes or normalize device suffixes.
+
+### Implementation Details
+1. **Participant Validation & Normalization (`src/services/birthdayService.js`):**
+   - Added `bareJid(value)` helper to sanitize `:device` identifiers.
+   - Updated `isValidParticipant` to accept both `@s.whatsapp.net` and `@lid`.
+   - Normalized participant IDs in `addBirthday`, `updateBirthday`, `removeBirthday`, `markCelebrated`, and `recordWishFromMessage`.
+   - Improved update and remove queries to compare `bareJid(row.participantId) === participant`.
+
+2. **LID Support & Mention/Name Parsing (`src/commands/birthday.js`):**
+   - Updated `mentionedIds` and `targetFromMessage` to accept and preserve `@lid` participants.
+   - Added `findParticipant` helper matching across `p.id`, `p.lid`, and `p.jid`.
+   - Updated `isPrivileged` to cross-match `sender` with `owner` and group admin status across all identity formats.
+   - Added `resolveTarget` to resolve `@lid` to canonical `@s.whatsapp.net` when known in `groupMetadata`.
+   - Added `extractCustomName` to properly strip multi-word contact mentions (e.g. `@wirtz meatsucker icir rtlkntl` -> name `rtlkntl`) and fall back to `participant.notify` if no custom nickname is provided.
+
+3. **Automated Testing & Verification (`test/birthday.test.js`):**
+   - Added tests for persisting, updating, and removing `@lid` participants.
+   - Added tests for `@lid` mention and quoted message parsing in `birthdayCommand`.
+   - Added tests for `isPrivileged` with `@lid` senders matching owner or group admin.
+   - All 355/355 tests pass across 78 test suites.
+
+---
+
+
 ## Session 50 — Connect Telegram Stickers to Automated Scheduled Dispatch and Koyeb Env Update
 
 | Field | Value |

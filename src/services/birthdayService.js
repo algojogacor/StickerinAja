@@ -43,6 +43,15 @@ function sanitizeName(name, participantId) {
   return value || "Unknown";
 }
 
+function bareJid(value) {
+  return String(value || "").trim().replace(/:\d+(?=@)/, "");
+}
+
+function isValidParticipant(participant) {
+  const p = bareJid(participant);
+  return p.endsWith("@s.whatsapp.net") || p.endsWith("@lid");
+}
+
 function isEnabled() {
   const config = getConfig();
   return config.BIRTHDAY_FEATURE_ENABLED && config.BIRTHDAY_TAKEOVER_ENABLED;
@@ -50,8 +59,8 @@ function isEnabled() {
 
 async function addBirthday(groupJid, participantId, name, day, month, year, createdBy) {
   const group = normalizeGroupJid(groupJid);
-  const participant = String(participantId || "").trim();
-  if (!participant.includes("@s.whatsapp.net")) throw new Error("Participant ulang tahun tidak valid");
+  const participant = bareJid(participantId);
+  if (!isValidParticipant(participant)) throw new Error("Participant ulang tahun tidak valid");
   const date = validateDate(day, month);
   const birthYear = year === undefined || year === null || year === "" ? null : Number(year);
   if (birthYear !== null && (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > new Date().getFullYear())) {
@@ -72,12 +81,12 @@ async function addBirthday(groupJid, participantId, name, day, month, year, crea
 
 async function updateBirthday(groupJid, participantId, updates) {
   const group = normalizeGroupJid(groupJid);
-  const participant = String(participantId || "").trim();
-  if (!participant.includes("@s.whatsapp.net")) throw new Error("Participant ulang tahun tidak valid");
-  const current = (await repository.getBirthdays(group)).find((row) => row.participantId === participant);
+  const participant = bareJid(participantId);
+  if (!isValidParticipant(participant)) throw new Error("Participant ulang tahun tidak valid");
+  const current = (await repository.getBirthdays(group)).find((row) => bareJid(row.participantId) === participant);
   if (!current) throw new Error("Data ulang tahun tidak ditemukan");
   const date = validateDate(updates.birthDay ?? current.birthDay, updates.birthMonth ?? current.birthMonth);
-  await repository.updateBirthday(group, participant, {
+  await repository.updateBirthday(group, current.participantId, {
     name: updates.name === undefined ? current.name : sanitizeName(updates.name, participant),
     birthDay: date.day,
     birthMonth: date.month,
@@ -86,7 +95,10 @@ async function updateBirthday(groupJid, participantId, updates) {
 }
 
 async function removeBirthday(groupJid, participantId) {
-  await repository.removeBirthday(normalizeGroupJid(groupJid), participantId);
+  const group = normalizeGroupJid(groupJid);
+  const participant = bareJid(participantId);
+  const current = (await repository.getBirthdays(group)).find((row) => bareJid(row.participantId) === participant);
+  await repository.removeBirthday(group, current ? current.participantId : participant);
 }
 
 async function getBirthdaysList(groupJid) {
@@ -192,7 +204,7 @@ async function deactivateTakeover(groupJid) {
 }
 
 async function markCelebrated(groupJid, participantId, year = getWIBToday().year) {
-  return repository.markCelebrated(normalizeGroupJid(groupJid), participantId, year);
+  return repository.markCelebrated(normalizeGroupJid(groupJid), bareJid(participantId), year);
 }
 
 async function addWish(wish) {
@@ -232,7 +244,7 @@ async function recordWishFromMessage(msg) {
   return addWish({
     groupJid,
     birthdayEventId: wishMessageId,
-    senderId: msg.key.participant || msg.key.remoteJid,
+    senderId: bareJid(msg?.key?.participant || msg?.key?.remoteJid),
     senderName: msg.pushName || "",
     messageText: text,
     messageId: msg.key.id || `${Date.now()}`,
@@ -240,6 +252,8 @@ async function recordWishFromMessage(msg) {
 }
 
 module.exports = {
+  bareJid,
+  isValidParticipant,
   getWIBToday,
   addBirthday,
   updateBirthday,
