@@ -6,6 +6,33 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 70 — Complete Removal of Closing Quest Teaser (Zero Spoilers)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:05 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `d67a9a9` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User feedback:** User noticed that the 23:00 Closing Quest message still contained a teaser:
+  `P.S. Jangan tidur dulu, bakal ada kejutan beberapa saat lagi...`
+  and requested its complete removal to maintain absolute surprise for subsequent events (Rate The Day, Midnight Letter, Surat Dini Hari).
+- **Root Cause & Solution:**
+  1. In Session 59, the text was softened from mentioning "Midnight Letter jam 00:00" to "P.S. Jangan tidur dulu, bakal ada kejutan beberapa saat lagi...". However, the user desired ZERO spoilers or teasers of any upcoming events.
+  2. Completely removed `_P.S. Jangan tidur dulu, bakal ada kejutan beberapa saat lagi..._` from `formatClosingQuest` in `src/formatters/birthdayMessageFormatter.js`.
+  3. Cleaned up obsolete "sudah opt-in untuk di-roast" phrasing in `formatRoastPrompt` to "Spesial untuk...".
+  4. Added automated tests in `test/birthday.test.js` verifying that `formatClosingQuest` text strictly contains neither `P.S.` nor `Jangan tidur dulu`.
+  5. Verified all 374 tests pass across 79 suites (100% pass rate).
+
+---
+
 ## Session 69 — Fix PDF Session Responsiveness, Non-Prefixed Media Routing & Multi-Session UX
 
 | Field | Value |

@@ -501,6 +501,8 @@ describe("Birthday command", () => {
 
     assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", true, "sanksi").text.includes("COMPLETED"));
     assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", false, "sanksi").text.includes("MISSED"));
+    assert.equal(birthdayFormatter.formatClosingQuest(persons, "quest", false, "sanksi").text.includes("P.S."), false);
+    assert.equal(birthdayFormatter.formatClosingQuest(persons, "quest", false, "sanksi").text.includes("Jangan tidur dulu"), false);
     assert.ok(birthdayFormatter.formatFlashback({ senderName: "Budi", caption: "Halo" }).includes("Halo"));
 
     // Verify birthdayService export
