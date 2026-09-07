@@ -12,7 +12,7 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const { startBot } = require('./src/baileys');
-const { handler, extractMessageContent, shouldProcessMessage } = require('./src/handler');
+const { handler, extractMessageContent, shouldProcessMessage, commands } = require('./src/handler');
 const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
 const fs = require('fs');
@@ -92,10 +92,13 @@ async function messageHandler(sock, msg, logger, sessionId) {
         }
     }
 
-    // If it looks like a sticker command, process normally
-    if (messageText.startsWith(PREFIX)) {
-        const isGroup = Boolean(msg.key?.remoteJid?.endsWith('@g.us'));
+    const isGroup = Boolean(msg.key?.remoteJid?.endsWith('@g.us'));
+    const isPrefixed = Boolean(messageText && messageText.startsWith(PREFIX));
+    const rawCmd = isPrefixed ? messageText.slice(PREFIX.length).trim().split(/\s+/)[0]?.toLowerCase() : null;
+    const isKnownCommand = Boolean(rawCmd && commands.has(rawCmd));
 
+    // If it is a known bot command, process normally
+    if (isKnownCommand) {
         // Prevent double response in shared group: prioritize bot session ONLY IF bot is a member of this group
         if (isGroup && sessionId === 'pribadi') {
             const botSession = global.botSessions?.['bot'];
@@ -116,7 +119,7 @@ async function messageHandler(sock, msg, logger, sessionId) {
     }
 
     // Interactive group messages during Birthday Takeover (Truth, Photo Story, Memory Wall, Roast, Wish Jar, Quests)
-    if (!msg.key?.fromMe && msg.key?.remoteJid?.endsWith('@g.us')) {
+    if (!msg.key?.fromMe && isGroup) {
         // If message is on pribadi session, yield to connected bot session if present in this group
         if (sessionId === 'pribadi') {
             const botSession = global.botSessions?.['bot'];
@@ -128,10 +131,28 @@ async function messageHandler(sock, msg, logger, sessionId) {
         if (msg.key?.id && isDuplicateMessage(msg.key.id)) return;
 
         try {
-            await birthdayTakeover.handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger);
+            const handled = await birthdayTakeover.handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger, { isKnownCommand });
+            if (handled) return;
         } catch (error) {
             logger.debug({ err: error }, '[Birthday] Failed to process interactive message');
         }
+    }
+
+    // Fallback for remaining prefixed commands or sessions (e.g. unknown command, active PDF session)
+    if (isPrefixed) {
+        if (isGroup && sessionId === 'pribadi') {
+            const botSession = global.botSessions?.['bot'];
+            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
+            if (botSession?.status === 'connected' && isBotInThisGroup) {
+                return;
+            }
+        }
+
+        if (msg.key?.id && isDuplicateMessage(msg.key.id)) {
+            return;
+        }
+
+        return handler(sock, msg, logger, sessionId, botMode);
     }
 }
 

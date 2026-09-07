@@ -7,6 +7,7 @@ const birthdayFormatter = require("../src/formatters/birthdayMessageFormatter");
 const birthdayConfig = require("../src/config/birthdayConfig");
 const birthdayScheduler = require("../src/scheduler/birthdayScheduler");
 const birthdayCommand = require("../src/commands/birthday");
+const birthdayTakeoverService = require("../src/services/birthdayTakeoverService");
 
 beforeEach(async () => {
   await birthdayRepository.resetForTests();
@@ -639,5 +640,69 @@ describe("Birthday command", () => {
     });
     assert.ok(midnightLetter);
     assert.ok(midnightLetter.includes("Rina"));
+  });
+
+  it("handles Truth answer with ! prefix reacting with 🤞 and without ! reacting with 💬 via handleInteractiveGroupMessage", async () => {
+    await birthdayRepository.init();
+    await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
+
+    // Seed a Truth question in metadata
+    await birthdayService.updateTakeoverMetadata("120@g.us", (meta) => ({
+      ...meta,
+      truthData: {
+        questions: [
+          { id: "truth-q1", text: "Kapan move on?", askerJid: "628999@s.whatsapp.net", askerName: "Budi" }
+        ],
+        quotas: {}
+      }
+    }));
+
+    const sentReactions = [];
+    const mockSock = {
+      sendMessage: async (jid, payload) => {
+        if (payload?.react) {
+          sentReactions.push({ jid, text: payload.react.text, key: payload.react.key });
+        }
+        return { key: { id: "sent-1" } };
+      }
+    };
+
+    // 1. Birthday person replies with !nggak lah (honest answer)
+    const msgHonest = {
+      key: { remoteJid: "120@g.us", fromMe: false, participant: "628123@s.whatsapp.net", id: "ans-honest" },
+      pushName: "Rina",
+      message: { conversation: "!nggak lah" }
+    };
+    const handledHonest = await birthdayTakeoverService.handleInteractiveGroupMessage(
+      mockSock, msgHonest, "!nggak lah", "truth-q1", {}, console, { isKnownCommand: false }
+    );
+
+    assert.equal(handledHonest, true);
+    assert.equal(sentReactions.length, 1);
+    assert.equal(sentReactions[0].text, "🤞");
+
+    // Verify truth answer was stored in state
+    const metaAfterHonest = await birthdayService.getTakeoverMetadata("120@g.us");
+    assert.equal(metaAfterHonest.truthData.questions[0].answer, "nggak lah");
+    assert.equal(metaAfterHonest.truthData.questions[0].isHonest, true);
+
+    // 2. Birthday person replies without ! (evasive answer)
+    sentReactions.length = 0;
+    const msgEvasive = {
+      key: { remoteJid: "120@g.us", fromMe: false, participant: "628123@s.whatsapp.net", id: "ans-evasive" },
+      pushName: "Rina",
+      message: { conversation: "biar waktu yang menjawabny" }
+    };
+    const handledEvasive = await birthdayTakeoverService.handleInteractiveGroupMessage(
+      mockSock, msgEvasive, "biar waktu yang menjawabny", "truth-q1", {}, console, { isKnownCommand: false }
+    );
+
+    assert.equal(handledEvasive, true);
+    assert.equal(sentReactions.length, 1);
+    assert.equal(sentReactions[0].text, "💬");
+
+    const metaAfterEvasive = await birthdayService.getTakeoverMetadata("120@g.us");
+    assert.equal(metaAfterEvasive.truthData.questions[0].answer, "biar waktu yang menjawabny");
+    assert.equal(metaAfterEvasive.truthData.questions[0].isHonest, false);
   });
 });

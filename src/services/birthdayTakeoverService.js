@@ -71,7 +71,7 @@ async function extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, sende
   return null;
 }
 
-async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger) {
+async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger, options = {}) {
   const remoteJid = msg.key?.remoteJid;
   if (!remoteJid?.endsWith("@g.us") || msg.key?.fromMe) return false;
 
@@ -257,6 +257,7 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // Fallback: any other photo replied during active takeover
     if (isImage && uploadedPhotoUrl) {
+      if (options?.isKnownCommand) return false;
       await sock.sendMessage(remoteJid, { react: { text: "📸", key: msg.key } }).catch(() => {});
       return true;
     }

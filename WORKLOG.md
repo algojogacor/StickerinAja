@@ -6,6 +6,37 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 66 — Fix Birthday Takeover Reply Routing for Prefixed Answers (!nggak lah)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 15:20 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `7f3aa86` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User report:** When replying to a Truth question with `!nggak lah`, the bot did not react with an emoji at all, whereas replying without `!` (`biar waktu yang menjawabny`) made the bot react with `💬`.
+- **Root cause analysis:**
+  - In `index.js`, `if (messageText.startsWith(PREFIX))` (`PREFIX = '!'`) routed any message starting with `!` directly to `handler(sock, msg, logger, sessionId, botMode)`.
+  - In `src/handler.js`, command `nggak` is not a known command in `commands` map, so `handler` returned early with `undefined`.
+  - Because `index.js` returned immediately after `return handler(...)`, `birthdayTakeover.handleInteractiveGroupMessage` was never called.
+  - Consequently, `recordTruthAnswer` was never called and the honest emoji reaction `🤞` was never sent.
+- **Solution:**
+  1. Export `commands` from `src/handler.js` and import it into `index.js`.
+  2. In `index.js`, differentiate known bot commands (`commands.has(rawCmd)`) from interactive takeover messages starting with `!`.
+  3. Known bot commands (`!s`, `!stiker`, `!menu`, etc.) are routed directly to `handler(...)`.
+  4. Interactive group messages during active takeover (such as Truth replies with `!`, quotes, etc.) are passed to `birthdayTakeover.handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger, { isKnownCommand })`.
+  5. In `src/services/birthdayTakeoverService.js`, safeguard fallback photo reaction so known commands on photos are not swallowed.
+  6. Added comprehensive unit tests in `test/birthday.test.js` validating both `!nggak lah` (honest reaction `🤞`) and evasive answers without `!` (reaction `💬`).
+
+---
+
 ## Session 65 — Birthday Takeover Night Expansion (18:30–23:30) & Midnight Letter Overhaul
 
 | Field | Value |
