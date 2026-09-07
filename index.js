@@ -212,6 +212,37 @@ http.createServer(async (req, res) => {
         const success = await logoutSession(reqSession);
         res.writeHead(success ? 200 : 404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success, action: 'logout', session: reqSession }));
+    } else if (url.pathname === '/api/birthday/trigger') {
+        const event = url.searchParams.get('event') || 'memory_wall';
+        const targetGroup = url.searchParams.get('group');
+        const force = url.searchParams.get('force') === 'true';
+        const bScheduler = require('./src/scheduler/birthdayScheduler');
+        const bService = require('./src/services/birthdayService');
+        const bRepo = require('./src/repositories/birthdayRepository');
+
+        try {
+            const groups = targetGroup ? [targetGroup] : await bScheduler.getTargetGroups();
+            const results = [];
+
+            for (const g of groups) {
+                if (force) {
+                    const today = bService.getWIBToday();
+                    const state = await bRepo.getTakeoverState(g, today.dateStr);
+                    if (state?.sentEvents?.includes(event)) {
+                        state.sentEvents = state.sentEvents.filter(e => e !== event);
+                        await bRepo.setTakeoverState(g, today.dateStr, state);
+                    }
+                }
+                const resRun = await bScheduler.runEventForGroup(event, g);
+                results.push({ group: g, success: resRun });
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, event, results }));
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
     } else if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(loginHtml);

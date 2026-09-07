@@ -6,6 +6,29 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 57 — Add Manual Trigger Endpoint for Missed Birthday Events
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:05 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `a601267` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Request
+- **User request:** "Sekarang kan udah lewat jam 12. tolong trigger manual bisa gak untuk yang waktu jam 12? karena itu kan masuk dalam hal penting di event birthday takeover"
+- **Solution:**
+  1. Implemented `/api/birthday/trigger?event=memory_wall&force=true` endpoint in `index.js`.
+  2. The endpoint dynamically fetches target birthday groups, clears the sent event flag if `force=true`, and triggers `birthdayScheduler.runEventForGroup(event, group)`.
+  3. Documented that users can also trigger directly via WhatsApp command: `!ultah test memory_wall`.
+
+---
+
 ## Session 56 — Fix Socket Watchdog Loop & Birthday Personal Session Fallback
 
 | Field | Value |
