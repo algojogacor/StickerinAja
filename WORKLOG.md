@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `70b6b42` |
-| **Ending HEAD** | In progress |
-| **Status** | In progress |
+| **Ending HEAD** | `9bca930` |
+| **Status** | Completed |
 
 ### Implementation Details
 - Discovered `birthdayScheduler` previously only evaluated `process.env.GROUP_JID` (`120363328759898377@g.us`), which meant events would not reach other groups that registered birthdays (such as `120363253471284606@g.us`).
