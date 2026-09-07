@@ -17,8 +17,8 @@ Append-only development log. Newest session at the top.
 | **Platform** | Windows, PowerShell |
 | **Branch** | `main` |
 | **Starting HEAD** | `7f3aa86` |
-| **Ending HEAD** | In progress |
-| **Status** | In progress |
+| **Ending HEAD** | `f401dcf` |
+| **Status** | Completed |
 
 ### Problem & Objectives
 - **User report:** When replying to a Truth question with `!nggak lah`, the bot did not react with an emoji at all, whereas replying without `!` (`biar waktu yang menjawabny`) made the bot react with `💬`.
