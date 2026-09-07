@@ -63,8 +63,8 @@ function getActiveProviders() {
       name: 'dashscope',
       endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       keys: dashscopeKeys,
-      textModel: process.env.DASHSCOPE_MODEL || 'qwen3.8-27b',
-      visionModel: process.env.DASHSCOPE_VISION_MODEL || 'qwen-vl-plus',
+      textModel: process.env.DASHSCOPE_MODEL || 'qwen3.8-flash',
+      visionModel: process.env.DASHSCOPE_VISION_MODEL || 'qwen3.8-flash',
     });
   }
 
@@ -75,7 +75,7 @@ function getActiveProviders() {
       endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
       keys: doubaoKeys,
       textModel: process.env.DOUBAO_MODEL || 'doubao-seed-1-6-flash-250615',
-      visionModel: null, // Doubao text-only for this tier
+      visionModel: process.env.DOUBAO_VISION_MODEL || 'doubao-seed-1-6-flash-250615',
     });
   }
 

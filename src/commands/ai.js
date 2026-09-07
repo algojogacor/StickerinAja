@@ -87,7 +87,7 @@ module.exports = {
         if (isMedia) {
             const progressMsg = await sock.sendMessage(
                 remoteJid,
-                { text: '👁️ *Groq Vision:* Menganalisis gambar...' },
+                { text: '👁️ *AI Vision:* Menganalisis gambar...' },
                 { quoted: msg }
             );
 
@@ -101,9 +101,26 @@ module.exports = {
                     );
                 }
 
+                // If no prompt in args, check if the quoted media had an original caption
+                let effectivePrompt = queryText;
+                if (!effectivePrompt && quotedMsg) {
+                    const unwrap = (m) => m?.ephemeralMessage?.message ||
+                        m?.viewOnceMessage?.message ||
+                        m?.viewOnceMessageV2?.message ||
+                        m?.documentWithCaptionMessage?.message ||
+                        m;
+                    const qm = unwrap(quotedMsg);
+                    const quotedCaption = qm?.imageMessage?.caption ||
+                        qm?.documentMessage?.caption ||
+                        qm?.videoMessage?.caption;
+                    if (quotedCaption) {
+                        effectivePrompt = quotedCaption;
+                    }
+                }
+
                 const result = await analyzeImage({
                     imageBuffer: buffer,
-                    prompt: queryText,
+                    prompt: effectivePrompt,
                     logger
                 });
 

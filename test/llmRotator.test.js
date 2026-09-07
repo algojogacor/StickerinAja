@@ -22,8 +22,9 @@ describe("LLM Rotator Multi-Provider Service", () => {
 
       // Verify default models
       assert.ok(providers[1].textModel.includes("qwen3.8") || providers[1].textModel.includes("qwen"));
-      assert.equal(providers[1].visionModel, "qwen-vl-plus");
+      assert.ok(providers[1].visionModel.includes("qwen3.8") || providers[1].visionModel.includes("qwen"));
       assert.ok(providers[2].textModel.includes("doubao"));
+      assert.ok(providers[2].visionModel.includes("doubao"));
     } finally {
       process.env.GROQ_API_KEY_1 = prevGroq;
       process.env.DASHSCOPE_API_KEY_1 = prevDash;

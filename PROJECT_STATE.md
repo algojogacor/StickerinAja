@@ -1,7 +1,7 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-07 WIB (+0700)
-**Current implementation:** Multi-Provider LLM Rotator (Groq + Alibaba Cloud DashScope `qwen3.8-27b` / `qwen-vl-plus` + ByteDance Volcano Ark Doubao `doubao-seed-1-6-flash-250615`) with automatic failover, key rotation, and vision support; Birthday Takeover Full Upgrade — 13-Slot Timeline (07:00-02:00 WIB), Truth Questions, Dual DM Outreach, Cloudinary Photo Storage, Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
+**Current implementation:** Multi-Provider LLM Rotator (Groq + Alibaba Cloud DashScope `qwen3.8-flash` text/vision + ByteDance Volcano Ark Doubao `doubao-seed-1-6-flash-250615` text/vision) with automatic failover, key rotation, and vision support; Birthday Takeover Full Upgrade — 13-Slot Timeline (07:00-02:00 WIB), Truth Questions, Dual DM Outreach, Cloudinary Photo Storage, Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
 **Last verified tests:** 364/364 pass across 79 test suites; 100% pass rate
 
 ---
@@ -14,14 +14,14 @@ WhatsApp Sticker Maker Bot running on Baileys WebSocket + Koyeb Docker deploymen
 WhatsApp (Baileys) → Command Handler (auto-load src/commands/) → Services
                    → Absolute-slot schedulers (recursive setTimeout) → Services
                    → Turso/libSQL (persistent storage) + Cloudinary REST (photo storage)
-                   → Universal Multi-Provider LLM Rotator (Groq → DashScope Qwen 3.8 → Doubao Ark)
+                   → Universal Multi-Provider LLM Rotator (Groq → DashScope Qwen 3.8 Flash → Doubao Ark Seed Flash)
                    → HTTP Server (:8000) — health, QR, Hermes relay
 ```
 
 **Runtime:** Node.js 20+ on Koyeb (Docker)
 **Database:** Turso (libSQL), with feature-specific fallback behavior
 **Storage:** Cloudinary REST API with SHA-1 signing for memory photos and stories
-**AI:** Universal Multi-Provider LLM Rotator (`src/services/llmRotator.js`) supporting Groq (`qwen/qwen3.8-27b`), DashScope (`qwen3.8-27b` text & `qwen-vl-plus` vision), and Doubao Ark (`doubao-seed-1-6-flash-250615`)
+**AI:** Universal Multi-Provider LLM Rotator (`src/services/llmRotator.js`) supporting Groq (`qwen/qwen3.8-27b`), DashScope (`qwen3.8-flash` native multimodal text/vision), and Doubao Ark (`doubao-seed-1-6-flash-250615` multimodal text/vision)
 **Scheduler:** `src/scheduler/windowedScheduler.js`, fixed Asia/Jakarta offset, supports 24-hour round-the-clock scheduling (`allow24Hours: true`)
 **Logging:** Pino (`pino-pretty` in development, JSON in production)
 
@@ -35,8 +35,8 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 |---|---|---|
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
-| Multi-Provider LLM Rotator | Active; resilient AI failover across Groq (`qwen/qwen3.8-27b`), Alibaba DashScope (`qwen3.8-27b` + `qwen-vl-plus` multimodal vision), and Doubao Ark (`doubao-seed-1-6-flash-250615`) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
-| Groq / Qwen / Doubao AI Vision & Chat | Active; multimodal image analysis (`qwen-vl-plus` / Groq), OCR/text reading, meme explanation, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
+| Multi-Provider LLM Rotator | Active; resilient AI failover across Groq, Alibaba DashScope (`qwen3.8-flash` multimodal text/vision), and Doubao Ark (`doubao-seed-1-6-flash-250615` multimodal text/vision) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
+| Groq / Qwen / Doubao AI Vision & Chat | Active; multimodal image analysis (`qwen3.8-flash` / `doubao-seed-1-6-flash` / Groq), OCR/text reading, meme explanation, caption context handling, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
 | Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication, bot priority, socket heartbeat watchdog (30s interval), `/api/restart-session` and `/api/logout-session` endpoints, plus automatic Turso auth state garbage collection (startup + 6h interval) | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `src/utils/tursoAuthState.js`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
 | Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), EXIF metadata injection (`STICKERIN_BOT_NAME` & `STICKERIN_AUTHOR`), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour via bot session) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |

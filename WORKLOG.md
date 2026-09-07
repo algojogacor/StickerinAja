@@ -35,7 +35,10 @@ Append-only development log. Newest session at the top.
    - Text default: `qwen/qwen3.8-27b` (Groq) -> `qwen3.8-27b` (DashScope) -> `doubao-seed-1-6-flash-250615` (Doubao).
    - Vision default: Groq -> `qwen-vl-plus` (DashScope).
    - Graceful error messages and clean timeout abortion (45s).
-3. **Service Integration:**
+3. **Service Integration & Model Updates:**
+   - Changed DashScope default text and vision model to `qwen3.8-flash` (tested and confirmed native multimodal vision support, highly cost-effective and ultra-low latency).
+   - Enabled Doubao multimodal vision via `doubao-seed-1-6-flash-250615` (tested and verified image recognition).
+   - Enhanced `src/commands/ai.js` to account for media captions (both direct image captions and quoted message captions when replying).
    - Updated `src/services/aiVisionService.js`: routed `analyzeImage` and `chatText` to `callLlmWithRotation`.
    - Updated `src/services/birthdayAiService.js`: routed `callGroq` to `callLlmWithRotation`.
 4. **Environment & Deployment:**
