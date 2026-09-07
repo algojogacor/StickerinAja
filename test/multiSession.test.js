@@ -146,4 +146,47 @@ describe('Multi-Session Socket Manager', () => {
         assert.equal(typeof pruneTursoAuthState, 'function');
         assert.equal(typeof baileys.pruneTursoAuthState, 'function');
     });
+
+    it('yields from pribadi session in shared groups and 1-on-1 DM with the bot', () => {
+        global.botSessions = {
+            bot: {
+                status: 'connected',
+                user: { id: '6288889999:1@s.whatsapp.net' }
+            },
+            pribadi: {
+                status: 'connected',
+                user: { id: '62811112222:0@s.whatsapp.net' }
+            }
+        };
+        global.botGroupJids = new Set(['shared-group@g.us']);
+
+        function shouldPribadiYield(msg) {
+            const remoteJid = msg?.key?.remoteJid;
+            if (!remoteJid) return false;
+            const botSession = global.botSessions?.['bot'];
+            if (botSession?.status !== 'connected') return false;
+
+            if (remoteJid.endsWith('@g.us')) {
+                return Boolean(global.botGroupJids && global.botGroupJids.has(remoteJid));
+            }
+
+            const botJid = botSession?.user?.id ? String(botSession.user.id).replace(/:.*@/, '@').toLowerCase().trim() : null;
+            if (!botJid) return false;
+            const cleanRemote = String(remoteJid).replace(/:.*@/, '@').toLowerCase().trim();
+            return cleanRemote === botJid;
+        }
+
+        // 1. Shared group where bot is present -> should yield
+        assert.equal(shouldPribadiYield({ key: { remoteJid: 'shared-group@g.us' } }), true);
+
+        // 2. Solo group where bot is absent -> should NOT yield
+        assert.equal(shouldPribadiYield({ key: { remoteJid: 'solo-group@g.us' } }), false);
+
+        // 3. 1-on-1 DM with the bot (Bot WA) -> should yield to prevent dual replies
+        assert.equal(shouldPribadiYield({ key: { remoteJid: '6288889999@s.whatsapp.net' } }), true);
+        assert.equal(shouldPribadiYield({ key: { remoteJid: '6288889999:5@s.whatsapp.net' } }), true);
+
+        // 4. 1-on-1 DM with a regular friend -> should NOT yield
+        assert.equal(shouldPribadiYield({ key: { remoteJid: '62855556666@s.whatsapp.net' } }), false);
+    });
 });

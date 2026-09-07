@@ -12,7 +12,7 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const { startBot } = require('./src/baileys');
-const { handler, extractMessageContent, shouldProcessMessage, commands } = require('./src/handler');
+const { handler, extractMessageContent, shouldProcessMessage, commands, getSenderJid } = require('./src/handler');
 const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
 const fs = require('fs');
@@ -75,6 +75,24 @@ function isDuplicateMessage(messageId) {
     return false;
 }
 
+function shouldPribadiYield(msg) {
+    const remoteJid = msg?.key?.remoteJid;
+    if (!remoteJid) return false;
+    const botSession = global.botSessions?.['bot'];
+    if (botSession?.status !== 'connected') return false;
+
+    // 1. Yield in groups where bot is a member
+    if (remoteJid.endsWith('@g.us')) {
+        return Boolean(global.botGroupJids && global.botGroupJids.has(remoteJid));
+    }
+
+    // 2. Yield in 1-on-1 private chat with the bot
+    const botJid = botSession?.user?.id ? String(botSession.user.id).replace(/:.*@/, '@').toLowerCase().trim() : null;
+    if (!botJid) return false;
+    const cleanRemote = String(remoteJid).replace(/:.*@/, '@').toLowerCase().trim();
+    return cleanRemote === botJid;
+}
+
 async function messageHandler(sock, msg, logger, sessionId) {
     const sessionConfig = sessionId && global.botSessions?.[sessionId];
     const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
@@ -99,14 +117,10 @@ async function messageHandler(sock, msg, logger, sessionId) {
 
     // If it is a known bot command, process normally
     if (isKnownCommand) {
-        // Prevent double response in shared group: prioritize bot session ONLY IF bot is a member of this group
-        if (isGroup && sessionId === 'pribadi') {
-            const botSession = global.botSessions?.['bot'];
-            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
-            if (botSession?.status === 'connected' && isBotInThisGroup) {
-                logger.debug({ msgId: msg.key?.id, group: msg.key?.remoteJid }, '[Multi-Session] Skipped group command on pribadi session in favor of connected bot session');
-                return;
-            }
+        // Prevent double response in shared groups or in 1-on-1 DM with the bot
+        if (sessionId === 'pribadi' && shouldPribadiYield(msg)) {
+            logger.debug({ msgId: msg.key?.id, remoteJid: msg.key?.remoteJid }, '[Multi-Session] Skipped command on pribadi session in favor of connected bot session');
+            return;
         }
 
         // Deduplicate message ID across sessions
@@ -118,15 +132,28 @@ async function messageHandler(sock, msg, logger, sessionId) {
         return handler(sock, msg, logger, sessionId, botMode);
     }
 
+    // Active stateful session interception (e.g. PDF multi-page creation)
+    // CRITICAL: Checked before isPrefixed so plain images (without caption) are captured
+    const pdfCmd = commands.get('pdf');
+    if (pdfCmd?.handleActiveSession) {
+        if (sessionId === 'pribadi' && shouldPribadiYield(msg)) {
+            return;
+        }
+        try {
+            const senderJid = getSenderJid(msg, sock);
+            const handled = await pdfCmd.handleActiveSession({
+                sock, msg, senderJid, remoteJid: msg.key?.remoteJid, logger, messageText, PREFIX
+            });
+            if (handled) return;
+        } catch (sessionErr) {
+            logger.warn({ err: sessionErr }, '[Index] Active session handling error');
+        }
+    }
+
     // Interactive group messages during Birthday Takeover (Truth, Photo Story, Memory Wall, Roast, Wish Jar, Quests)
     if (!msg.key?.fromMe && isGroup) {
-        // If message is on pribadi session, yield to connected bot session if present in this group
-        if (sessionId === 'pribadi') {
-            const botSession = global.botSessions?.['bot'];
-            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
-            if (botSession?.status === 'connected' && isBotInThisGroup) {
-                return;
-            }
+        if (sessionId === 'pribadi' && shouldPribadiYield(msg)) {
+            return;
         }
         if (msg.key?.id && isDuplicateMessage(msg.key.id)) return;
 
@@ -138,14 +165,10 @@ async function messageHandler(sock, msg, logger, sessionId) {
         }
     }
 
-    // Fallback for remaining prefixed commands or sessions (e.g. unknown command, active PDF session)
+    // Fallback for remaining prefixed commands
     if (isPrefixed) {
-        if (isGroup && sessionId === 'pribadi') {
-            const botSession = global.botSessions?.['bot'];
-            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
-            if (botSession?.status === 'connected' && isBotInThisGroup) {
-                return;
-            }
+        if (sessionId === 'pribadi' && shouldPribadiYield(msg)) {
+            return;
         }
 
         if (msg.key?.id && isDuplicateMessage(msg.key.id)) {

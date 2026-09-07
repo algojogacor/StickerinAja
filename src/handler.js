@@ -37,13 +37,17 @@ function shouldProcessMessage(msg, botMode = process.env.BOT_MODE || 'dual') {
 }
 
 function getSenderJid(msg, sock) {
+    let jid;
     if (msg?.key?.fromMe) {
         if (sock?.user?.id) {
-            return sock.user.id.replace(/:.*@/, '@');
+            jid = sock.user.id;
+        } else {
+            jid = msg?.key?.participant || msg?.key?.remoteJid;
         }
-        return msg?.key?.participant || msg?.key?.remoteJid;
+    } else {
+        jid = msg?.key?.participant || msg?.key?.remoteJid;
     }
-    return msg?.key?.participant || msg?.key?.remoteJid;
+    return jid ? String(jid).replace(/:.*@/, '@') : jid;
 }
 
 function getSession(userJid) {

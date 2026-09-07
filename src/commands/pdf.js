@@ -329,11 +329,27 @@ function getCleanFileName(customTitle, defaultPrefix) {
     return `${defaultPrefix}.pdf`;
 }
 
+function cleanJid(jid) {
+    if (!jid) return '';
+    return String(jid).replace(/:.*@/, '@').trim().toLowerCase();
+}
+
+function getSessionForUser(senderJid, remoteJid) {
+    const s = cleanJid(senderJid);
+    const r = cleanJid(remoteJid);
+    if (s && pdfSessions.has(s)) return { session: pdfSessions.get(s), key: s };
+    if (r && !r.endsWith('@g.us') && pdfSessions.has(r)) return { session: pdfSessions.get(r), key: r };
+    return { session: null, key: s || r };
+}
+
 function getSender(msg, sock) {
+    let jid;
     if (msg?.key?.fromMe) {
-        return sock?.user?.id?.replace(/:.*@/, '@') || msg?.key?.remoteJid;
+        jid = sock?.user?.id || msg?.key?.remoteJid;
+    } else {
+        jid = msg?.key?.participant || msg?.key?.remoteJid;
     }
-    return msg?.key?.participant || msg?.key?.remoteJid;
+    return cleanJid(jid);
 }
 
 async function extractImageBuffer(msg, logger) {
@@ -406,9 +422,12 @@ module.exports = {
     prepareOriginalImage,
     callScanner,
     pdfSessions,
+    cleanJid,
+    getSessionForUser,
     handleActiveSession: async ({ sock, msg, senderJid, remoteJid, logger, messageText, PREFIX }) => {
         cleanExpiredSessions();
-        if (!pdfSessions.has(senderJid)) return false;
+        const { session, key } = getSessionForUser(senderJid, remoteJid);
+        if (!session) return false;
 
         // If message is an explicit command starting with PREFIX (e.g. !pdfdone, !pdfcancel, !scan), let normal router handle it
         if (messageText && messageText.startsWith(PREFIX)) {
@@ -418,7 +437,6 @@ module.exports = {
         const imageBuffer = await extractImageBuffer(msg, logger);
         if (!imageBuffer) return false;
 
-        const session = pdfSessions.get(senderJid);
         if (session.rawBuffers.length >= MAX_PAGES) {
             await sock.sendMessage(remoteJid, {
                 text: `⚠️ *Batas Maksimal Halaman Tercapai (${MAX_PAGES} Halaman)!*\n\n` +
@@ -435,14 +453,26 @@ module.exports = {
         session.rawBuffers.push(compressed);
         session.lastActive = Date.now();
 
-        const count = session.rawBuffers.length;
-        await sock.sendMessage(remoteJid, {
-            text: `✅ *Halaman ${count} Tersimpan!*\n\n` +
-                  `• Total Halaman: *${count}*\n\n` +
-                  `Silakan kirim foto berikutnya, atau ketik:\n` +
-                  `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Original & Filter Ringan)\n` +
-                  `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
-        }, { quoted: msg });
+        // Debounce page confirmations by 600ms to smoothly aggregate multi-photo album sends
+        if (session.ackTimer) {
+            clearTimeout(session.ackTimer);
+            session.ackTimer = null;
+        }
+
+        session.ackTimer = setTimeout(async () => {
+            try {
+                const count = session.rawBuffers.length;
+                await sock.sendMessage(remoteJid, {
+                    text: `✅ *Halaman ${count} Tersimpan!*\n\n` +
+                          `• Total Halaman: *${count}*\n\n` +
+                          `Silakan kirim foto berikutnya, atau ketik:\n` +
+                          `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Original & Filter Ringan)\n` +
+                          `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
+                });
+            } catch (err) {
+                logger?.error?.({ err }, '[PDF] Failed to send debounced page confirmation');
+            }
+        }, 600);
 
         return true;
     },
@@ -453,11 +483,13 @@ module.exports = {
         const customTitle = args.join(' ').trim();
 
         cleanExpiredSessions();
+        const { session: activeSession, key: sessionKey } = getSessionForUser(sender, remoteJid);
 
         // 1. CANCEL SESSION
         if (command === 'pdfcancel') {
-            if (pdfSessions.has(sender)) {
-                pdfSessions.delete(sender);
+            if (activeSession) {
+                if (activeSession.ackTimer) clearTimeout(activeSession.ackTimer);
+                pdfSessions.delete(sessionKey);
                 return sock.sendMessage(remoteJid, { text: '🗑️ *Sesi pembuatan PDF telah dibatalkan.*' }, { quoted: msg });
             }
             return sock.sendMessage(remoteJid, { text: 'ℹ️ Tidak ada sesi PDF aktif.' }, { quoted: msg });
@@ -465,29 +497,33 @@ module.exports = {
 
         // 2. FINISH & GENERATE DUAL PDF OUTPUT (Original & Filter Ringan)
         if (command === 'pdfdone' || command === 'donepdf') {
-            const session = pdfSessions.get(sender);
-            if (!session || session.rawBuffers.length === 0) {
+            if (!activeSession || activeSession.rawBuffers.length === 0) {
                 return sock.sendMessage(remoteJid, {
                     text: '❌ *Belum ada gambar dalam sesi!*' +
                           `\nKirim/reply gambar terlebih dahulu dengan \`${PREFIX}topdf\` atau \`${PREFIX}scan\`.`
                 }, { quoted: msg });
             }
 
+            if (activeSession.ackTimer) {
+                clearTimeout(activeSession.ackTimer);
+                activeSession.ackTimer = null;
+            }
+
             const { heavyTaskQueue } = require('../utils/cache');
             return heavyTaskQueue.add(async () => {
                 try {
-                    const totalPages = session.rawBuffers.length;
+                    const totalPages = activeSession.rawBuffers.length;
                     await sock.sendMessage(remoteJid, {
                         text: `⏳ *Menggabungkan ${totalPages} halaman & menyiapkan 2 versi PDF (Original & Filter Ringan)...*`
                     }, { quoted: msg });
 
-                    const finalTitle = customTitle || session.title || '';
+                    const finalTitle = customTitle || activeSession.title || '';
                     const baseFileName = getCleanFileName(finalTitle, 'Dokumen_Scan');
                     const baseNameNoExt = baseFileName.replace(/\.pdf$/i, '');
 
                     // Process Version 1: Original / Tanpa Filter (Asli)
                     const v1Buffers = [];
-                    for (const raw of session.rawBuffers) {
+                    for (const raw of activeSession.rawBuffers) {
                         const original = await prepareOriginalImage(raw);
                         v1Buffers.push(original);
                     }
@@ -495,7 +531,7 @@ module.exports = {
 
                     // Process Version 2: Gentle Filter (Filter Ringan)
                     const v2Buffers = [];
-                    for (const raw of session.rawBuffers) {
+                    for (const raw of activeSession.rawBuffers) {
                         const enhanced = await applyGentleScan(await autoCropDocument(raw));
                         v2Buffers.push(enhanced);
                     }
@@ -528,7 +564,7 @@ module.exports = {
                                  `_Pilih versi yang paling pas dengan lembar dokumen Anda._`
                     }, { quoted: msg });
 
-                    pdfSessions.delete(sender);
+                    pdfSessions.delete(sessionKey);
                     return;
                 } catch (err) {
                     logger?.error({ err }, '[PDF] Failed to generate PDF');
@@ -541,7 +577,7 @@ module.exports = {
         const imageBuffer = await extractImageBuffer(msg, logger);
 
         // Case A: Reply 1 image directly -> generate and send both versions immediately!
-        if (imageBuffer && !pdfSessions.has(sender)) {
+        if (imageBuffer && !activeSession) {
             const { heavyTaskQueue } = require('../utils/cache');
             return heavyTaskQueue.add(async () => {
                 try {
@@ -590,12 +626,15 @@ module.exports = {
         }
 
         // Case B: Session already active -> add raw image to session
-        if (pdfSessions.has(sender)) {
-            const session = pdfSessions.get(sender);
-            session.lastActive = Date.now();
+        if (activeSession) {
+            activeSession.lastActive = Date.now();
+            if (activeSession.ackTimer) {
+                clearTimeout(activeSession.ackTimer);
+                activeSession.ackTimer = null;
+            }
 
             if (imageBuffer) {
-                if (session.rawBuffers.length >= MAX_PAGES) {
+                if (activeSession.rawBuffers.length >= MAX_PAGES) {
                     return sock.sendMessage(remoteJid, {
                         text: `⚠️ *Batas Maksimal Halaman Tercapai (${MAX_PAGES} Halaman)!*\n\n` +
                               `Silakan ketik \`${PREFIX}pdfdone\` untuk memproses PDF atau \`${PREFIX}pdfcancel\` untuk membatalkan.`
@@ -606,14 +645,14 @@ module.exports = {
                     .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
                     .jpeg({ quality: 88 })
                     .toBuffer();
-                session.rawBuffers.push(compressed);
+                activeSession.rawBuffers.push(compressed);
                 return sock.sendMessage(remoteJid, {
-                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF (Original & Filter Ringan).`
+                    text: `✅ *Halaman ${activeSession.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF (Original & Filter Ringan).`
                 }, { quoted: msg });
             } else {
                 return sock.sendMessage(remoteJid, {
                     text: `📑 *Sesi PDF Sedang Aktif*\n\n` +
-                          `• Halaman tersimpan: *${session.rawBuffers.length}*\n\n` +
+                          `• Halaman tersimpan: *${activeSession.rawBuffers.length}*\n\n` +
                           `Silakan kirim gambar lagi, atau ketik:\n` +
                           `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Original & Filter Ringan)\n` +
                           `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
@@ -631,7 +670,7 @@ module.exports = {
                 .toBuffer();
         }
 
-        pdfSessions.set(sender, {
+        pdfSessions.set(sessionKey, {
             title: customTitle || '',
             rawBuffers: initialBuffer ? [initialBuffer] : [],
             lastActive: Date.now(),

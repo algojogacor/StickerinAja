@@ -6,6 +6,55 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 69 — Fix PDF Session Responsiveness, Non-Prefixed Media Routing & Multi-Session UX
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 16:50 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `486c2be` |
+| **Ending HEAD** | Working tree modified (ready for commit) |
+| **Status** | Completed |
+
+### Problem & Objectives
+- **User feedback:** "Kok kayak semacam ga responsif gitu ya? UX nya hancur. kek semacam kadang bisa kadang gabisa" with screenshots showing:
+  - User starts session with `!topdf` or `!scan`.
+  - User sends 2 photos (album/bundle or forwarded). The bot does not respond at all.
+  - User types `!pdfdone`, and the bot says `❌ Belum ada gambar dalam sesi!`.
+  - User only got the bot to respond when manually typing `!topdf` as a caption on each photo!
+  - In DM, user saw `pribadi` selfbot reply with `You: ✅ Halaman Tersimpan!` while `Bot WA` replied `❌ Belum ada gambar!`.
+- **Root Cause Analysis:**
+  1. **Non-Prefixed Media Ignored in `index.js`:**
+     - In `index.js`, `messageHandler` checked `if (isPrefixed)` before calling `handler(...)`.
+     - Normal camera photos and forwarded images sent by users have no caption/prefix (`messageText = ""`).
+     - Because `isPrefixed` was false, `index.js` exited early without calling `handler()`.
+     - Consequently, `pdfCmd.handleActiveSession` was NEVER invoked for plain photos!
+  2. **Multi-Session DM Duel:**
+     - In 1-on-1 private chat with the bot, `pribadi` (selfbot `dual` mode) also processed the user's outgoing commands and sent responses to the bot, creating race conditions with the actual bot session.
+  3. **Unnormalized JID Keys:**
+     - `getSenderJid` did not strip `:device` (e.g. `:15@s.whatsapp.net`) on incoming messages, causing key mismatches between sender and session map in `pdfSessions`.
+  4. **Album / Multi-Photo Spam:**
+     - Sending multiple photos at once triggered multiple instant replies rather than a clean, aggregated confirmation.
+- **Implementation:**
+  1. `src/handler.js`: Updated `getSenderJid` to strip device IDs (`:.*@`) across both incoming and outgoing messages.
+  2. `src/commands/pdf.js`:
+     - Added `cleanJid` and `getSessionForUser` for dual lookup (sender JID or DM chat JID) without device suffix mismatch.
+     - In `handleActiveSession`, added 600ms debounce on page save confirmations to aggregate multi-photo album sends into a single clean update.
+     - In `execute` (`pdfdone`, `pdfcancel`), cleared debounce timers to avoid trailing ack messages.
+  3. `index.js`:
+     - Added `shouldPribadiYield(msg)` which yields `pribadi` session to `bot` both in shared groups and in 1-on-1 DM chats with `bot`.
+     - Moved active PDF session check (`pdfCmd.handleActiveSession`) before `isPrefixed` so all plain photos are immediately captured.
+  4. Tests added and verified:
+     - `test/utilities.test.js`: Added tests for `cleanJid`, `getSessionForUser` with `:device` suffixes, and debounced multi-photo album saving.
+     - `test/multiSession.test.js`: Added tests for `shouldPribadiYield` covering shared groups, solo groups, and 1-on-1 DMs with the bot.
+     - All 374 tests across 79 test suites passed (0 failures).
+
+---
+
 ## Session 68 — Make Birthday Roast Session Unconditionally Active & Reschedule to 16:30 WIB
 
 | Field | Value |

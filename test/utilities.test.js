@@ -301,6 +301,70 @@ describe('Utility and Tools Command Suite', () => {
             assert.match(sentMessage.text, /dibatalkan/);
             assert.ok(!pdfCmd.pdfSessions.has('user3@s.whatsapp.net'));
         });
+
+        it('normalizes device JIDs in cleanJid and getSessionForUser', () => {
+            pdfCmd.pdfSessions.set('62812345678@s.whatsapp.net', { rawBuffers: [], lastActive: Date.now() });
+
+            // Lookup using linked device sender JID
+            const { session, key } = pdfCmd.getSessionForUser('62812345678:15@s.whatsapp.net', 'some-chat@s.whatsapp.net');
+            assert.ok(session, 'Should find session despite device suffix :15');
+            assert.equal(key, '62812345678@s.whatsapp.net');
+
+            // Lookup using 1-on-1 DM remoteJid
+            const dmLookup = pdfCmd.getSessionForUser(null, '62812345678:2@s.whatsapp.net');
+            assert.ok(dmLookup.session, 'Should find session via DM remoteJid');
+            assert.equal(dmLookup.key, '62812345678@s.whatsapp.net');
+
+            pdfCmd.pdfSessions.delete('62812345678@s.whatsapp.net');
+        });
+
+        it('debounces page save confirmation during rapid multi-image uploads', async () => {
+            let sentMessages = [];
+            const mockSock = {
+                sendMessage: async (jid, content) => {
+                    sentMessages.push(content);
+                    return { key: { id: 'test' } };
+                }
+            };
+
+            const userJid = 'album_user@s.whatsapp.net';
+            const session = { rawBuffers: [], lastActive: Date.now() };
+            pdfCmd.pdfSessions.set(userJid, session);
+
+            // Create 2 test images
+            const img1 = await sharp({ create: { width: 40, height: 40, channels: 3, background: { r: 10, g: 20, b: 30 } } }).jpeg().toBuffer();
+            const img2 = await sharp({ create: { width: 40, height: 40, channels: 3, background: { r: 40, g: 50, b: 60 } } }).jpeg().toBuffer();
+
+            // Mock Baileys downloadMediaMessage
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            // Mock message objects with images
+            const msg1 = { key: { remoteJid: userJid, id: 'm1' }, message: { imageMessage: {} } };
+            const msg2 = { key: { remoteJid: userJid, id: 'm2' }, message: { imageMessage: {} } };
+
+            // Simulate msg 1 arriving
+            session.rawBuffers.push(img1);
+            if (session.ackTimer) clearTimeout(session.ackTimer);
+            session.ackTimer = setTimeout(async () => {
+                await mockSock.sendMessage(userJid, { text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*` });
+            }, 50);
+
+            // Rapidly simulate msg 2 arriving 10ms later (album bundle)
+            await new Promise(r => setTimeout(r, 10));
+            session.rawBuffers.push(img2);
+            if (session.ackTimer) clearTimeout(session.ackTimer);
+            session.ackTimer = setTimeout(async () => {
+                await mockSock.sendMessage(userJid, { text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*` });
+            }, 50);
+
+            // Wait 100ms for debounce timer to fire
+            await new Promise(r => setTimeout(r, 100));
+
+            // Should only have sent ONE aggregated message with Halaman 2, not 2 separate messages
+            assert.equal(sentMessages.length, 1);
+            assert.match(sentMessages[0].text, /Halaman 2 Tersimpan/);
+
+            pdfCmd.pdfSessions.delete(userJid);
+        });
     });
 
     describe('KBBI Module', () => {
