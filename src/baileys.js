@@ -106,9 +106,11 @@ function startSession({
                 watchdogInterval = setInterval(() => {
                     const sess = global.botSessions?.[sessionId];
                     if (sess?.status === 'connected' && activeSock?.ws) {
-                        const readyState = activeSock.ws.readyState;
-                        if (readyState !== 1) { // 1 = OPEN
-                            sessionLogger.warn(`[Watchdog] ${sessionName} socket readyState is ${readyState} (not OPEN), forcing reconnect...`);
+                        const isOpen = typeof activeSock.ws.isOpen === 'boolean'
+                            ? activeSock.ws.isOpen
+                            : (activeSock.ws.socket?.readyState === 1 || activeSock.ws.readyState === 1);
+                        if (!isOpen) {
+                            sessionLogger.warn(`[Watchdog] ${sessionName} socket is not open (isOpen=${isOpen}), forcing reconnect...`);
                             clearSock(activeSock, sessionId);
                             try { activeSock.ws.close(); } catch {}
                             try { activeSock.end?.(); } catch {}

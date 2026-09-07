@@ -117,6 +117,16 @@ async function messageHandler(sock, msg, logger, sessionId) {
 
     // Interactive group messages during Birthday Takeover (Truth, Photo Story, Memory Wall, Roast, Wish Jar, Quests)
     if (!msg.key?.fromMe && msg.key?.remoteJid?.endsWith('@g.us')) {
+        // If message is on pribadi session, yield to connected bot session if present in this group
+        if (sessionId === 'pribadi') {
+            const botSession = global.botSessions?.['bot'];
+            const isBotInThisGroup = Boolean(global.botGroupJids && global.botGroupJids.has(msg.key?.remoteJid));
+            if (botSession?.status === 'connected' && isBotInThisGroup) {
+                return;
+            }
+        }
+        if (msg.key?.id && isDuplicateMessage(msg.key.id)) return;
+
         try {
             await birthdayTakeover.handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger);
         } catch (error) {

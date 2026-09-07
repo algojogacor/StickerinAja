@@ -66,12 +66,40 @@ function getAllSocks() {
   return Array.from(_socks.values());
 }
 
+function isSocketOpen(sock) {
+  if (!sock) return false;
+  if (typeof sock.ws?.isOpen === 'boolean') return sock.ws.isOpen;
+  if (sock.ws?.socket?.readyState === 1) return true;
+  return true;
+}
+
 function getBotSock() {
   const preferredId = process.env.SCHEDULER_SESSION_ID || 'bot';
-  if (_socks.has(preferredId)) return _socks.get(preferredId);
-  if (_socks.has('bot')) return _socks.get('bot');
-  if (_socks.has('default')) return _socks.get('default');
+  if (_socks.has(preferredId) && isSocketOpen(_socks.get(preferredId))) return _socks.get(preferredId);
+  if (_socks.has('bot') && isSocketOpen(_socks.get('bot'))) return _socks.get('bot');
+  if (_socks.has('default') && isSocketOpen(_socks.get('default'))) return _socks.get('default');
   return null;
 }
 
-module.exports = { setSock, getSock, getBotSock, clearSock, getAllSocks };
+function getBirthdaySock() {
+  const preferredId = process.env.SCHEDULER_SESSION_ID || 'bot';
+  const preferred = _socks.get(preferredId);
+  if (preferred && isSocketOpen(preferred)) return preferred;
+
+  const bot = _socks.get('bot');
+  if (bot && isSocketOpen(bot)) return bot;
+
+  // Explicit fallback to personal session (pribadi) if bot session is unavailable
+  const pribadi = _socks.get('pribadi');
+  if (pribadi && isSocketOpen(pribadi)) return pribadi;
+
+  const def = _socks.get('default');
+  if (def && isSocketOpen(def)) return def;
+
+  for (const sock of _socks.values()) {
+    if (sock && isSocketOpen(sock)) return sock;
+  }
+  return null;
+}
+
+module.exports = { setSock, getSock, getBotSock, getBirthdaySock, isSocketOpen, clearSock, getAllSocks };

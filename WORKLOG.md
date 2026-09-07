@@ -6,6 +6,44 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 56 — Fix Socket Watchdog Loop & Birthday Personal Session Fallback
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 12:51 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `e941deb` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Diagnosis
+- **User report:** "Sepertinya nomor bot error atau mati deh. karena gabisa aku hubungi sekarang. coba kamu cek. jika nomor bot error, tolong siapkan fallback agar pakai nomor pribadi ku aja untuk fitur birthday ini"
+- **Investigation of Live Koyeb Logs:**
+  - Found recurring log entries every 30 seconds:
+    `[Watchdog] Nomor Pribadi (Selfbot) socket readyState is undefined (not OPEN), forcing reconnect...`
+    `[Watchdog] Nomor Bot (Publik) socket readyState is undefined (not OPEN), forcing reconnect...`
+  - In Baileys, `activeSock.ws` is an instance of `WebSocketClient`, not a raw `ws.WebSocket`.
+  - Therefore, `activeSock.ws.readyState` is `undefined`.
+  - The watchdog condition `readyState !== 1` was evaluating to `true` continuously every 30 seconds, forcing an endless disconnect/reconnect cycle for BOTH the bot and personal numbers!
+  - In addition, the birthday scheduler was bound strictly to `getBotSock()` with no fallback to the personal session (`pribadi`).
+
+### Changes Applied
+1. **Watchdog WebSocket State Check:**
+   - In `src/baileys.js`, updated the watchdog condition to inspect `activeSock.ws.isOpen` (standard Baileys getter) or `activeSock.ws.socket?.readyState === 1`.
+2. **Personal Session Fallback for Birthday Takeover:**
+   - In `src/core/socket.js`, implemented `getBirthdaySock()` which prioritizes the bot session, but seamlessly falls back to the user's personal session (`pribadi`) if the bot session is disconnected or unavailable.
+   - Updated `src/scheduler/birthdayScheduler.js` to use `getBirthdaySock()`.
+   - Updated `index.js` to allow interactive group messages (Truth, Photo Story, Memory Wall, Roast, Wish Jar, Quests) to be processed by the personal session if the bot session is not connected, with cross-session message deduplication.
+3. **Tests:**
+   - Updated `test/multiSession.test.js` to verify that `getBirthdaySock()` prioritizes `bot` and falls back to `pribadi`.
+   - All 365 tests passed (79 suites, 0 failed).
+
+---
+
 ## Session 55 — Fix Birthday Takeover Schedulers & Formatter Aliases
 
 | Field | Value |

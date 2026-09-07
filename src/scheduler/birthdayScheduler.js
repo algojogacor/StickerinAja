@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { getBotSock } = require("../core/socket");
+const { getBotSock, getBirthdaySock } = require("../core/socket");
 const { createWindowedScheduler } = require("./windowedScheduler");
 const repository = require("../repositories/birthdayRepository");
 const birthday = require("../services/birthdayService");
@@ -139,7 +139,7 @@ async function runEventForGroup(event, targetJid, personsOverride) {
     // If takeover is not active and event is 21:00 recap, evaluate memory flashback
     if (!active) {
       if (event === "grand_recap" || event === "recap") {
-        const sock = getBotSock();
+        const sock = getBirthdaySock ? getBirthdaySock() : getBotSock();
         if (sock) await checkAndRunFlashback(sock, targetJid);
       }
       return true;
@@ -149,9 +149,9 @@ async function runEventForGroup(event, targetJid, personsOverride) {
 
     const persons = personsOverride || await birthday.getTakeoverBirthdayPersons(targetJid);
     if (!persons.length) return true;
-    const sock = getBotSock();
+    const sock = getBirthdaySock ? getBirthdaySock() : getBotSock();
     if (!sock) {
-      logger?.warn({ event, targetJid }, "[Birthday] Bot session unavailable — skipping event to isolate personal session");
+      logger?.warn({ event, targetJid }, "[Birthday] Neither bot nor personal session available — skipping event");
       return false;
     }
 

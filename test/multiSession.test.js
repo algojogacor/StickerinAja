@@ -1,6 +1,6 @@
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { setSock, getSock, getBotSock, clearSock, getAllSocks } = require('../src/core/socket');
+const { setSock, getSock, getBotSock, getBirthdaySock, clearSock, getAllSocks } = require('../src/core/socket');
 
 describe('Multi-Session Socket Manager', () => {
     beforeEach(() => {
@@ -46,14 +46,17 @@ describe('Multi-Session Socket Manager', () => {
         // Pribadi connects first
         setSock(mockPribadiSock, 'pribadi');
         assert.equal(getSock(), mockPribadiSock);
+        assert.equal(getBirthdaySock(), mockPribadiSock);
 
-        // Bot connects second -> getSock() prioritizes bot
+        // Bot connects second -> getSock() and getBirthdaySock() prioritize bot
         setSock(mockBotSock, 'bot');
         assert.equal(getSock(), mockBotSock);
+        assert.equal(getBirthdaySock(), mockBotSock);
 
-        // If bot disconnects -> getSock() falls back to pribadi
+        // If bot disconnects -> getSock() and getBirthdaySock() fall back to pribadi
         clearSock(mockBotSock, 'bot');
         assert.equal(getSock(), mockPribadiSock);
+        assert.equal(getBirthdaySock(), mockPribadiSock);
 
         // But getBotSock() NEVER falls back to pribadi (schedulers isolated)
         assert.equal(getBotSock(), null);
