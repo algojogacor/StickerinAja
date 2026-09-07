@@ -138,6 +138,21 @@ describe("Birthday scheduler contract", () => {
     assert.equal(typeof birthdayScheduler.resume, "function");
     assert.equal(typeof birthdayScheduler.runEvent, "function");
   });
+
+  it("isolates delivery strictly to BIRTHDAY_TARGET_JID when configured", async () => {
+    const originalTarget = process.env.BIRTHDAY_TARGET_JID;
+    try {
+      process.env.BIRTHDAY_TARGET_JID = "120363253471284606@g.us";
+      const targets = await birthdayScheduler.getTargetGroups();
+      assert.deepEqual(targets, ["120363253471284606@g.us"]);
+
+      const result = await birthdayScheduler.runEventForGroup("opening", "other_group@g.us");
+      assert.equal(result, false);
+    } finally {
+      if (originalTarget !== undefined) process.env.BIRTHDAY_TARGET_JID = originalTarget;
+      else delete process.env.BIRTHDAY_TARGET_JID;
+    }
+  });
 });
 
 describe("Birthday command", () => {

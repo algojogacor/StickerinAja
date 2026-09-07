@@ -18,7 +18,12 @@ function assetBuffer(configKey) {
 }
 
 async function getTargetGroups() {
-  const defaultJid = groupJid || process.env.GROUP_JID || "";
+  const config = getConfig();
+  const explicitTarget = config.BIRTHDAY_TARGET_JID || (groupJid && groupJid !== process.env.GROUP_JID ? groupJid : null);
+  if (explicitTarget) {
+    return [explicitTarget];
+  }
+
   let birthdayGroups = [];
   try {
     if (typeof birthday.getTodayBirthdayGroups === "function") {
@@ -27,11 +32,22 @@ async function getTargetGroups() {
   } catch (err) {
     logger?.warn({ err }, "[Birthday] Failed to fetch active birthday groups");
   }
-  return [...new Set([defaultJid, ...birthdayGroups].filter(Boolean))];
+
+  if (birthdayGroups.length > 0) {
+    return [...new Set(birthdayGroups.filter(Boolean))];
+  }
+
+  const defaultJid = groupJid || process.env.GROUP_JID || "";
+  return defaultJid ? [defaultJid] : [];
 }
 
 async function runEventForGroup(event, targetJid, personsOverride) {
   if (!event || !targetJid) return false;
+  const config = getConfig();
+  if (config.BIRTHDAY_TARGET_JID && targetJid !== config.BIRTHDAY_TARGET_JID) {
+    logger?.info({ event, targetJid, allowed: config.BIRTHDAY_TARGET_JID }, "[Birthday] Skipping group - does not match BIRTHDAY_TARGET_JID");
+    return false;
+  }
   try {
     await birthday.evaluateAndActivate(targetJid);
     if (!await birthday.isTakeoverActive(targetJid)) return true;
@@ -122,9 +138,9 @@ function start({ logger: log, groupJid: jid } = {}) {
     return false;
   }
   logger = log;
-  groupJid = jid || process.env.GROUP_JID || "";
+  groupJid = jid || config.BIRTHDAY_TARGET_JID || process.env.GROUP_JID || "";
   if (!groupJid) {
-    logger?.warn("[Birthday] No GROUP_JID; scheduler not started");
+    logger?.warn("[Birthday] No GROUP_JID or BIRTHDAY_TARGET_JID; scheduler not started");
     return false;
   }
   scheduler = createWindowedScheduler({

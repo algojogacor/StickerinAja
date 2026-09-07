@@ -2427,12 +2427,25 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/*.test.js`: **333 pass, 0 fail, 0 skipped across 76 test suites**.
 - **Status:** Completed
 
+---
 
+## Session 53 — Strict Group Isolation for Birthday Takeover (`BIRTHDAY_TARGET_JID`)
 
-
-
-
-
-
-
-
+- **Date:** 2026-09-07
+- **Start:** 08:51 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Strictly isolate Birthday Takeover events to explicit WhatsApp Group ID `120363253471284606@g.us`, ensuring no broadcast to other mutual groups.
+- **Scope:**
+  - `src/config/birthdayConfig.js`: Added `BIRTHDAY_TARGET_JID: process.env.BIRTHDAY_TARGET_JID || ""` to birthday configuration.
+  - `src/scheduler/birthdayScheduler.js`:
+    - `getTargetGroups()`: When `BIRTHDAY_TARGET_JID` is configured, it returns strictly `[BIRTHDAY_TARGET_JID]`. When not configured, it only returns groups that actually registered birthdays for today (`birthdayGroups`).
+    - `runEventForGroup()`: Added defense-in-depth check that verifies `targetJid === config.BIRTHDAY_TARGET_JID` when set, rejecting any other groups.
+    - `start()`: Supports `groupJid = jid || config.BIRTHDAY_TARGET_JID || process.env.GROUP_JID || ""`.
+  - `.env.example`: Documented `BIRTHDAY_TARGET_JID`.
+  - `test/birthday.test.js`: Added unit tests verifying strict isolation of target groups and event execution.
+  - `PROJECT_STATE.md`: Updated active features table and verified test counts (357 pass across 78 suites).
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/birthday.test.js`: **14 pass, 0 fail**.
+  - `node --test test/**/*.test.js`: **357 pass, 0 fail across 78 suites**.
+- **Status:** Completed
