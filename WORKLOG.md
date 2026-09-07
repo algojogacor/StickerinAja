@@ -6,6 +6,36 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 61 — Cloudinary Live Verification & Birthday Takeover Event Rundown
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:25 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `f96acfb` |
+| **Ending HEAD** | `f96acfb` |
+| **Status** | Completed |
+
+### Implementation & Verification
+1. **Cloudinary Integration Live Test:**
+   - Evaluated `src/services/cloudinaryService.js` directly against Cloudinary Admin & Upload REST APIs.
+   - Credentials verified: Cloud Name `usxbdwtd`, API Key and Secret valid.
+   - Resource listing confirmed: Queried 30 active image resources.
+   - User's existing image verified present:
+     - Public ID: `main-sample`
+     - Format: PNG
+     - Size: ~1.82 MB (1825.2 KB)
+     - URL: `https://res.cloudinary.com/usxbdwtd/image/upload/v1788748223/main-sample.png`
+   - Upload & Delete test: Executed direct buffer upload (`uploadImageBuffer`) with SHA-1 signing, returned success URL, followed by destroy API call (`{ result: 'ok' }`). Cloudinary read/write/delete is 100% operational.
+2. **13-Slot Event Breakdown Prepared:**
+   - Compiled complete timeline rundown (07:00 to 02:00 WIB) detailing triggers, group interactions, AI integration, and Cloudinary photo archiving for the user's review.
+
+---
+
 ## Session 60 — Natural Photo Stories Prompt (Remove AI Vision Mentions)
 
 | Field | Value |
