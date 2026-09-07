@@ -66,11 +66,19 @@ Catat topik-topik obrolan seru, candaan/banter yang terjadi, respons teman-teman
 /**
  * Generates the Humanized Midnight Letter (00:00 WIB)
  */
-async function generateMidnightLetter({ targetName, roast, memories, wishJar, predictions, confessions, chatSummary, logger }) {
+async function generateMidnightLetter({ targetName, roast, memories, photoStories, wishJar, predictions, confessions, chatSummary, logger }) {
+  const formattedPhotos = (photoStories || []).map((p) => {
+    const sender = p.senderName || 'Warga';
+    const cap = p.caption ? `Caption: "${p.caption}"` : 'Tanpa caption';
+    const visual = p.aiStory || p.description || '';
+    return `- Foto dari ${sender} (${cap})${visual ? `: ${visual}` : ''}`;
+  }).join('\n');
+
   const contextParts = [
     `Nama yang berulang tahun: ${targetName}`,
     roast?.length ? `Roast/candaan terbaik warga grup:\n${roast.join('\n')}` : null,
     memories?.length ? `Memory & kenangan yang dikirim:\n${memories.join('\n')}` : null,
+    formattedPhotos ? `Foto kenangan yang dikirim warga hari ini (dan apa yang terlihat di foto tersebut):\n${formattedPhotos}` : null,
     wishJar?.length ? `Harapan dari Wish Jar:\n${wishJar.join('\n')}` : null,
     predictions?.length ? `Prediksi masa depan dari teman-temannya:\n${predictions.join('\n')}` : null,
     confessions?.length ? `Confess anonim teman-temannya:\n${confessions.join('\n')}` : null,
@@ -88,10 +96,11 @@ PANDUAN MENULIS (SANGAT PENTING):
 1. Tulis seperti MANUSIA yang sedang bicara tulus dari hati di tengah heningnya tengah malam, BUKAN seperti AI yang merangkum data laporan.
 2. HINDARI struktur kaku, poin-poin angka, bullet points, atau subjudul formal. Buat mengalir bebas seperti surat atau pesan panjang yang ditulis dengan penuh perasaan.
 3. Boleh ada kalimat yang menggantung, repetisi emosional ("jujur ya...", "kadang gue mikir..."), atau alur yang mengalir santai layaknya obrolan anak muda Indonesia yang akrab (bahasa gaul santai/hangat).
-4. Tulisan harus BENAR-BENAR PANJANG dan mendalam.
-5. Alur emosi:
+4. Singgung foto-foto kenangan, memori lucu, atau roast yang sempat dibagikan warga hari ini jika ada.
+5. Tulisan harus BENAR-BENAR PANJANG dan mendalam.
+6. Alur emosi:
    - Mulai dengan suasana tengah malam dan sedikit canda/humor tentang hari yang baru saja lewat.
-   - Masukkan memori lucu, roast tipis, dan obrolan mereka hari ini.
+   - Masukkan memori lucu, foto yang dibagikan, roast tipis, dan obrolan mereka hari ini.
    - Masuk ke bagian menyentuh: betapa berartinya kehadiran dia di tengah pertemanan ini, confess tulus dari teman-temannya, dan doa tulus yang dirangkum dari wish jar.
    - Tutup dengan ucapan selamat tidur dan doa panjang yang menenangkan.`,
       },
@@ -120,10 +129,18 @@ Tahun ini, semoga langkah lo lebih enteng. Apapun yang lagi lo kejar, semoga jal
 /**
  * Generates the Omniscient Narrator Letter ("Surat Dini Hari" at 02:00 WIB)
  */
-async function generateNarratorLetter({ targetName, memories, wishJar, predictions, chatSummary, logger }) {
+async function generateNarratorLetter({ targetName, memories, photoStories, wishJar, predictions, chatSummary, logger }) {
+  const formattedPhotos = (photoStories || []).map((p) => {
+    const sender = p.senderName || 'Warga';
+    const cap = p.caption ? `Caption: "${p.caption}"` : 'Tanpa caption';
+    const visual = p.aiStory || p.description || '';
+    return `- Foto dari ${sender} (${cap})${visual ? `: ${visual}` : ''}`;
+  }).join('\n');
+
   const contextParts = [
     `Nama yang berulang tahun: ${targetName}`,
     memories?.length ? `Kenangan manis/kocak bersama:\n${memories.join('\n')}` : null,
+    formattedPhotos ? `Foto kenangan visual yang dibagikan:\n${formattedPhotos}` : null,
     wishJar?.length ? `Kumpulan doa dan harapan:\n${wishJar.join('\n')}` : null,
     predictions?.length ? `Prediksi masa depan:\n${predictions.join('\n')}` : null,
     chatSummary ? `Rangkuman obrolan hari itu:\n${chatSummary}` : null,

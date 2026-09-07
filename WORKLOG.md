@@ -47,6 +47,10 @@ Append-only development log. Newest session at the top.
 5. **Testing & Verification:**
    - Created test suite `test/llmRotator.test.js` validating provider order, model selection, and fallback handling.
    - Full test suite passed: 364/364 tests across 79 suites (100% pass rate).
+6. **Birthday Takeover Photo Context Integration:**
+   - Injected `photoStories` (sender name, caption, and AI visual story descriptions) into `generateMidnightLetter` (00:00 WIB) and `generateNarratorLetter` (02:00 WIB) so the concluding letters explicitly incorporate memories from images shared during the day.
+   - Fixed `formatGrandRecap` argument signature in `birthdayScheduler.js` and included AI visual summary notes for photo stories in the 21:00 WIB recap.
+   - Tagged group image messages with caption context in `handleInteractiveGroupMessage` so `summarizeDayChat` captures shared visual moments.
 
 ---
 

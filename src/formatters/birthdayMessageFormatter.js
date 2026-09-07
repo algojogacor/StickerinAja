@@ -197,7 +197,9 @@ function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], pho
   if (photoStories.length) {
     lines.push(`📸 *5. ARSIP KENANGAN HARI INI:*`);
     for (const p of photoStories.slice(0, 5)) {
-      lines.push(`• Foto dari *${p.senderName || 'Teman'}*: ${p.description || p.caption || 'Momen seru hari ini'}`);
+      const cap = p.caption ? `“${p.caption}”` : 'Momen seru hari ini';
+      const aiNote = p.aiStory ? `\n  ↳ Rangkuman AI: ${p.aiStory}` : '';
+      lines.push(`• Foto dari *${p.senderName || 'Teman'}*: ${cap}${aiNote}`);
     }
     lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
   }

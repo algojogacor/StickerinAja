@@ -310,14 +310,21 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       const meta = await birthday.getTakeoverMetadata(targetJid);
 
       const recapData = {
+        persons,
         wishes: [...wishes, ...(meta.wishJar || [])],
         memories: meta.memoryWall || [],
-        roasts: meta.roasts || [],
-        truthQuestions: meta.truthData?.questions || [],
+        roast: meta.roasts || [],
+        truthHighlights: (meta.truthData?.questions || []).map((q) => ({
+          askerName: q.askerName,
+          targetName: q.targetName,
+          question: q.question,
+          answer: q.answer,
+          isHonest: q.isHonest,
+        })),
         photoStories: meta.photoStories || [],
         predictions: meta.predictions || [],
       };
-      const msg = formatter.formatGrandRecap(persons, recapData);
+      const msg = formatter.formatGrandRecap(recapData);
       msg.mentions = groupMentions;
       sentMessage = await sock.sendMessage(targetJid, msg);
 
@@ -349,6 +356,7 @@ async function runEventForGroup(event, targetJid, personsOverride) {
         targetName: persons[0]?.name,
         roast: (meta.roasts || []).map((r) => r.text),
         memories: (meta.memoryWall || []).map((m) => m.text),
+        photoStories: meta.photoStories || [],
         wishJar: (meta.wishJar || []).map((w) => w.text),
         predictions: (meta.predictions || []).map((p) => `${p.senderName}: ${p.predictionText}`),
         confessions: (meta.confessions || []).map((c) => c.text),
@@ -371,6 +379,7 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       const narratorText = await birthdayAi.generateNarratorLetter({
         targetName: persons[0]?.name,
         memories: (meta.memoryWall || []).map((m) => m.text),
+        photoStories: meta.photoStories || [],
         wishJar: (meta.wishJar || []).map((w) => w.text),
         predictions: (meta.predictions || []).map((p) => `${p.senderName}: ${p.predictionText}`),
         chatSummary,

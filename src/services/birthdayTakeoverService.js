@@ -45,7 +45,13 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
   const senderName = msg.pushName || "Warga";
 
   // Always log group messages during active takeover (07:00 - 23:00)
-  birthday.recordGroupChatMessage(remoteJid, senderName, messageText, new Date());
+  const isImage = Boolean(
+    msg.message?.imageMessage ||
+    msg.message?.viewOnceMessage?.message?.imageMessage ||
+    msg.message?.documentWithCaptionMessage?.message?.imageMessage
+  );
+  const logText = isImage ? `[Foto: ${messageText ? `"${messageText}"` : '(tanpa caption)'}]` : messageText;
+  birthday.recordGroupChatMessage(remoteJid, senderName, logText, new Date());
 
   if (!quotedStanza) return false;
 
