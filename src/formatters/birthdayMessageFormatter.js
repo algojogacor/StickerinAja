@@ -78,8 +78,8 @@ function formatTruthQuestionsPrompt(persons) {
 function formatPhotoStoryPrompt(persons) {
   return result(
     `📸📖 *SATU FOTO SATU CERITA* 📖📸\n\n` +
-    `Yuk buka galeri kalian! Masing-masing anggota grup (selain ${mentionText(persons)}) diminta kirim/reply *1 foto kenangan atau foto apapun bareng dia*.\n\n` +
-    `Foto bakal disimpan ke arsip kenangan grup dan dibaca oleh AI Vision. Kirim sekarang ya! 🎞️`,
+    `Yuk buka galeri kalian! Masing-masing anggota grup (selain ${mentionText(persons)}) diminta kirim/reply *1 foto kenangan atau momen seru bareng dia*.\n\n` +
+    `Foto bakal disimpan rapi ke arsip kenangan grup. Kirim sekarang ya! 🎞️✨`,
     persons
   );
 }
@@ -244,7 +244,7 @@ function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], pho
     lines.push(`📸 *5. ARSIP KENANGAN HARI INI:*`);
     for (const p of photoStories.slice(0, 5)) {
       const cap = p.caption ? `“${p.caption}”` : 'Momen seru hari ini';
-      const aiNote = p.aiStory ? `\n  ↳ Rangkuman AI: ${p.aiStory}` : '';
+      const aiNote = p.aiStory ? `\n  ↳ Sorotan Momen: ${p.aiStory}` : '';
       lines.push(`• Foto dari *${p.senderName || 'Teman'}*: ${cap}${aiNote}`);
     }
     lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
@@ -304,7 +304,7 @@ function formatFlashbackPhoto(photoRecord) {
     `📸🕰️ *KILAS BALIK KENANGAN (MEMORY FLASHBACK)* 🕰️📸\n\n` +
     `_Tanggal asli: ${dateStr}_ • Dari: *${photoRecord?.senderName || 'Warga grup'}*\n\n` +
     `💬 *Caption:* "${photoRecord?.caption || '-'}"\n\n` +
-    `🤖 *Catatan AI Vision:*\n` +
+    `📝 *Catatan Kenangan:*\n` +
     `${photoRecord?.aiDescription || 'Momen seru tak terlupakan bersama kawan-kawan!'}`
   );
 }

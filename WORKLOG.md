@@ -6,6 +6,34 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 60 — Natural Photo Stories Prompt (Remove AI Vision Mentions)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:21 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `a3fc1dd` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Request
+- **User request:**
+  "Sebelumnya: ...dibaca oleh AI Vision, dan diulas di recap jam 21:00!
+  Sekarang: ...Foto bakal disimpan ke arsip kenangan grup dan dibaca oleh AI Vision. Kirim sekarang ya! 🎞️
+  untuk ini, jangan bilang akan dibaca ai vision. buat terkejut dengan bot yang bisa memahami kejadian foto tersebut"
+- **Implementation:**
+  - Removed explicit "AI Vision" announcement from `formatPhotoStoryPrompt`:
+    `Foto bakal disimpan rapi ke arsip kenangan grup. Kirim sekarang ya! 🎞️✨`
+  - Replaced technical labels in `formatGrandRecap` (`Sorotan Momen` instead of `Rangkuman AI`) and `formatFlashbackPhoto` (`Catatan Kenangan` instead of `Catatan AI Vision`).
+  - Creates a delightful surprise when the bot naturally explains and incorporates the photos later in the evening without having pre-announced its multimodal capabilities.
+  - Tests verified: 365/365 passed.
+
+---
+
 ## Session 59 — Subtle Teaser in Closing Quest (No Spoilers)
 
 | Field | Value |
