@@ -6,6 +6,38 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 71 — Integrate Anti-AI Writing Guidelines & Guarantee Zero Bridging for Midnight Letter
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:10 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `7381438` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User inquiry & feedback:**
+  1. Inquired whether the 00:00 Midnight Letter will have bridging to the 02:00 Surat Dini Hari ("Lalu nanti saat jam 00.00 gaada bridging gitu lagi kan? untuk ke jam 02.00 nya. aku ingin berkesan banget di akhir.").
+  2. Noted that the 20:30 AI Verdict felt robotic and unnatural with cringe pseudo-psychology ("tadi event di jam 20.30 bahasa nya aneh. masih terlalu ai banget. mungkin bisa di sisipkan skills anti ai writing.").
+- **Root Cause & Solution:**
+  1. Located `anti-ai-writing` skill and installed it globally to `C:\Users\Arya Rizky\.gemini\config\skills\anti-ai-writing\SKILL.md`.
+  2. Confirmed that neither the scheduler nor the Midnight Letter generator provides any bridging or teaser to 02:00. Explicitly reinforced negative constraints in `generateMidnightLetter` prohibiting any mention, bridging, or teaser of a future 02:00 message.
+  3. Overhauled AI prompts in `src/services/birthdayAiService.js` applying Anti-AI Writing rules:
+     - Banned em dashes (`—`) and double hyphens.
+     - Banned empty AI metaphors and clichés ("kanvas", "merajut", "tapestry", "saksi bisu", "harmoni", "pilar").
+     - Banned negative parallelism ("Ini bukan sekadar..., melainkan...").
+     - Banned textbook psychological jargon in `generateAiVerdict` (e.g. "reaction formation", "dual self-presentation", "idealized other-orientation", "humor buffering"), replacing it with sharp, humorous Indonesian friend detective profiling.
+     - Enforced natural burstiness and authentic Indonesian tongkrongan tone in `generateMidnightLetter`.
+     - Enforced grounded, peaceful literary prose in `generateNarratorLetter` (02:00).
+  4. Verified all 374 tests pass across 79 suites.
+
+---
+
 ## Session 70 — Complete Removal of Closing Quest Teaser (Zero Spoilers)
 
 | Field | Value |

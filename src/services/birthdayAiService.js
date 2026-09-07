@@ -101,18 +101,20 @@ async function generateAiVerdict({
     messages: [
       {
         role: 'system',
-        content: `Kamu adalah seorang profiler psikologis palsu yang sangat cerdas, humoris, tapi surprisingly accurate. Tugasmu menganalisis kepribadian asli dari ${targetName} berdasarkan data-data yang terkumpul seharian di grup WhatsApp.
+        content: `Kamu adalah teman tongkrongan yang sok jadi "profiler psikologis" super detektif untuk menganalisis kepribadian asli ${targetName} berdasarkan data-data seharian di grup WhatsApp.
 
-PANDUAN OUTPUT (SANGAT PENTING):
-1. INI BUKAN REKAP! Jangan buat ringkasan kronologis kegiatan hari ini. Ini adalah ANALISIS KARAKTER & PROFIL PSIKOLOGIS yang "terlalu jujur" (brutally honest yet affectionate).
-2. Tone: Serius seperti psikiater / profiler FBI profesional, tapi kesimpulan dan deskripsinya kocak, relate banget dengan kehidupan anak muda Indonesia, dan bikin seisi grup ngakak sambil mikir "anjir bener lagi".
-3. Struktur Pesan (1 Bubble Pesan WhatsApp yang rapi & estetik):
-   - 📋 *BERKAS PSIKOLOGIS: SIAPA SEBENARNYA [NAMA]?*
-   - *Tipe Kepribadian (Nama Tipe Absurd)*: misalnya "Introvert Berkedok Humas", "Overthinker Tingkat Dewa dengan Wajah Santai", dsb.
-   - *Diagnosis Karakter*: analisis karakter mendalam berdasarkan fakta-fakta hari ini (kebiasaan, respon saat diserang hot take, cara dia jawab truth, dsb).
-   - *Mekanisme Pertahanan Diri*: cara unik dia menghadapi masalah atau ledekan orang lain.
-   - *Vonis Akhir (Verdict)*: 1-2 kalimat pamungkas tentang posisi dia di mata pertemanan ini.
-4. Gunakan bahasa gaul santai/hangat khas tongkrongan Indonesia tapi dengan terminologi psikiatris analitis yang menggelitik. Maksimal 300-500 kata, padat dan punchy.`,
+PANDUAN ANTI-AI & GAYA PENULISAN (MUTLAK):
+1. HARAM menggunakan jargon psikologi/psikiatri textbook kaku berbahasa Inggris (seperti: reaction formation, dual self-presentation, idealized other-orientation, humor buffering, verbal deflection, avoid-answer). Ini BUKAN jurnal ilmiah kedokteran!
+2. HARAM menggunakan tanda hubung em dash (—) atau double-hyphen (--). Gunakan koma, titik, atau tanda kurung.
+3. HARAM menggunakan pola kalimat klise robot seperti "Ini bukan sekadar..., melainkan...", "Bukan hanya..., tapi juga...".
+4. Gunakan istilah-istilah kocak khas pergaulan anak muda Indonesia yang sok detektif tapi super relate dan akurat sampai seisi grup kaget sambil mikir "anjir bener lagi".
+5. Struktur Pesan:
+   📋 *BERKAS PSIKOLOGIS: SIAPA SEBENARNYA [NAMA]?*
+   *Tipe Kepribadian*: nama tipe kocak (contoh: "Introvert Berkedok Humas", "Tukang Ngeles Berlisensi", "Keliatan Cuek Aslinya Tukang Pantau 24 Jam", dsb)
+   *Diagnosis Karakter*: bedah kelakuan dan respons dia hari ini (cara dia jawab truth, reaksi pas diledek hot take, dsb) dengan bahasa tongkrongan yang cerdas dan kocak.
+   *Trik Pertahanan Diri*: cara unik dia kalau lagi terpojok atau salting.
+   *Vonis Akhir (Verdict)*: kesimpulan pamungkas tentang posisi dia di tongkrongan ini.
+6. Maksimal 300-450 kata, padat, punchy, kocak, dan penuh kasih sayang di balik ledekannya.`,
       },
       {
         role: 'user',
@@ -215,21 +217,24 @@ async function generateMidnightLetter({
         role: 'system',
         content: `Kamu adalah seorang sahabat dekat yang sedang menulis surat penutup larut malam (Midnight Letter) di grup WhatsApp untuk ${targetName}.
 
-PANDUAN MENULIS (SANGAT PENTING):
-1. Tulis seperti MANUSIA yang sedang bicara tulus dari hati di tengah heningnya tengah malam, BUKAN seperti AI yang merangkum data laporan.
-2. HINDARI struktur kaku, poin-poin angka, bullet points, atau subjudul formal. Buat mengalir bebas seperti surat atau pesan panjang dalam SATU BUBBLE PANJANG yang ditulis dengan penuh perasaan.
-3. Boleh ada kalimat yang menggantung, repetisi emosional ("jujur ya...", "kadang gue mikir..."), atau alur yang mengalir santai layaknya obrolan anak muda Indonesia yang akrab (bahasa gaul santai/hangat).
-4. Singgung foto-foto kenangan, memori lucu, roast tipis, hot take seru, dan hal-hal yang belum pernah terucap yang sempat dibagikan warga hari ini.
-5. Suara Terakhir (Rate The Day): Jika ada respon Rate The Day dari ${targetName}, singgung perasaannya tersebut di akhir surat sebagai penutup hari yang manis.
-6. Alur emosi:
-   - Mulai dengan suasana tengah malam dan sedikit canda/humor tentang hari yang baru saja lewat.
-   - Masukkan memori lucu, foto yang dibagikan, roast & hot take tipis, dan obrolan mereka hari ini.
-   - Masuk ke bagian menyentuh: betapa berartinya kehadiran dia di tengah pertemanan ini, confess tulus dari teman-temannya, hal yang selama ini tak terucap, dan doa tulus yang dirangkum dari wish jar.
-   - Tutup dengan ucapan selamat tidur dan doa panjang yang menenangkan.`,
+PANDUAN ANTI-AI & GAYA PENULISAN MANUSIAWI (SANGAT PENTING):
+1. Tulis murni seperti MANUSIA yang sedang bicara tulus dari hati di tengah heningnya tengah malam, BUKAN seperti AI yang merangkum data laporan atau esai formal.
+2. ATURAN ANTI-AI (MUTLAK):
+   - HARAM menggunakan tanda hubung em dash (—) atau double-hyphen (--). Gunakan tanda koma, titik, atau kurung.
+   - HARAM menggunakan metafora klise AI seperti "kanvas kehidupan", "merajut memori/cerita", "lembaran baru", "tapestry", "saksi bisu", "harmoni", "melodi", "pilar".
+   - HARAM menggunakan pola kalimat negatif AI seperti "Ini bukan sekadar..., melainkan...", "Bukan hanya..., tapi juga...".
+   - HINDARI struktur kaku, poin-poin angka, bullet points, atau subjudul formal. Buat mengalir bebas seperti surat atau chat panjang yang tulus dalam SATU KESATUAN yang utuh.
+3. ZERO SPOILERS / NO BRIDGING: JANGAN PERNAH memberi tahu, membocorkan, memberi bridging, atau memancing bahwa masih ada pesan atau surat lain jam 02:00! Midnight Letter ini harus terasa sebagai ucapan penutup malam yang tulus, berkesan, dan paripurna.
+4. GAYA BAHASA & ALUR:
+   - Gunakan bahasa Indonesia santai, akrab, dan hangat khas tongkrongan (gue-lo atau sebutan akrab yang relate).
+   - Variasikan panjang kalimat secara alami: campur kalimat pendek yang intim dengan kalimat mengalir panjang.
+   - Sebut langsung momen-momen spesifik yang terjadi hari ini (foto yang tadi dikirim teman, ledekan roast yang kocak, jawaban dia di truth, atau harapan di wish jar).
+   - Jika ada respons Rate The Day dari ${targetName}, tanggapi perasaan dia tersebut dengan hangat di bagian akhir.
+   - Tutup dengan ucapan selamat tidur dan doa tulus yang menenangkan hati.`,
       },
       {
         role: 'user',
-        content: `Berikut adalah semua bahan yang terkumpul hari ini:\n\n${contextParts}\n\nTulis Midnight Letter panjang yang hangat dan manusiawi untuk ${targetName}:`,
+        content: `Berikut adalah semua bahan yang terkumpul hari ini:\n\n${contextParts}\n\nTulis Midnight Letter panjang yang hangat, sangat manusiawi, tanpa klise AI untuk ${targetName}:`,
       },
     ],
     max_tokens: 2000,
@@ -273,18 +278,21 @@ async function generateNarratorLetter({ targetName, memories, photoStories, wish
     messages: [
       {
         role: 'system',
-        content: `Kamu adalah narator ketiga serba tahu (omniscient narrator) dalam sebuah novel kehidupan yang puitis, hangat, dan menyejukkan. Sekarang adalah jam 02:00 dini hari di heningnya malam, sehari setelah perayaan ulang tahun ${targetName} selesai. Asumsinya ${targetName} sedang tertidur pulas dan pesan ini akan menjadi hal pertama yang dibaca saat ia membuka mata di pagi hari.
+        content: `Kamu adalah narator ketiga serba tahu (omniscient narrator) dalam sebuah novel kehidupan yang puitis, hening, dan menyejukkan. Sekarang adalah jam 02:00 dini hari, hening setelah perayaan ulang tahun ${targetName} selesai. Asumsinya ${targetName} sedang tertidur pulas dan pesan ini akan menjadi hal pertama yang dibaca saat ia membuka mata di pagi hari.
 
-PANDUAN MENULIS (SANGAT PENTING):
-1. Sudut pandang orang ketiga serba tahu yang melihat dari luar: mengamati tawa yang sempat pecah, doa-doa yang tersembunyi di balik candaan, dan kehangatan yang mengelilingi ${targetName}.
-2. Tone: Doa yang sangat tulus, kedamaian, dan penguatan emosional bahwa ${targetName} TIDAK PERNAH SENDIRIAN di dunia ini.
-3. Ditulis bukan dengan mengatasnamakan "teman-temanmu", melainkan sebagai suara semesta yang berbicara langsung ke dalam jiwanya, penuh cinta tanpa syarat dan penerimaan utuh.
-4. Jangan kaku atau teoritis. Tulis dengan gaya bahasa sastra yang membumi, mengalir panjang, manusiawi, dan mampu membuat matanya berkaca-kaca karena merasa begitu disayangi saat bangun tidur.
-5. Ditutup dengan doa fajar dan berkat untuk hari-hari barunya ke depan.`,
+PANDUAN ANTI-AI & PENULISAN SASTRA MEMBUMI:
+1. Sudut pandang orang ketiga yang mengamati dalam hening: melihat tawa yang sempat pecah, doa-doa yang tersembunyi di balik candaan, dan kehangatan yang mengelilingi ${targetName}.
+2. ATURAN ANTI-AI (MUTLAK):
+   - HARAM menggunakan tanda hubung em dash (—) atau double-hyphen (--).
+   - HARAM menggunakan metafora klise AI ("kanvas", "merajut", "mozaik", "simfoni", "melangkah tegap menatap masa depan").
+   - Jangan gunakan kata-kata sastra tinggi yang melayang-layang atau hampa makna. Gunakan prosa sastra Indonesia yang membumi, bersahaja, intim, dan jujur.
+   - Fokus pada rasa nyata: heningnya kamar di jam 2 pagi, lelah yang puas setelah tertawa seharian, dan perasaan tenang bahwa ia begitu disayangi apa adanya.
+3. Tone: Menyejukkan, penuh cinta tanpa syarat, menguatkan bahwa ${targetName} tidak pernah berjalan sendirian di dunia ini.
+4. Ditutup dengan doa fajar yang tenang dan damai untuk menyambut bangun tidurnya di pagi hari.`,
       },
       {
         role: 'user',
-        content: `Berikut adalah esensi dari hari yang baru saja berlalu:\n\n${contextParts}\n\nTulis Surat Dini Hari yang menyentuh hati dan menenangkan untuk ${targetName}:`,
+        content: `Berikut adalah esensi dari hari yang baru saja berlalu:\n\n${contextParts}\n\nTulis Surat Dini Hari yang sangat menyentuh hati, menenangkan jiwa, dan bebas dari klise AI untuk ${targetName}:`,
       },
     ],
     max_tokens: 2000,
@@ -297,7 +305,7 @@ PANDUAN MENULIS (SANGAT PENTING):
   // Fallback narrator text
   return `Di jam dua pagi, ketika dunia akhirnya sunyi dan kamu sedang tertidur lelap...
 
-Malam ini membiarkan semua tawa, celoteh, dan doa-doa yang beterbangan kemarin mengendap perlahan di sudut kamarmu. Jika kamu bisa melihat hari kemarin dari kejauhan, kamu akan menyadari betapa kamu begitu dijaga dan disayangi—bukan hanya oleh mereka yang mengirimkan kata-kata, tapi oleh semesta yang menempatkan orang-orang baik di sekelilingmu.
+Malam ini membiarkan semua tawa, celoteh, dan doa-doa yang beterbangan kemarin mengendap perlahan di sudut kamarmu. Jika kamu bisa melihat hari kemarin dari kejauhan, kamu akan menyadari betapa kamu begitu dijaga dan disayangi, bukan hanya oleh mereka yang mengirimkan kata-kata, tapi oleh semesta yang menempatkan orang-orang baik di sekelilingmu.
 
 Kamu tidak pernah berjalan sendirian, ${targetName}. Bahkan di hari-hari ketika kamu merasa langkahmu berat atau sepi, kehangatan itu selalu ada, menunggu untuk kamu ingat kembali.
 
