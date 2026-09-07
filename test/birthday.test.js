@@ -380,4 +380,31 @@ describe("Birthday command", () => {
     const isDueAfter = await birthdayService.checkFlashbackDue("120@g.us");
     assert.equal(isDueAfter, false);
   });
+
+  it("parses Cloudinary credentials from CLOUDINARY_URL or individual env variables", () => {
+    const cloudinaryService = require("../src/services/cloudinaryService");
+    const prevUrl = process.env.CLOUDINARY_URL;
+    const prevName = process.env.CLOUDINARY_CLOUD_NAME;
+    const prevKey = process.env.CLOUDINARY_API_KEY;
+    const prevSec = process.env.CLOUDINARY_API_SECRET;
+
+    try {
+      delete process.env.CLOUDINARY_CLOUD_NAME;
+      delete process.env.CLOUDINARY_API_KEY;
+      delete process.env.CLOUDINARY_API_SECRET;
+      process.env.CLOUDINARY_URL = "cloudinary://123456789:testSecret123@mycloud";
+
+      const creds = cloudinaryService.getCredentials();
+      assert.equal(creds.cloudName, "mycloud");
+      assert.equal(creds.apiKey, "123456789");
+      assert.equal(creds.apiSecret, "testSecret123");
+      assert.equal(cloudinaryService.isConfigured(), true);
+      assert.equal(typeof cloudinaryService.uploadImage, "function");
+    } finally {
+      process.env.CLOUDINARY_URL = prevUrl;
+      process.env.CLOUDINARY_CLOUD_NAME = prevName;
+      process.env.CLOUDINARY_API_KEY = prevKey;
+      process.env.CLOUDINARY_API_SECRET = prevSec;
+    }
+  });
 });

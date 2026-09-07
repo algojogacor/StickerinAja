@@ -1,10 +1,24 @@
 const crypto = require('crypto');
 
 function getCredentials() {
+  let cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+  let apiKey = process.env.CLOUDINARY_API_KEY || '';
+  let apiSecret = process.env.CLOUDINARY_API_SECRET || '';
+
+  // Fallback to parsing CLOUDINARY_URL if individual env variables are not set
+  if ((!cloudName || !apiKey || !apiSecret) && process.env.CLOUDINARY_URL) {
+    const match = String(process.env.CLOUDINARY_URL).trim().match(/^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/i);
+    if (match) {
+      apiKey = apiKey || match[1];
+      apiSecret = apiSecret || match[2];
+      cloudName = cloudName || match[3];
+    }
+  }
+
   return {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
-    apiKey: process.env.CLOUDINARY_API_KEY || '',
-    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+    cloudName,
+    apiKey,
+    apiSecret,
   };
 }
 
@@ -16,7 +30,7 @@ function isConfigured() {
 /**
  * Uploads an image Buffer to Cloudinary using direct REST API (zero external npm dependencies)
  * @param {Buffer} buffer - Image file buffer
- * @param {Object} options - Upload options (folder, tags, etc.)
+ * @param {Object|string} options - Upload options or folder name string
  * @returns {Promise<{ success: boolean, url?: string, publicId?: string, error?: string }>}
  */
 async function uploadImageBuffer(buffer, options = {}) {
@@ -29,7 +43,8 @@ async function uploadImageBuffer(buffer, options = {}) {
     return { success: false, error: 'Kredensial Cloudinary belum lengkap di environment' };
   }
 
-  const folder = options.folder || 'birthday_memories';
+  const opts = typeof options === 'string' ? { folder: options } : (options || {});
+  const folder = opts.folder || 'birthday_memories';
   const timestamp = Math.floor(Date.now() / 1000);
 
   // Sign parameters alphabetically
@@ -69,8 +84,11 @@ async function uploadImageBuffer(buffer, options = {}) {
   }
 }
 
+const uploadImage = uploadImageBuffer;
+
 module.exports = {
   getCredentials,
   isConfigured,
   uploadImageBuffer,
+  uploadImage,
 };
