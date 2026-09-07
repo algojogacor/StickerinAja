@@ -6,7 +6,46 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
-## Session 53 — Birthday Takeover Full Upgrade (Truth Questions, Dual DM Outreach, AI Letters, Multi-Bubble, Flashback)
+## Session 54 — Multi-Provider LLM Rotator (Groq + Qwen 3.8 DashScope + Doubao Ark)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 09:40 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `83e8c23` |
+| **Ending HEAD** | Working tree staged |
+| **Status** | Completed |
+
+### Implementation Details
+1. **API Key Verification:**
+   - **Qwen Aliyun (DashScope):** Tested both keys against `https://dashscope.aliyuncs.com/compatible-mode/v1`. Both keys are fully valid.
+     - Text models confirmed working: `qwen3.8-27b`, `qwen3.8-flash`, `qwen3.8-max-0902`, `qwen-plus`, `qwen-turbo`, `qwen-max`.
+     - Vision/multimodal models confirmed working: `qwen-vl-plus`, `qwen-vl-max` (verified live image recognition returning accurate color analysis).
+   - **Doubao (ByteDance Volcano Engine Ark):** Tested all 5 UUID keys against `https://ark.cn-beijing.volces.com/api/v3`. All 5 keys are fully valid.
+     - Queried 130 listed models in the Ark endpoint.
+     - Confirmed working out-of-the-box: `doubao-seed-1-6-flash-250615`, `doubao-seed-1-6-flash-250828`, `doubao-1-5-lite-32k-250115`, `doubao-1-5-pro-32k-250115`.
+     - DeepSeek models (`deepseek-v3-241226`, `deepseek-v4-flash-ga-260731`) returned `AccountNotActivated` indicating they require endpoint deployment in the user's Ark console before querying.
+2. **Universal Multi-Provider LLM Rotator (`src/services/llmRotator.js`):**
+   - Implemented multi-provider failover sequence: `Groq` -> `DashScope` -> `Doubao`.
+   - Supports per-provider multi-key rotation on HTTP errors, rate limits, or network timeouts.
+   - Text default: `qwen/qwen3.8-27b` (Groq) -> `qwen3.8-27b` (DashScope) -> `doubao-seed-1-6-flash-250615` (Doubao).
+   - Vision default: Groq -> `qwen-vl-plus` (DashScope).
+   - Graceful error messages and clean timeout abortion (45s).
+3. **Service Integration:**
+   - Updated `src/services/aiVisionService.js`: routed `analyzeImage` and `chatText` to `callLlmWithRotation`.
+   - Updated `src/services/birthdayAiService.js`: routed `callGroq` to `callLlmWithRotation`.
+4. **Environment & Deployment:**
+   - Added `DASHSCOPE_API_KEY_1`, `DASHSCOPE_API_KEY_2`, and `DOUBAO_API_KEY_1`..`5` to Koyeb service via Koyeb CLI.
+   - Preserved zero-hardcoded secret rule in repository code.
+5. **Testing & Verification:**
+   - Created test suite `test/llmRotator.test.js` validating provider order, model selection, and fallback handling.
+   - Full test suite passed: 364/364 tests across 79 suites (100% pass rate).
+
+---
 
 | Field | Value |
 |---|---|

@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-07 WIB (+0700)
-**Current implementation:** Birthday Takeover Full Upgrade — 13-Slot Timeline (07:00-02:00 WIB), Truth Questions (honor system, 3-question quota), Dual DM Outreach (Confess 100% anon + Prediction named), Groq Qwen Vision & Humanized Midnight Letter + Omniscient Narrator Surat Dini Hari, Cloudinary Photo Storage (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`), Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
-**Last verified tests:** 361/361 pass across 78 test suites; 100% pass rate
+**Current implementation:** Multi-Provider LLM Rotator (Groq + Alibaba Cloud DashScope `qwen3.8-27b` / `qwen-vl-plus` + ByteDance Volcano Ark Doubao `doubao-seed-1-6-flash-250615`) with automatic failover, key rotation, and vision support; Birthday Takeover Full Upgrade — 13-Slot Timeline (07:00-02:00 WIB), Truth Questions, Dual DM Outreach, Cloudinary Photo Storage, Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
+**Last verified tests:** 364/364 pass across 79 test suites; 100% pass rate
 
 ---
 
@@ -14,13 +14,14 @@ WhatsApp Sticker Maker Bot running on Baileys WebSocket + Koyeb Docker deploymen
 WhatsApp (Baileys) → Command Handler (auto-load src/commands/) → Services
                    → Absolute-slot schedulers (recursive setTimeout) → Services
                    → Turso/libSQL (persistent storage) + Cloudinary REST (photo storage)
+                   → Universal Multi-Provider LLM Rotator (Groq → DashScope Qwen 3.8 → Doubao Ark)
                    → HTTP Server (:8000) — health, QR, Hermes relay
 ```
 
 **Runtime:** Node.js 20+ on Koyeb (Docker)
 **Database:** Turso (libSQL), with feature-specific fallback behavior
 **Storage:** Cloudinary REST API with SHA-1 signing for memory photos and stories
-**AI:** Groq Multimodal Vision (`qwen/qwen3.8-27b`) & Chat completions with key rotation
+**AI:** Universal Multi-Provider LLM Rotator (`src/services/llmRotator.js`) supporting Groq (`qwen/qwen3.8-27b`), DashScope (`qwen3.8-27b` text & `qwen-vl-plus` vision), and Doubao Ark (`doubao-seed-1-6-flash-250615`)
 **Scheduler:** `src/scheduler/windowedScheduler.js`, fixed Asia/Jakarta offset, supports 24-hour round-the-clock scheduling (`allow24Hours: true`)
 **Logging:** Pino (`pino-pretty` in development, JSON in production)
 
@@ -34,13 +35,14 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 |---|---|---|
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
-| Groq AI Vision & Chat | Active; multimodal image analysis (`qwen/qwen3.8-27b`), OCR/text reading, meme explanation, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
+| Multi-Provider LLM Rotator | Active; resilient AI failover across Groq (`qwen/qwen3.8-27b`), Alibaba DashScope (`qwen3.8-27b` + `qwen-vl-plus` multimodal vision), and Doubao Ark (`doubao-seed-1-6-flash-250615`) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
+| Groq / Qwen / Doubao AI Vision & Chat | Active; multimodal image analysis (`qwen-vl-plus` / Groq), OCR/text reading, meme explanation, and text chat (`!ai`, `!tanya`, `!vision`, `!gpt`, `!baca`, `!deskripsi`) with automatic key rotation | `src/services/aiVisionService.js`, `src/commands/ai.js`, `test/aiVision.test.js` |
 | Selfbot / Multi-Session | Active; configurable via `BOT_MODE=dual\|self\|public` and `MULTI_SESSION=true` / `SESSIONS`, supports running 2 isolated WhatsApp numbers simultaneously in 1 Koyeb container with group deduplication, bot priority, socket heartbeat watchdog (30s interval), `/api/restart-session` and `/api/logout-session` endpoints, plus automatic Turso auth state garbage collection (startup + 6h interval) | `src/handler.js`, `src/baileys.js`, `src/core/socket.js`, `src/utils/login.html`, `src/utils/tursoAuthState.js`, `index.js` |
 | Web QR Code Login | Active; self-hosted vector SVG generation via `qrHelper.js`, multi-session tabbed dashboard in `login.html`, zero external API calls | `src/utils/qrHelper.js`, `src/utils/login.html`, `index.js` |
 | Meme & GIPHY Sticker Bank | Active; Meme-API (100% free static photo memes) + GIPHY API (animated GIFs & transparent stickers), 100% on-demand fresh fetch (zero recycled sent stickers), EXIF metadata injection (`STICKERIN_BOT_NAME` & `STICKERIN_AUTHOR`), duplicate/removed-post protection, short-video support, and 24-hour scheduled delivery (48 sends/day: 1 photo + 1 animated video every hour via bot session) | `src/services/redditSticker*.js`, `src/commands/reddit.js`, `src/scheduler/redditStickerCron.js`, `src/repositories/redditStickerRepository.js` |
 | News Service | Code preserved & ready; scheduler paused via `NEWS_SCHEDULER_ENABLED=false` | `src/services/newsService.js`, `src/services/groqNewsEditor.js`, `src/scheduler/newsScheduler.js` |
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
-| Birthday Takeover (Full Upgrade) | Active; Turso + Cloudinary backed, 13-slot timeline across 24h, Truth Questions (honor system), Dual DM Outreach (Confess anon + Prediction named), Groq Qwen Midnight Letter (humanized) + Surat Dini Hari (omniscient narrator), Memory Wall, Wish Jar, Photo Story, Quests, Random Flashback (3-8 weeks), and strict group isolation via `BIRTHDAY_TARGET_JID` | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/services/birthdayTakeoverService.js`, `src/services/birthdayAiService.js`, `src/services/cloudinaryService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js`, `src/commands/kenangan.js`, `test/birthday.test.js` |
+| Birthday Takeover (Full Upgrade) | Active; Turso + Cloudinary backed, 13-slot timeline across 24h, Truth Questions (honor system), Dual DM Outreach (Confess anon + Prediction named), Multi-Provider LLM (Groq / Qwen 3.8 / Doubao) for Midnight Letter (humanized) + Surat Dini Hari (omniscient narrator), Memory Wall, Wish Jar, Photo Story, Quests, Random Flashback (3-8 weeks), and strict group isolation via `BIRTHDAY_TARGET_JID` | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/services/birthdayTakeoverService.js`, `src/services/birthdayAiService.js`, `src/services/cloudinaryService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js`, `src/commands/kenangan.js`, `test/birthday.test.js` |
 | Group Memory Album | Active; manual photo saving and listing via `!kenangan tambah [cerita]` and `!kenangan list` | `src/commands/kenangan.js`, `src/services/cloudinaryService.js`, `src/services/birthdayAiService.js` |
 | Document Scanner & PDF | Active; CamScanner-style dual output (Magic Color + Clear B&W), Python FastAPI microservice (`scanner/`) with OpenCV 4-point perspective warp + adaptive thresholding, with pure Node.js/Sharp Retinex illumination division fallback | `src/commands/pdf.js`, `scanner/main.py`, `scanner/processor.py`, `scanner/Dockerfile` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
@@ -181,8 +183,10 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-02 | Slang synonym mapping | Added Jomok/Ngawi fallback dictionary for Indonesian slang (esempeh, pop mie, hambali) |
 | 2026-09-02 | Multi-Session Watchdog & Group Decryption Fix | Heartbeat watchdog (30s), `/api/restart-session`, `/api/logout-session`, self-quoted group decryption fix, and clean Turso state |
 | 2026-09-02 | Automatic Turso Auth State Garbage Collection | Non-blocking startup prune + 6h periodic background cleanup keeping sender keys <= 500 and pre-keys <= 100 |
+| 2026-09-07 | Birthday Takeover Full Upgrade & Cloudinary | Verified 13-slot timeline, truth questions honor system, dual DM outreach, Cloudinary SHA-1 photo upload, and flashback; 361/361 tests pass |
+| 2026-09-07 | Multi-Provider LLM Rotator Live Testing & Integration | Verified DashScope `qwen3.8-27b` (text) and `qwen-vl-plus` (vision) live; verified Doubao Ark `doubao-seed-1-6-flash-250615` live; 364/364 tests pass across 79 suites |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, and Turso GC tests pass 100% (344/344 tests).
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, and Multi-Provider LLM Rotator tests pass 100% (364/364 tests).
 
 ---
 

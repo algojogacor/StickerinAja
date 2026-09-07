@@ -1,48 +1,14 @@
-const { analyzeImage, optimizeImageForVision, VISION_MODEL } = require('./aiVisionService');
-
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const TEXT_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
-
-function getApiKeys() {
-  const keys = [
-    process.env.GROQ_API_KEY_PRIMARY,
-    process.env.GROQ_API_KEY_SECONDARY,
-    process.env.GROQ_API_KEY_1,
-    process.env.GROQ_API_KEY_2,
-  ].filter(Boolean);
-  return [...new Set(keys)];
-}
+const { analyzeImage } = require('./aiVisionService');
+const { callLlmWithRotation } = require('./llmRotator');
 
 async function callGroq(payload, logger) {
-  const keys = getApiKeys();
-  if (keys.length === 0) {
-    return { success: false, error: 'GROQ_API_KEY belum dikonfigurasi' };
-  }
-
-  let lastError = null;
-  for (const key of keys) {
-    try {
-      const res = await fetch(GROQ_API_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.choices?.[0]?.message?.content) {
-        return { success: true, text: data.choices[0].message.content.trim() };
-      }
-      lastError = data.error?.message || `HTTP ${res.status}`;
-    } catch (err) {
-      lastError = err.message;
-    }
-  }
-
-  logger?.warn({ err: lastError }, '[Birthday AI] Failed to call Groq');
-  return { success: false, error: lastError || 'Groq call failed' };
+  return callLlmWithRotation({
+    messages: payload.messages,
+    max_tokens: payload.max_tokens,
+    temperature: payload.temperature,
+    isVision: false,
+    logger,
+  });
 }
 
 /**
