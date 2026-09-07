@@ -16,13 +16,13 @@ describe("LLM Rotator Multi-Provider Service", () => {
 
       const providers = llmRotator.getActiveProviders();
       assert.ok(providers.length >= 3);
-      assert.equal(providers[0].name, "groq");
-      assert.equal(providers[1].name, "dashscope");
+      assert.equal(providers[0].name, "dashscope");
+      assert.equal(providers[1].name, "groq");
       assert.equal(providers[2].name, "doubao");
 
       // Verify default models
-      assert.ok(providers[1].textModel.includes("qwen3.8") || providers[1].textModel.includes("qwen"));
-      assert.ok(providers[1].visionModel.includes("qwen3.8") || providers[1].visionModel.includes("qwen"));
+      assert.ok(providers[0].textModel.includes("qwen3.8") || providers[0].textModel.includes("qwen"));
+      assert.ok(providers[0].visionModel.includes("qwen3.8") || providers[0].visionModel.includes("qwen"));
       assert.ok(providers[2].textModel.includes("doubao"));
       assert.ok(providers[2].visionModel.includes("doubao"));
     } finally {

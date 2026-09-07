@@ -6,6 +6,31 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 74 — Reorder LLM Priority: Qwen Aliyun (DashScope) First, Groq Second, Doubao Third
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 23:25 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `ea68b0e` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Problem & Objectives
+- **User request:** "pakai qwen aliyun yg provider alibaba cloud terlebih dahulu, jika gagal, baru pindah ke groq. terakhir adalah doubao"
+- **Solution:**
+  1. Updated `getActiveProviders()` in `src/services/llmRotator.js` to place Alibaba Cloud DashScope (`dashscope` using `qwen3.8-flash`) as primary provider (index 0).
+  2. Placed Groq (`groq` using `qwen/qwen3.8-27b`) as secondary provider (index 1).
+  3. Preserved ByteDance Doubao (`doubao` using `doubao-seed-1-6-flash-250615`) as tertiary fallback provider (index 2).
+  4. Updated unit test assertions in `test/llmRotator.test.js`.
+  5. Verified all unit tests pass (2/2 llmRotator tests, 24/24 birthday tests).
+
+---
+
 ## Session 73 — Harden Narrator Letter (02:00) Anti-AI & Formatting Rules
 
 | Field | Value |

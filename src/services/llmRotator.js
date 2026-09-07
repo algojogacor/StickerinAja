@@ -1,8 +1,8 @@
 /**
  * Universal Multi-Provider LLM Rotator
  * Seamless failover & key rotation across:
- * 1. Groq (qwen/qwen3.8-27b)
- * 2. Alibaba Cloud DashScope (qwen3.8-27b, qwen-vl-plus)
+ * 1. Alibaba Cloud DashScope / Qwen Aliyun (qwen3.8-flash)
+ * 2. Groq (qwen/qwen3.8-27b)
  * 3. ByteDance Volcano Engine Ark / Doubao (doubao-seed-1-6-flash-250615, doubao-1-5-pro-32k-250115)
  */
 
@@ -46,17 +46,6 @@ function getDoubaoKeys() {
 function getActiveProviders() {
   const providers = [];
 
-  const groqKeys = getGroqKeys();
-  if (groqKeys.length > 0) {
-    providers.push({
-      name: 'groq',
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      keys: groqKeys,
-      textModel: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
-      visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
-    });
-  }
-
   const dashscopeKeys = getDashScopeKeys();
   if (dashscopeKeys.length > 0) {
     providers.push({
@@ -65,6 +54,17 @@ function getActiveProviders() {
       keys: dashscopeKeys,
       textModel: process.env.DASHSCOPE_MODEL || 'qwen3.8-flash',
       visionModel: process.env.DASHSCOPE_VISION_MODEL || 'qwen3.8-flash',
+    });
+  }
+
+  const groqKeys = getGroqKeys();
+  if (groqKeys.length > 0) {
+    providers.push({
+      name: 'groq',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      keys: groqKeys,
+      textModel: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
+      visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
     });
   }
 
