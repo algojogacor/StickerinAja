@@ -407,4 +407,52 @@ describe("Birthday command", () => {
       process.env.CLOUDINARY_API_SECRET = prevSec;
     }
   });
+
+  it("provides all formatters and exports required by birthdayScheduler and takeover", () => {
+    const persons = [{ participantId: "628123@s.whatsapp.net", name: "Rina" }];
+
+    // Aliases and prompts required by scheduler
+    assert.equal(typeof birthdayFormatter.formatMemoryWall, "function");
+    assert.equal(typeof birthdayFormatter.formatMemoryWallPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatTruthOpening, "function");
+    assert.equal(typeof birthdayFormatter.formatTruthQuestionsPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatPhotoStoryPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatRoastPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatDmPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatDmGroupNotice, "function");
+    assert.equal(typeof birthdayFormatter.formatDmAnnouncementGroup, "function");
+    assert.equal(typeof birthdayFormatter.formatConfessReveal, "function");
+    assert.equal(typeof birthdayFormatter.formatWishJarPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatGrandRecap, "function");
+    assert.equal(typeof birthdayFormatter.formatClosingQuest, "function");
+    assert.equal(typeof birthdayFormatter.formatFlashback, "function");
+    assert.equal(typeof birthdayFormatter.formatFlashbackPhoto, "function");
+    assert.equal(typeof birthdayFormatter.pickQuest, "function");
+    assert.equal(typeof birthdayFormatter.pickPenalty, "function");
+
+    // Legacy formatters
+    assert.equal(typeof birthdayFormatter.formatCard, "function");
+    assert.equal(typeof birthdayFormatter.formatSpotlight, "function");
+    assert.equal(typeof birthdayFormatter.formatReminder, "function");
+    assert.equal(typeof birthdayFormatter.formatWishesOpen, "function");
+    assert.equal(typeof birthdayFormatter.formatRecap, "function");
+    assert.equal(typeof birthdayFormatter.formatClosing, "function");
+
+    // Verify executions do not throw
+    assert.ok(birthdayFormatter.formatMemoryWall(persons).text.includes("MEMORY WALL"));
+    assert.ok(birthdayFormatter.formatTruthOpening(persons).text.includes("TRUTH QUESTIONS"));
+    assert.ok(birthdayFormatter.formatPhotoStoryPrompt(persons).text.includes("SATU FOTO SATU CERITA"));
+    assert.ok(birthdayFormatter.formatRoastPrompt(persons).text.includes("ROAST"));
+    assert.ok(birthdayFormatter.formatDmPrompt(persons).text.includes("Confess"));
+    assert.ok(birthdayFormatter.formatDmGroupNotice([{ participantId: "628999@s.whatsapp.net", name: "Budi" }]).text.includes("MISI RAHASIA"));
+    assert.ok(birthdayFormatter.formatConfessReveal(persons, [{ text: "Rahasia" }]).text.includes("Rahasia"));
+    assert.ok(birthdayFormatter.formatWishJarPrompt(persons).text.includes("WISH JAR"));
+    assert.ok(birthdayFormatter.formatGrandRecap({ persons }).text.includes("GRAND BIRTHDAY RECAP"));
+    assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", true, "sanksi").text.includes("COMPLETED"));
+    assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", false, "sanksi").text.includes("MISSED"));
+    assert.ok(birthdayFormatter.formatFlashback({ senderName: "Budi", caption: "Halo" }).includes("Halo"));
+
+    // Verify birthdayService export
+    assert.equal(typeof birthdayService.getWishMessageId, "function");
+  });
 });

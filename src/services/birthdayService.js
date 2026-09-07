@@ -574,6 +574,7 @@ module.exports = {
   markCelebrated,
   addWish,
   getWishes,
+  getWishMessageId,
   setWishMessageId,
   recordWishFromMessage,
   // New features:

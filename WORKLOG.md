@@ -6,6 +6,40 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 55 — Fix Birthday Takeover Schedulers & Formatter Aliases
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 12:40 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `ee07345` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Diagnosis
+- **Investigation:** User reported no output from bot around 12:00 WIB and asked whether Koyeb scaled to zero / went to sleep.
+- **Evidence from Koyeb Logs:**
+  - Container `c53ef501` did **not** sleep or scale down. It ran continuously since 10:04 WIB (03:04 UTC).
+  - At 12:00:31 WIB (05:00:31 UTC), the windowed scheduler triggered for slot `memory_wall` on schedule.
+  - However, `runEventForGroup` threw `TypeError: formatter.formatMemoryWall is not a function at birthdayScheduler.js:201`.
+  - From 12:07 WIB onwards, chat messages in the group threw `TypeError: birthday.getWishMessageId is not a function at birthdayTakeoverService.js:187`.
+- **Root Cause:**
+  1. `src/formatters/birthdayMessageFormatter.js` named the memory wall function `formatMemoryWallPrompt` and lacked the alias `formatMemoryWall`.
+  2. Similarly, aliases for `formatTruthOpening`, `formatDmGroupNotice`, `formatFlashback`, `pickQuest`, `pickPenalty`, and legacy formatters were missing.
+  3. `src/services/birthdayService.js` had `getWishMessageId` defined on line 239 but omitted from `module.exports`.
+
+### Fix & Verification
+1. Exported `getWishMessageId` in `src/services/birthdayService.js`.
+2. Added missing formatters, pools (`QUEST_POOL`, `PENALTY_POOL`), legacy fallbacks, and aliases in `src/formatters/birthdayMessageFormatter.js`.
+3. Added automated test suite in `test/birthday.test.js` verifying every single function referenced across `birthdayScheduler.js` and `birthdayTakeoverService.js`.
+4. Full test suite passed: 365/365 tests across 79 suites (100% pass rate).
+
+---
+
 ## Session 54 — Multi-Provider LLM Rotator (Groq + Qwen 3.8 DashScope + Doubao Ark)
 
 | Field | Value |

@@ -94,33 +94,79 @@ function formatRoastPrompt(persons) {
   );
 }
 
-function formatDmAnnouncementGroup(targetName, pendingMembers = []) {
-  const memberMentions = pendingMembers.map((m) => `@${m.replace(/:\d+(?=@)/, "").split("@")[0]}`).join(", ");
-  const rawJids = pendingMembers.map((m) => m.replace(/:\d+(?=@)/, ""));
+const QUEST_POOL = [
+  "Kirim 1 foto paling bahagia lo hari ini ke grup!",
+  "Ceritakan 1 hal konyol yang pernah lo lakuin tahun lalu ke grup!",
+  "Kirim voice note bernyanyi satu bait lagu favorit lo!",
+  "Kirim selfie muka paling jelek/lucu lo hari ini!",
+  "Sebutkan 3 hal yang paling lo syukuri di umur baru ini!",
+];
+
+function pickQuest() {
+  return QUEST_POOL[Math.floor(Math.random() * QUEST_POOL.length)];
+}
+
+const PENALTY_POOL = [
+  "Wajib mendoakan semua warga grup sebelum tidur malam ini!",
+  "Wajib pasang status foto profil paling kocak selama 2 jam!",
+  "Wajib traktir gorengan atau es teh saat kumpul berikutnya!",
+  "Wajib kirim voice note ucapan terima kasih dengan gaya pembaca berita!",
+];
+
+function pickPenalty() {
+  return PENALTY_POOL[Math.floor(Math.random() * PENALTY_POOL.length)];
+}
+
+function formatDmAnnouncementGroup(targetOrMembers, maybeMembers = []) {
+  let targetName = "Teman yang Ulang Tahun";
+  let pendingMembers = [];
+  if (Array.isArray(targetOrMembers)) {
+    pendingMembers = targetOrMembers;
+  } else {
+    targetName = typeof targetOrMembers === "string" ? targetOrMembers : (targetOrMembers?.name || "Teman yang Ulang Tahun");
+    pendingMembers = Array.isArray(maybeMembers) ? maybeMembers : [];
+  }
+  const memberMentions = pendingMembers.map((m) => {
+    const jid = typeof m === "string" ? m : (m.participantId || m.id || m.jid || "");
+    return `@${jid.replace(/:\d+(?=@)/, "").split("@")[0]}`;
+  }).filter(Boolean).join(", ");
+  const rawJids = pendingMembers.map((m) => {
+    const jid = typeof m === "string" ? m : (m.participantId || m.id || m.jid || "");
+    return jid.replace(/:\d+(?=@)/, "");
+  }).filter(Boolean);
   return {
     text:
       `🕵️‍♂️🤫 *MISI RAHASIA: CONFESS & PREDIKSI* 🤫🕵️‍♂️\n\n` +
-      `Bot baru saja mencoba kirim DM rahasia ke teman-teman selain *${targetName}*.\n\n` +
+      `Bot baru saja mencoba kirim DM rahasia ke teman-teman selain yang berulang tahun.\n\n` +
       `Bagi kalian yang belum pernah chat bot secara pribadi di WhatsApp, silakan buka nomor bot ini dan *chat apapun dulu di DM pribadi* agar sesi rahasia bisa dimulai!\n\n` +
-      `Menunggu balasan dari: ${memberMentions || 'Semua teman'}\n\n` +
+      `Menunggu balasan dari: ${memberMentions || "Semua teman"}\n\n` +
       `⏳ _Waktu pengisian: 5 jam. Confess akan dikirim 100% anonim jam 18:00!_`,
     mentions: rawJids,
   };
 }
 
-function formatDmPrompt(targetName) {
-  return (
-    `Halo! Ini pesan rahasia dari Bot untuk perayaan ulang tahun *${targetName}* 🎂\n\n` +
-    `Mohon balas pesan ini dengan 2 hal berikut sekaligus:\n\n` +
-    `1️⃣ *Confess Something*: Satu pengakuan, rahasia kecil, atau hal yang selama ini belum pernah lo ungkapin langsung ke dia. (Akan dikirim ke grup secara 100% ANONIM jam 18:00).\n\n` +
-    `2️⃣ *Prediksi Masa Depan*: Satu prediksi absurd atau sungguh-sungguh tentang apa yang bakal terjadi sama dia di setahun ke depan. (Akan dibacakan di recap jam 21:00 dengan nama lo, dan di-review tahun depan!).\n\n` +
-    `_Kirim balasanmu langsung ke chat ini ya!_`
-  );
+function formatDmPrompt(targetOrPersons) {
+  const targetName = typeof targetOrPersons === "string"
+    ? targetOrPersons
+    : (Array.isArray(targetOrPersons) ? (targetOrPersons[0]?.name || targetOrPersons[0]?.participantId?.split("@")[0] || "Teman") : (targetOrPersons?.name || "Teman"));
+
+  return {
+    text:
+      `Halo! Ini pesan rahasia dari Bot untuk perayaan ulang tahun *${targetName}* 🎂\n\n` +
+      `Mohon balas pesan ini dengan 2 hal berikut sekaligus:\n\n` +
+      `1️⃣ *Confess Something*: Satu pengakuan, rahasia kecil, atau hal yang selama ini belum pernah lo ungkapin langsung ke dia. (Akan dikirim ke grup secara 100% ANONIM jam 18:00).\n\n` +
+      `2️⃣ *Prediksi Masa Depan*: Satu prediksi absurd atau sungguh-sungguh tentang apa yang bakal terjadi sama dia di setahun ke depan. (Akan dibacakan di recap jam 21:00 dengan nama lo, dan di-review tahun depan!).\n\n` +
+      `_Kirim balasanmu langsung ke chat ini ya!_`,
+  };
 }
 
-function formatConfessReveal(targetName, confessions = []) {
+function formatConfessReveal(targetOrPersons, confessions = []) {
+  const targetName = typeof targetOrPersons === "string"
+    ? targetOrPersons
+    : (Array.isArray(targetOrPersons) ? (targetOrPersons[0]?.name || targetOrPersons[0]?.participantId?.split("@")[0] || "Teman") : (targetOrPersons?.name || "Teman"));
+
   const list = (Array.isArray(confessions) && confessions.length > 0)
-    ? confessions.map((c, i) => `🔹 *Pengakuan #${i + 1}:*\n“${c.text}”`).join("\n\n")
+    ? confessions.map((c, i) => `🔹 *Pengakuan #${i + 1}:*\n“${c.text || c}”`).join("\n\n")
     : "Belum ada pengakuan yang masuk, tapi rahasia tetap aman 😄";
 
   return {
@@ -218,7 +264,18 @@ function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], pho
   return result(lines.join("\n"), persons);
 }
 
-function formatClosingQuest(persons, questCompleted, penaltyText) {
+function formatClosingQuest(persons, questOrCompleted, completedOrPenalty, maybePenalty) {
+  let questCompleted = false;
+  let penaltyText = "";
+
+  if (typeof questOrCompleted === "boolean") {
+    questCompleted = questOrCompleted;
+    penaltyText = completedOrPenalty || "";
+  } else {
+    questCompleted = Boolean(completedOrPenalty);
+    penaltyText = maybePenalty || "";
+  }
+
   const questVerdict = questCompleted
     ? `🎖️ *STATUS QUEST: COMPLETED!* ✅\n` +
       `Keren banget ${mentionText(persons)} udah nyelesaiin Birthday Quest hari ini! Misi terselesaikan dengan gemilang 👏🎉`
@@ -239,36 +296,73 @@ function formatClosingQuest(persons, questCompleted, penaltyText) {
 }
 
 function formatFlashbackPhoto(photoRecord) {
-  const dateStr = photoRecord.createdAt
+  const dateStr = photoRecord?.createdAt
     ? new Date(photoRecord.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : 'Suatu hari';
 
   return (
     `📸🕰️ *KILAS BALIK KENANGAN (MEMORY FLASHBACK)* 🕰️📸\n\n` +
-    `_Tanggal asli: ${dateStr}_ • Dari: *${photoRecord.senderName || 'Warga grup'}*\n\n` +
-    `💬 *Caption:* "${photoRecord.caption || '-'}"\n\n` +
+    `_Tanggal asli: ${dateStr}_ • Dari: *${photoRecord?.senderName || 'Warga grup'}*\n\n` +
+    `💬 *Caption:* "${photoRecord?.caption || '-'}"\n\n` +
     `🤖 *Catatan AI Vision:*\n` +
-    `${photoRecord.aiDescription || 'Momen seru tak terlupakan bersama kawan-kawan!'}`
+    `${photoRecord?.aiDescription || 'Momen seru tak terlupakan bersama kawan-kawan!'}`
   );
+}
+
+// Legacy / fallback formatters:
+function formatCard(persons) {
+  return result(`🎉 *SELAMAT ULANG TAHUN!*\n\nSpesial untuk ${mentionText(persons)} 🎂`, persons);
+}
+
+function formatSpotlight(persons) {
+  return result(`✨ *BIRTHDAY SPOTLIGHT*\n\nHari ini adalah harinya ${mentionText(persons)}! 🌟`, persons);
+}
+
+function formatReminder(persons) {
+  return result(`🎊 *PENGINGAT ULANG TAHUN*\n\nYang belum mengucapkan selamat kepada ${mentionText(persons)}, masih ada waktu sampai malam 🎂`, persons);
+}
+
+function formatWishesOpen(persons) {
+  return formatWishJarPrompt(persons);
+}
+
+function formatRecap(persons, wishes = []) {
+  return formatGrandRecap({ persons, wishes });
+}
+
+function formatClosing(persons) {
+  return formatClosingQuest(persons, true, "");
 }
 
 module.exports = {
   mentionText,
   mentions,
   result,
+  pickQuest,
+  pickPenalty,
   formatOpening: formatOpeningQuest,
   formatOpeningQuest,
   formatSong,
+  formatMemoryWall: formatMemoryWallPrompt,
   formatMemoryWallPrompt,
+  formatTruthOpening: formatTruthQuestionsPrompt,
   formatTruthQuestionsPrompt,
   formatPhotoStoryPrompt,
   formatRoastPrompt,
   formatDmAnnouncementGroup,
+  formatDmGroupNotice: formatDmAnnouncementGroup,
   formatDmPrompt,
   formatConfessReveal,
   formatWishJarPrompt,
   formatGrandRecap,
   formatClosingQuest,
+  formatFlashback: formatFlashbackPhoto,
   formatFlashbackPhoto,
+  formatCard,
+  formatSpotlight,
+  formatReminder,
+  formatWishesOpen,
+  formatRecap,
+  formatClosing,
 };
 
