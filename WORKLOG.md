@@ -6,6 +6,30 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 58 — Remove All Future Event Spoilers from Birthday Prompts
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:10 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `1c5913e` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Request
+- **User questions:**
+  1. "udah masuk. ini bakal ttp tersimpan kan? walau di trigger manual?" -> Confirmed: When triggered, `memoryWallMessageId` and event state are recorded in Turso, and all interactive replies will be captured and persisted as usual.
+  2. "lalu ak mau minta gaperlu ada omongan: '📢 Reply pesan ini ya! Ucapan dan memori terabsurd akan dirangkum terpisah di Grand Recap jam 21:00 WIB!' Terlihat spoiler kalau gitu nanti. better jangan kasih tau hal gitu. di semua event mendatang, jangan ada hal itu"
+- **Solution:**
+  - Removed all future timeline spoilers (mention of Grand Recap jam 21:00, Midnight Letter jam 00:00, etc.) from `formatMemoryWallPrompt`, `formatTruthQuestionsPrompt`, `formatPhotoStoryPrompt`, `formatRoastPrompt`, `formatDmPrompt`, `formatWishJarPrompt`, and `formatClosingQuest`.
+  - Prompts now encourage natural participation without giving away subsequent surprise events.
+
+---
+
 ## Session 57 — Add Manual Trigger Endpoint for Missed Birthday Events
 
 | Field | Value |

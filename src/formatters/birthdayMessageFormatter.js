@@ -55,7 +55,7 @@ function formatMemoryWallPrompt(persons) {
     `Kalian punya 2 misi di sesi ini via reply pesan ini:\n\n` +
     `1️⃣ Kirim *ucapan atau doa terbaik* kalian.\n` +
     `2️⃣ Kirim *memori paling absurd, lucu, atau berkesan* bareng dia!\n\n` +
-    `📢 _Reply pesan ini ya! Ucapan dan memori terabsurd akan dirangkum terpisah di Grand Recap jam 21:00 WIB!_`,
+    `📢 _Yuk reply pesan ini sekarang dan ramaikan hari spesialnya!_`,
     persons
   );
 }
@@ -70,7 +70,7 @@ function formatTruthQuestionsPrompt(persons) {
     `⚖️ *Aturan Jawaban (Honor System):*\n` +
     `• Jawab dengan awalan tanda seru (*!*) = Jawaban JUJUR & mengikat!\n` +
     `• Tanpa tanda seru = Jawaban bebas/candaan.\n\n` +
-    `📢 _Reply pesan ini untuk mengajukan pertanyaan! Highlight tanya-jawab seru bakal masuk recap jam 21:00!_`,
+    `📢 _Reply pesan ini untuk langsung mengajukan pertanyaanmu!_`,
     persons
   );
 }
@@ -79,7 +79,7 @@ function formatPhotoStoryPrompt(persons) {
   return result(
     `📸📖 *SATU FOTO SATU CERITA* 📖📸\n\n` +
     `Yuk buka galeri kalian! Masing-masing anggota grup (selain ${mentionText(persons)}) diminta kirim/reply *1 foto kenangan atau foto apapun bareng dia*.\n\n` +
-    `Foto bakal disimpan ke arsip kenangan grup, dibaca oleh AI Vision, dan diulas di recap jam 21:00! Kirim sekarang ya! 🎞️`,
+    `Foto bakal disimpan ke arsip kenangan grup dan dibaca oleh AI Vision. Kirim sekarang ya! 🎞️`,
     persons
   );
 }
@@ -89,7 +89,7 @@ function formatRoastPrompt(persons) {
     `🔥🌶️ *SESI BIRTHDAY ROAST DIBUKA!* 🌶️🔥\n\n` +
     `Karena ${mentionText(persons)} sudah opt-in untuk di-roast:\n` +
     `Sekarang saatnya warga grup keluarin roasting terlucu, fakta kocak, atau ledekan penuh kasih sayang buat dia! 😂\n\n` +
-    `📢 _Reply pesan ini dengan roast terbaikmu! Roast yang dapet emoji reaction terbanyak bakal dinobatkan sebagai Best Roast di recap jam 21:00!_`,
+    `📢 _Reply pesan ini dengan roast terbaikmu! Berikan reaksi emoji ke roast yang paling savage dan bikin ngakak! 😂_`,
     persons
   );
 }
@@ -154,8 +154,8 @@ function formatDmPrompt(targetOrPersons) {
     text:
       `Halo! Ini pesan rahasia dari Bot untuk perayaan ulang tahun *${targetName}* 🎂\n\n` +
       `Mohon balas pesan ini dengan 2 hal berikut sekaligus:\n\n` +
-      `1️⃣ *Confess Something*: Satu pengakuan, rahasia kecil, atau hal yang selama ini belum pernah lo ungkapin langsung ke dia. (Akan dikirim ke grup secara 100% ANONIM jam 18:00).\n\n` +
-      `2️⃣ *Prediksi Masa Depan*: Satu prediksi absurd atau sungguh-sungguh tentang apa yang bakal terjadi sama dia di setahun ke depan. (Akan dibacakan di recap jam 21:00 dengan nama lo, dan di-review tahun depan!).\n\n` +
+      `1️⃣ *Confess Something*: Satu pengakuan, rahasia kecil, atau hal yang selama ini belum pernah lo ungkapin langsung ke dia. (Akan dikirim ke grup secara 100% ANONIM).\n\n` +
+      `2️⃣ *Prediksi Masa Depan*: Satu prediksi absurd atau sungguh-sungguh tentang apa yang bakal terjadi sama dia di setahun ke depan. (Akan disimpan dan ditagih tahun depan!).\n\n` +
       `_Kirim balasanmu langsung ke chat ini ya!_`,
   };
 }
@@ -185,7 +185,7 @@ function formatWishJarPrompt(persons) {
     `Sebelum hari berakhir, mari kita isi toples harapan untuk ${mentionText(persons)}!\n\n` +
     `Kalian wajib menggunakan format awalan:\n` +
     `👉 *"Tahun ini, semoga kamu [harapanmu]..."*\n\n` +
-    `📢 _Reply pesan ini ya! Semua harapan yang masuk akan menjadi bahan utama yang diramu AI untuk Midnight Letter jam 00:00 nanti!_`,
+    `📢 _Reply pesan ini dan tuliskan harapan terbaik kalian untuk dia ya!_`,
     persons
   );
 }
@@ -289,8 +289,7 @@ function formatClosingQuest(persons, questOrCompleted, completedOrPenalty, maybe
     `🌙✨ *BIRTHDAY TAKEOVER SELESAI* ✨🌙\n\n` +
     `${questVerdict}\n\n` +
     `Terima kasih untuk seluruh warga grup yang sudah meramaikan hari ini dari pagi sampai malam.\n` +
-    `Selamat ulang tahun sekali lagi untuk ${mentionText(persons)}! 🎂💐\n\n` +
-    `_P.S. Jangan tidur dulu, tunggu kejutan Midnight Letter tepat jam 00:00 nanti..._`,
+    `Selamat ulang tahun sekali lagi untuk ${mentionText(persons)}! 🎂💐`,
     persons
   );
 }
