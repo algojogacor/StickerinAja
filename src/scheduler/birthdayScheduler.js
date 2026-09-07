@@ -293,6 +293,41 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       msg.mentions = groupMentions;
       sentMessage = await sock.sendMessage(targetJid, msg);
 
+    // --- 18:30 Slot: Hot Take Night ---
+    } else if (event === "hot_take") {
+      const msg = formatter.formatHotTakePrompt(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
+      if (sentMessage?.key?.id) {
+        await birthday.updateTakeoverMetadata(targetJid, { hotTakeMessageId: sentMessage.key.id });
+      }
+
+    // --- 19:00 Slot: Satu Hal yang Belum Pernah Diucapkan ---
+    } else if (event === "unsaid_thing") {
+      const msg = formatter.formatUnsaidThingPrompt(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
+      if (sentMessage?.key?.id) {
+        await birthday.updateTakeoverMetadata(targetJid, { unsaidThingMessageId: sentMessage.key.id });
+      }
+
+    // --- 19:15 Slot: Kalau Kamu Jadi... (Skenario Absurd) ---
+    } else if (event === "what_if") {
+      const config = getConfig();
+      const scenarios = config.WHAT_IF_SCENARIOS || [
+        "presiden Republik Indonesia mendadak",
+        "chef bintang lima yang masakannya di luar nalar",
+        "astronot pertama yang nyasar di luar angkasa",
+        "host reality show cari jodoh paling dramatis",
+      ];
+      const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+      const msg = formatter.formatWhatIfPrompt(persons, scenario);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
+      if (sentMessage?.key?.id) {
+        await birthday.updateTakeoverMetadata(targetJid, { whatIfMessageId: sentMessage.key.id, whatIfScenario: scenario });
+      }
+
     // --- 20:00 Slot: Wish Jar ---
     } else if (event === "wish_jar") {
       const msg = formatter.formatWishJarPrompt(persons);
@@ -302,6 +337,21 @@ async function runEventForGroup(event, targetJid, personsOverride) {
         await birthday.setWishMessageId(targetJid, sentMessage.key.id);
         await birthday.updateTakeoverMetadata(targetJid, { wishJarMessageId: sentMessage.key.id });
       }
+
+    // --- 20:30 Slot: Verdict: Siapa Kamu Sebenarnya? ---
+    } else if (event === "ai_verdict") {
+      const meta = await birthday.getTakeoverMetadata(targetJid);
+      const verdictText = await birthdayAi.generateAiVerdict({
+        targetName: persons[0]?.name || "Teman",
+        truthQuestions: meta.truthData?.questions || [],
+        hotTakes: meta.hotTakes || [],
+        memories: (meta.memoryWall || []).map((m) => m.text),
+        confessions: (meta.confessions || []).map((c) => c.text),
+        unsaidThings: meta.unsaidThings || [],
+        logger,
+      });
+
+      sentMessage = await sendMultiBubble(sock, targetJid, verdictText, groupMentions);
 
     // --- 21:00 Slot: Grand Recap ---
     } else if (event === "grand_recap" || event === "recap") {
@@ -321,6 +371,10 @@ async function runEventForGroup(event, targetJid, personsOverride) {
           answer: q.answer,
           isHonest: q.isHonest,
         })),
+        hotTakes: meta.hotTakes || [],
+        unsaidThings: meta.unsaidThings || [],
+        whatIfScenario: meta.whatIfScenario || "",
+        whatIfAnswers: meta.whatIfAnswers || [],
         photoStories: meta.photoStories || [],
         predictions: meta.predictions || [],
       };
@@ -342,6 +396,18 @@ async function runEventForGroup(event, targetJid, personsOverride) {
         await birthday.markCelebrated(targetJid, person.participantId, today.year);
       }
 
+    // --- 23:30 Slot: Rate The Day ---
+    } else if (event === "rate_the_day") {
+      const msg = formatter.formatRateTheDayPrompt(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
+      if (sentMessage?.key?.id) {
+        await birthday.updateTakeoverMetadata(targetJid, {
+          rateTheDayMessageId: sentMessage.key.id,
+          rateTheDaySentAt: Date.now(),
+        });
+      }
+
     // --- 00:00 Slot: Midnight Letter ---
     } else if (event === "midnight_letter") {
       const chatLog = birthday.getGroupChatLog(targetJid);
@@ -354,13 +420,18 @@ async function runEventForGroup(event, targetJid, personsOverride) {
 
       const letterText = await birthdayAi.generateMidnightLetter({
         targetName: persons[0]?.name,
-        roast: (meta.roasts || []).map((r) => r.text),
+        chatSummary,
         memories: (meta.memoryWall || []).map((m) => m.text),
         photoStories: meta.photoStories || [],
+        roast: (meta.roasts || []).map((r) => r.text),
+        hotTakes: meta.hotTakes || [],
+        unsaidThings: meta.unsaidThings || [],
+        confessions: (meta.confessions || []).map((c) => c.text),
+        whatIfAnswers: meta.whatIfAnswers || [],
+        whatIfScenario: meta.whatIfScenario || "",
         wishJar: (meta.wishJar || []).map((w) => w.text),
         predictions: (meta.predictions || []).map((p) => `${p.senderName}: ${p.predictionText}`),
-        confessions: (meta.confessions || []).map((c) => c.text),
-        chatSummary,
+        rateTheDay: meta.rateTheDay || null,
         logger,
       });
 

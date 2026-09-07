@@ -121,15 +121,34 @@ describe("Birthday formatting and configuration", () => {
     assert.equal(result.text.includes("@s.whatsapp.net"), false);
   });
 
-  it("keeps the production event schedule aligned with the 13-slot timeline", () => {
-    assert.equal(birthdayConfig.EVENT_SCHEDULES.length, 13);
+  it("keeps the production event schedule aligned with the 18-slot timeline", () => {
+    assert.equal(birthdayConfig.EVENT_SCHEDULES.length, 18);
     const times = birthdayConfig.EVENT_SCHEDULES.map((s) => s.time);
     assert.ok(times.includes("07:00"));
+    assert.ok(times.includes("09:00"));
+    assert.ok(times.includes("12:00"));
     assert.ok(times.includes("14:00"));
+    assert.ok(times.includes("15:00"));
+    assert.ok(times.includes("16:00"));
     assert.ok(times.includes("17:00"));
+    assert.ok(times.includes("18:00"));
+    assert.ok(times.includes("18:30"));
+    assert.ok(times.includes("19:00"));
+    assert.ok(times.includes("19:15"));
+    assert.ok(times.includes("20:00"));
+    assert.ok(times.includes("20:30"));
+    assert.ok(times.includes("21:00"));
     assert.ok(times.includes("23:00"));
+    assert.ok(times.includes("23:30"));
     assert.ok(times.includes("00:00"));
     assert.ok(times.includes("02:00"));
+
+    const ids = birthdayConfig.EVENT_SCHEDULES.map((s) => s.id);
+    assert.ok(ids.includes("hot_take"));
+    assert.ok(ids.includes("unsaid_thing"));
+    assert.ok(ids.includes("what_if"));
+    assert.ok(ids.includes("ai_verdict"));
+    assert.ok(ids.includes("rate_the_day"));
   });
 });
 
@@ -439,6 +458,12 @@ describe("Birthday command", () => {
     assert.equal(typeof birthdayFormatter.pickQuest, "function");
     assert.equal(typeof birthdayFormatter.pickPenalty, "function");
 
+    // New night slot formatters
+    assert.equal(typeof birthdayFormatter.formatHotTakePrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatUnsaidThingPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatWhatIfPrompt, "function");
+    assert.equal(typeof birthdayFormatter.formatRateTheDayPrompt, "function");
+
     // Legacy formatters
     assert.equal(typeof birthdayFormatter.formatCard, "function");
     assert.equal(typeof birthdayFormatter.formatSpotlight, "function");
@@ -455,14 +480,35 @@ describe("Birthday command", () => {
     assert.ok(birthdayFormatter.formatDmPrompt(persons).text.includes("Confess"));
     assert.ok(birthdayFormatter.formatDmGroupNotice([{ participantId: "628999@s.whatsapp.net", name: "Budi" }]).text.includes("MISI RAHASIA"));
     assert.ok(birthdayFormatter.formatConfessReveal(persons, [{ text: "Rahasia" }]).text.includes("Rahasia"));
+    assert.ok(birthdayFormatter.formatHotTakePrompt(persons).text.includes("HOT TAKE NIGHT"));
+    assert.ok(birthdayFormatter.formatUnsaidThingPrompt(persons).text.includes("SATU HAL YANG BELUM PERNAH DIUCAPKAN"));
+    assert.ok(birthdayFormatter.formatWhatIfPrompt(persons, "presiden").text.includes("KALAU KAMU JADI..."));
+    assert.ok(birthdayFormatter.formatRateTheDayPrompt(persons).text.includes("RATE THE DAY"));
     assert.ok(birthdayFormatter.formatWishJarPrompt(persons).text.includes("WISH JAR"));
-    assert.ok(birthdayFormatter.formatGrandRecap({ persons }).text.includes("GRAND BIRTHDAY RECAP"));
+
+    const recapWithNewSlots = birthdayFormatter.formatGrandRecap({
+      persons,
+      hotTakes: [{ senderName: "Budi", text: "Sebenernya dia introvert", isRebuttal: false }],
+      unsaidThings: [{ senderName: "Siti", text: "Makasih udah selalu ada" }],
+      whatIfScenario: "presiden",
+      whatIfAnswers: [{ senderName: "Joko", text: "bikin hari libur tiap Senin" }],
+    });
+    assert.ok(recapWithNewSlots.text.includes("GRAND BIRTHDAY RECAP"));
+    assert.ok(recapWithNewSlots.text.includes("HIGHLIGHT HOT TAKE"));
+    assert.ok(recapWithNewSlots.text.includes("SATU HAL YANG BELUM PERNAH DIUCAPKAN"));
+    assert.ok(recapWithNewSlots.text.includes("PEMBACAAN DRAMATIS: KALAU KAMU JADI"));
+
     assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", true, "sanksi").text.includes("COMPLETED"));
     assert.ok(birthdayFormatter.formatClosingQuest(persons, "quest", false, "sanksi").text.includes("MISSED"));
     assert.ok(birthdayFormatter.formatFlashback({ senderName: "Budi", caption: "Halo" }).includes("Halo"));
 
     // Verify birthdayService export
     assert.equal(typeof birthdayService.getWishMessageId, "function");
+    assert.equal(typeof birthdayService.parseRateTheDay, "function");
+    assert.equal(typeof birthdayService.recordHotTake, "function");
+    assert.equal(typeof birthdayService.recordUnsaidThing, "function");
+    assert.equal(typeof birthdayService.recordWhatIfAnswer, "function");
+    assert.equal(typeof birthdayService.recordRateTheDay, "function");
   });
 
   it("stores photoUrl in Memory Wall and Quest replies", async () => {
@@ -513,5 +559,85 @@ describe("Birthday command", () => {
 
     assert.equal(meta.wishJar.length, 1);
     assert.equal(meta.wishJar[0].photoUrl, "https://res.cloudinary.com/test/image/upload/v1/wish.png");
+  });
+
+  it("handles Hot Take, Unsaid Thing, What If, and Rate The Day recording and parsing", async () => {
+    await birthdayRepository.init();
+    await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
+
+    // 1. Hot Take & Rebuttal
+    await birthdayService.recordHotTake("120@g.us", "628999@s.whatsapp.net", "Budi", "Sebenernya dia introvert", false);
+    await birthdayService.recordHotTake("120@g.us", "628123@s.whatsapp.net", "Rina", "Gue emang introvert wkwk", true);
+
+    // 2. Unsaid Thing
+    await birthdayService.recordUnsaidThing("120@g.us", "628777@s.whatsapp.net", "Siti", "Makasih udah selalu dengerin keluh kesah gue");
+
+    // 3. What If Answer
+    await birthdayService.recordWhatIfAnswer("120@g.us", "628999@s.whatsapp.net", "Budi", "bikin peraturan kerja wajib tidur siang");
+
+    // 4. Rate The Day parsing & recording
+    const parsed1 = birthdayService.parseRateTheDay("10/10 seru banget hari ini");
+    assert.equal(parsed1.rating, "10");
+    assert.equal(parsed1.reason, "seru banget hari ini");
+
+    const parsed2 = birthdayService.parseRateTheDay("9, cape tapi berasa disayang seisi grup");
+    assert.equal(parsed2.rating, "9");
+    assert.equal(parsed2.reason, "cape tapi berasa disayang seisi grup");
+
+    const parsed3 = birthdayService.parseRateTheDay("hanya kalimat biasa tanpa angka");
+    assert.equal(parsed3.rating, null);
+    assert.equal(parsed3.reason, "hanya kalimat biasa tanpa angka");
+
+    await birthdayService.recordRateTheDay("120@g.us", "628123@s.whatsapp.net", parsed2.rating, parsed2.reason, "9, cape tapi berasa disayang seisi grup");
+
+    const meta = await birthdayService.getTakeoverMetadata("120@g.us");
+    assert.equal(meta.hotTakes.length, 2);
+    assert.equal(meta.hotTakes[0].isRebuttal, false);
+    assert.equal(meta.hotTakes[1].isRebuttal, true);
+
+    assert.equal(meta.unsaidThings.length, 1);
+    assert.equal(meta.unsaidThings[0].senderName, "Siti");
+
+    assert.equal(meta.whatIfAnswers.length, 1);
+    assert.equal(meta.whatIfAnswers[0].text, "bikin peraturan kerja wajib tidur siang");
+
+    assert.ok(meta.rateTheDay);
+    assert.equal(meta.rateTheDay.rating, "9");
+    assert.equal(meta.rateTheDay.reason, "cape tapi berasa disayang seisi grup");
+  });
+
+  it("generates fallback text for AI Verdict and Midnight Letter when LLM is unavailable", async () => {
+    const birthdayAi = require("../src/services/birthdayAiService");
+    assert.equal(typeof birthdayAi.generateAiVerdict, "function");
+    assert.equal(typeof birthdayAi.generateMidnightLetter, "function");
+
+    const verdict = await birthdayAi.generateAiVerdict({
+      targetName: "Rina",
+      truthQuestions: [{ askerName: "Budi", question: "Kapan nikah?", answer: "Tahun depan" }],
+      hotTakes: [{ senderName: "Budi", text: "Dia introvert", isRebuttal: false }],
+      memories: ["Pernah jatuh bareng di selokan"],
+      confessions: ["Gue kagum sama kerja keras lo"],
+      unsaidThings: [{ senderName: "Siti", text: "Makasih udah jadi teman baik" }],
+    });
+    assert.ok(verdict);
+    assert.ok(verdict.includes("BERKAS PSIKOLOGIS") || verdict.includes("Rina"));
+
+    const midnightLetter = await birthdayAi.generateMidnightLetter({
+      targetName: "Rina",
+      chatSummary: "Grup ramai sekali hari ini",
+      memories: ["Kenangan masa lalu"],
+      photoStories: [{ senderName: "Budi", caption: "Lucu", aiStory: "Suasana akrab" }],
+      roast: ["Jago tidur"],
+      hotTakes: [{ senderName: "Budi", text: "Dia introvert" }],
+      unsaidThings: [{ senderName: "Siti", text: "Lo teman terbaik" }],
+      confessions: ["Gue bangga sama lo"],
+      whatIfAnswers: [{ senderName: "Joko", text: "bikin aturan tidur siang" }],
+      whatIfScenario: "presiden",
+      wishJar: ["Tahun ini semoga bahagia"],
+      predictions: ["Budi: bakal sukses"],
+      rateTheDay: { rating: "10", reason: "terharu banget" },
+    });
+    assert.ok(midnightLetter);
+    assert.ok(midnightLetter.includes("Rina"));
   });
 });

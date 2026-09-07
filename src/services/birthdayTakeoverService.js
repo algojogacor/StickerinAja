@@ -214,6 +214,40 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
       return true;
     }
 
+    // 7. Hot Take Night (18:30)
+    if (meta.hotTakeMessageId && quotedStanza === meta.hotTakeMessageId) {
+      const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
+      await birthday.recordHotTake(remoteJid, senderJid, senderName, messageText, isBirthdayPerson);
+      const emoji = isBirthdayPerson ? "🛡️" : "🔥";
+      await sock.sendMessage(remoteJid, { react: { text: emoji, key: msg.key } }).catch(() => {});
+      return true;
+    }
+
+    // 8. Satu Hal yang Belum Pernah Diucapkan (19:00)
+    if (meta.unsaidThingMessageId && quotedStanza === meta.unsaidThingMessageId) {
+      await birthday.recordUnsaidThing(remoteJid, senderJid, senderName, messageText);
+      await sock.sendMessage(remoteJid, { react: { text: "🕊️", key: msg.key } }).catch(() => {});
+      return true;
+    }
+
+    // 9. Kalau Kamu Jadi... (19:15)
+    if (meta.whatIfMessageId && quotedStanza === meta.whatIfMessageId) {
+      await birthday.recordWhatIfAnswer(remoteJid, senderJid, senderName, messageText);
+      await sock.sendMessage(remoteJid, { react: { text: "🎭", key: msg.key } }).catch(() => {});
+      return true;
+    }
+
+    // 10. Rate The Day (23:30)
+    if (meta.rateTheDayMessageId && quotedStanza === meta.rateTheDayMessageId) {
+      const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
+      if (isBirthdayPerson || !persons.length) {
+        const parsed = birthday.parseRateTheDay(messageText);
+        await birthday.recordRateTheDay(remoteJid, senderJid, parsed.rating, parsed.reason, messageText);
+        await sock.sendMessage(remoteJid, { react: { text: "⭐", key: msg.key } }).catch(() => {});
+        return true;
+      }
+    }
+
     // Legacy card wish fallback
     if ((await birthday.getWishMessageId(remoteJid)) === quotedStanza) {
       await birthday.recordWishFromMessage(msg);

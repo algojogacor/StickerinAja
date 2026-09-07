@@ -541,6 +541,75 @@ async function recordPhotoStory(groupJid, storyItem) {
   });
 }
 
+function parseRateTheDay(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return { rating: null, reason: "" };
+
+  const match = clean.match(/(?:rate(?:\s*hari\s*ini)?[:\s]*)?(\b(?:10|[1-9](?:\.[0-9])?))\s*(?:\/\s*10)?\s*[,.:;\-–—]?\s*(.*)$/i);
+  if (match) {
+    const rating = match[1];
+    const reason = (match[2] || "").trim();
+    return { rating, reason };
+  }
+
+  return { rating: null, reason: clean };
+}
+
+async function recordHotTake(groupJid, senderId, senderName, text, isRebuttal = false) {
+  return updateTakeoverMetadata(groupJid, (meta) => {
+    const items = Array.isArray(meta.hotTakes) ? meta.hotTakes : [];
+    items.push({
+      senderId: bareJid(senderId),
+      senderName: senderName || "Warga",
+      text: String(text || "").trim(),
+      isRebuttal: Boolean(isRebuttal),
+      timestamp: Date.now(),
+    });
+    return { ...meta, hotTakes: items };
+  });
+}
+
+async function recordUnsaidThing(groupJid, senderId, senderName, text) {
+  return updateTakeoverMetadata(groupJid, (meta) => {
+    const items = Array.isArray(meta.unsaidThings) ? meta.unsaidThings : [];
+    items.push({
+      senderId: bareJid(senderId),
+      senderName: senderName || "Warga",
+      text: String(text || "").trim(),
+      timestamp: Date.now(),
+    });
+    return { ...meta, unsaidThings: items };
+  });
+}
+
+async function recordWhatIfAnswer(groupJid, senderId, senderName, text) {
+  return updateTakeoverMetadata(groupJid, (meta) => {
+    const items = Array.isArray(meta.whatIfAnswers) ? meta.whatIfAnswers : [];
+    items.push({
+      senderId: bareJid(senderId),
+      senderName: senderName || "Warga",
+      text: String(text || "").trim(),
+      timestamp: Date.now(),
+    });
+    return { ...meta, whatIfAnswers: items };
+  });
+}
+
+async function recordRateTheDay(groupJid, senderId, rating, reason, fullText = "") {
+  return updateTakeoverMetadata(groupJid, (meta) => {
+    return {
+      ...meta,
+      rateTheDay: {
+        senderId: bareJid(senderId),
+        rating: rating || null,
+        reason: reason || "",
+        fullText: fullText || "",
+        answeredAt: Date.now(),
+      },
+    };
+  });
+}
+
 async function checkFlashbackDue(groupJid) {
   const schedule = await repository.getFlashbackSchedule(normalizeGroupJid(groupJid));
   const nextAt = schedule?.nextFlashbackAt || schedule?.next_flashback_at;
@@ -602,6 +671,11 @@ module.exports = {
   recordRoast,
   recordQuestReply,
   recordPhotoStory,
+  parseRateTheDay,
+  recordHotTake,
+  recordUnsaidThing,
+  recordWhatIfAnswer,
+  recordRateTheDay,
   checkFlashbackDue,
   advanceFlashbackSchedule,
 };

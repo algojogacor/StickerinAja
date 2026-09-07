@@ -9,9 +9,14 @@ const EVENT_SCHEDULES = [
   { id: "roast_session", time: "16:00" },
   { id: "dm_outreach", time: "17:00" },
   { id: "confess_reveal", time: "18:00" },
+  { id: "hot_take", time: "18:30" },
+  { id: "unsaid_thing", time: "19:00" },
+  { id: "what_if", time: "19:15" },
   { id: "wish_jar", time: "20:00" },
+  { id: "ai_verdict", time: "20:30" },
   { id: "grand_recap", time: "21:00" },
   { id: "closing_quest", time: "23:00" },
+  { id: "rate_the_day", time: "23:30" },
   { id: "midnight_letter", time: "00:00" },
   { id: "narrator_letter", time: "02:00" },
 ];
@@ -29,6 +34,24 @@ const BIRTHDAY_PENALTIES = [
   "Wajib mendoakan semua warga grup cepet kaya dan bahagia sebelum lo tidur nanti!",
   "Kena denda menyanyikan lagu selamat ulang tahun dalam hati sebanyak 3 kali berturut-turut!",
   "Wajib tersenyum lebar ke kaca selama 10 detik saat bangun besok pagi!",
+];
+
+const WHAT_IF_SCENARIOS = [
+  "presiden Republik Indonesia mendadak",
+  "chef bintang lima yang masakannya di luar nalar",
+  "astronot pertama yang nyasar di luar angkasa",
+  "host reality show cari jodoh paling dramatis",
+  "CEO startup boncos yang tetap optimis bakar duit",
+  "detektif swasta spesialis kasus kehilangan barang sepele",
+  "atlet catur keliling antar kampung",
+];
+
+const HOT_TAKE_STARTERS = [
+  "Sebenernya [nama] itu jauh lebih introvert dan butuh 'me-time' ekstrem dibanding kelihatannya di grup.",
+  "Selera musik atau tontonan [nama] yang sebenarnya itu jauh lebih unhinged / random dari yang pernah dia akuin.",
+  "[nama] aslinya punya standar perfectionist yang tinggi banget ke diri sendiri, makanya suka overthinking hal sepele.",
+  "[nama] itu tipe orang yang kalau lagi kesel atau ngambek malah pura-pura tenang, tapi auranya kerasa sampai radius 5 km.",
+  "Di balik sifat santainya, [nama] sebenernya pemerhati paling detail dan diem-diem tau semua kebiasaan / rahasia warga grup.",
 ];
 
 function isEnabled(name, fallback = true) {
@@ -61,11 +84,15 @@ function getConfig() {
     EVENT_SCHEDULES,
     BIRTHDAY_QUESTS,
     BIRTHDAY_PENALTIES,
+    WHAT_IF_SCENARIOS,
+    HOT_TAKE_STARTERS,
   };
 }
 
 module.exports = {
   BOT_TIMEZONE,
   EVENT_SCHEDULES,
+  WHAT_IF_SCENARIOS,
+  HOT_TAKE_STARTERS,
   getConfig,
 };

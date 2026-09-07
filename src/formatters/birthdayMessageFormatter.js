@@ -190,7 +190,76 @@ function formatWishJarPrompt(persons) {
   );
 }
 
-function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], photoStories = [], predictions = [], truthHighlights = [] }) {
+function formatHotTakePrompt(persons) {
+  const name = (Array.isArray(persons) ? persons[0]?.name : persons?.name) || "dia";
+  return result(
+    `🌶️🔥 *HOT TAKE NIGHT DIBUKA!* 🔥🌶️\n\n` +
+    `Spesial untuk ${mentionText(persons)}!\n\n` +
+    `Masing-masing warga grup diminta kirim *satu statement kontroversial atau opini yang bisa diperdebatkan* tentang ${name} via reply pesan ini.\n\n` +
+    `⚠️ _Catatan: Ini bukan roast, bukan juga pujian murni, melainkan opini atau sudut pandang yang bisa disetujui atau dibantah!_\n\n` +
+    `💡 *Contoh Sudut Pandang Pemantik (Bisa Dipakai / Bikin Sendiri):*\n` +
+    `1️⃣ “Sebenernya ${name} itu jauh lebih introvert & butuh me-time ekstrem dibanding kelihatannya di grup.”\n` +
+    `2️⃣ “Selera musik atau tontonan ${name} yang sebenarnya itu jauh lebih unhinged / random dari yang pernah dia akuin.”\n` +
+    `3️⃣ “${name} aslinya punya standar perfectionist tinggi ke diri sendiri, makanya suka overthinking hal sepele.”\n` +
+    `4️⃣ “${name} kalau lagi kesel malah pura-pura santai/tenang, tapi auranya kerasa sampai radius 5 km.”\n` +
+    `5️⃣ “Di balik sifat santainya, ${name} diem-diem pemerhati paling detail dan tau semua kebiasaan warga grup.”\n\n` +
+    `👉 ${mentionText(persons)} bisa langsung reply balik pesan teman-teman untuk *SETUJU* atau *BANTAH*!\n` +
+    `📢 _Diskusi bebas mengalir, highlight hot take terbaik akan masuk ke Grand Recap jam 21:00! Kirim opinimu sekarang!_`,
+    persons
+  );
+}
+
+function formatUnsaidThingPrompt(persons) {
+  return result(
+    `💬🕊️ *SATU HAL YANG BELUM PERNAH DIUCAPKAN* 🕊️💬\n\n` +
+    `Kadang ada kata-kata yang selalu tertunda karena gak pernah nemu momen yang pas...\n\n` +
+    `Malam ini, setiap warga grup diajak menyampaikan *1 hal yang selama ini ingin diucapkan langsung ke ${mentionText(persons)}*.\n\n` +
+    `✨ *Ketentuan:*\n` +
+    `• Bisa serius, apresiasi mendalam, atau hal receh yang kepikiran.\n` +
+    `• Dikirim via *reply pesan ini langsung di grup* (terbuka & non-anonim, dengan nama kalian).\n\n` +
+    `📢 _Kutipan-kutipan terbaik dari sesi ini akan dibacakan di Grand Recap jam 21:00 WIB. Yuk sampaikan sekarang!_`,
+    persons
+  );
+}
+
+function formatWhatIfPrompt(persons, scenario) {
+  const name = (Array.isArray(persons) ? persons[0]?.name : persons?.name) || "dia";
+  const chosenScenario = scenario || "presiden Republik Indonesia mendadak";
+  return result(
+    `🎭🎪 *KALAU KAMU JADI... (SKENARIO ABSURD)* 🎪🎭\n\n` +
+    `Mari berimajinasi liar!\n\n` +
+    `👉 *Skenario Malam Ini:*\n` +
+    `*“Kalau ${name} jadi ${chosenScenario}, hal pertama yang dia lakuin pasti...”*\n\n` +
+    `Tiap anggota grup (termasuk ${mentionText(persons)} sendiri!) wajib jawab via reply pesan ini dengan kelanjutan kalimat di atas.\n\n` +
+    `📢 _Semua jawaban bakal dikumpulkan dan dibacakan ulang secara dramatis di Grand Recap jam 21:00 WIB!_`,
+    persons
+  );
+}
+
+function formatRateTheDayPrompt(persons) {
+  return result(
+    `⭐📊 *RATE THE DAY (KHUSUS UNTUK YANG BERULANG TAHUN)* 📊⭐\n\n` +
+    `Halo ${mentionText(persons)}! Sebelum hari ulang tahunmu resmi berganti...\n\n` +
+    `Tolong beri nilai untuk harimu hari ini dari *skala 1 sampai 10*, plus *satu kalimat alasan atau perasaanmu* via reply pesan ini.\n\n` +
+    `Contoh balasan: “9/10, seru banget dari pagi dikerjain tapi berasa disayang se-grup”\n\n` +
+    `⏳ _Bot menunggu balasanmu dalam 25 menit ke depan ya. Jawabanmu akan menjadi suara penutup hari ini!_`,
+    persons
+  );
+}
+
+function formatGrandRecap({
+  persons,
+  wishes = [],
+  memories = [],
+  roast = [],
+  photoStories = [],
+  predictions = [],
+  truthHighlights = [],
+  hotTakes = [],
+  unsaidThings = [],
+  whatIfScenario = "",
+  whatIfAnswers = [],
+}) {
   const lines = [
     `👑🌟 *GRAND BIRTHDAY RECAP (JAM 21:00 WIB)* 🌟👑`,
     `Spesial untuk: ${mentionText(persons)}\n`,
@@ -239,9 +308,38 @@ function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], pho
     lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
   }
 
-  // 5. Arsip Foto Cerita
+  // 5. Highlight Hot Take Terbaik
+  if (hotTakes.length) {
+    lines.push(`🌶️ *5. HIGHLIGHT HOT TAKE & REBUTTAL:*`);
+    for (const h of hotTakes.slice(0, 6)) {
+      const tag = h.isRebuttal ? '🛡️ [TANGGAPAN TARGET]' : '🔥 [HOT TAKE]';
+      lines.push(`• *${h.senderName || 'Warga'}* ${tag}: “${h.text}”`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 6. Kutipan Satu Hal yang Belum Pernah Diucapkan
+  if (unsaidThings.length) {
+    lines.push(`🕊️ *6. SATU HAL YANG BELUM PERNAH DIUCAPKAN:*`);
+    for (const u of unsaidThings.slice(0, 6)) {
+      lines.push(`• Dari *${u.senderName || 'Warga'}*: “${u.text}”`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 7. Pembacaan Dramatis Skenario "Kalau Kamu Jadi..."
+  if (whatIfAnswers.length) {
+    const scTitle = whatIfScenario ? ` (${whatIfScenario})` : '';
+    lines.push(`🎭 *7. PEMBACAAN DRAMATIS: KALAU KAMU JADI...${scTitle}:*`);
+    for (const a of whatIfAnswers.slice(0, 6)) {
+      lines.push(`• *${a.senderName || 'Warga'}*: “...pasti ${a.text}”`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 8. Arsip Foto Cerita
   if (photoStories.length) {
-    lines.push(`📸 *5. ARSIP KENANGAN HARI INI:*`);
+    lines.push(`📸 *8. ARSIP KENANGAN HARI INI:*`);
     for (const p of photoStories.slice(0, 5)) {
       const cap = p.caption ? `“${p.caption}”` : 'Momen seru hari ini';
       const aiNote = p.aiStory ? `\n  ↳ Sorotan Momen: ${p.aiStory}` : '';
@@ -250,8 +348,8 @@ function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], pho
     lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
   }
 
-  // 6. Prediksi Masa Depan (Non-Anonim)
-  lines.push(`🔮 *6. PREDIKSI MASA DEPAN TAHUN INI:*`);
+  // 9. Prediksi Masa Depan (Non-Anonim)
+  lines.push(`🔮 *9. PREDIKSI MASA DEPAN TAHUN INI:*`);
   if (!predictions.length) {
     lines.push(`• Belum ada ramalan yang masuk.`);
   } else {
@@ -353,6 +451,10 @@ module.exports = {
   formatDmGroupNotice: formatDmAnnouncementGroup,
   formatDmPrompt,
   formatConfessReveal,
+  formatHotTakePrompt,
+  formatUnsaidThingPrompt,
+  formatWhatIfPrompt,
+  formatRateTheDayPrompt,
   formatWishJarPrompt,
   formatGrandRecap,
   formatClosingQuest,

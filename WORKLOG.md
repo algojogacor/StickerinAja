@@ -6,6 +6,58 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 65 — Birthday Takeover Night Expansion (18:30–23:30) & Midnight Letter Overhaul
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 15:18 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `5056c5d` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Objectives
+- **User request:** Implement night timeline update from 18:00 WIB downwards:
+  - 18:30 — `hot_take` (Hot Take Night: 4–5 non-generic starters, member debates, birthday person rebuttals).
+  - 19:00 — `unsaid_thing` (Satu Hal yang Belum Pernah Diucapkan: non-anonymous, named, open group replies).
+  - 19:15 — `what_if` (Kalau Kamu Jadi...: absurd scenario rotation, answers compiled for dramatic read).
+  - 20:30 — `ai_verdict` (Verdict: Siapa Kamu Sebenarnya?: humorous pseudo-psychological profile via LLM based on all day's data).
+  - 21:00 — `grand_recap` (Updated with Hot Takes, Unsaid Things, and What If dramatic readings).
+  - 23:30 — `rate_the_day` (Rate The Day: 1–10 rating + 1 reason from birthday person, 25-minute graceful timeout).
+  - 00:00 — `midnight_letter` (Updated prompt context ordering: `chatSummary` → `memories` → `photoStories` → `roast` → `hotTakes` → `unsaidThings` → `confessions` → `whatIfAnswers` → `wishJar` → `predictions` → `rateTheDay`).
+
+### Implementation Details
+1. **Config & Pools (`src/config/birthdayConfig.js`):**
+   - Configured 18-slot `EVENT_SCHEDULES`: 07:00, 09:00, 12:00, 14:00, 15:00, 16:00, 17:00, 18:00, 18:30, 19:00, 19:15, 20:00, 20:30, 21:00, 23:00, 23:30, 00:00, 02:00.
+   - Added `WHAT_IF_SCENARIOS` (7 curated scenarios) and `HOT_TAKE_STARTERS` (5 thought-provoking non-generic starter angles).
+2. **Formatters (`src/formatters/birthdayMessageFormatter.js`):**
+   - Implemented `formatHotTakePrompt(persons)`, `formatUnsaidThingPrompt(persons)`, `formatWhatIfPrompt(persons, scenario)`, `formatRateTheDayPrompt(persons)`.
+   - Updated `formatGrandRecap` with sections for Hot Takes, Unsaid Things, and dramatic What-If readings.
+3. **AI Service (`src/services/birthdayAiService.js`):**
+   - Implemented `generateAiVerdict` generating pseudo-psychological FBI-style profiles that are brutally honest yet funny and affectionate.
+   - Updated `generateMidnightLetter` with exact prompt ingredient sequence ending with `rateTheDay` as the closing voice of the birthday person.
+4. **State Management (`src/services/birthdayService.js`):**
+   - Implemented `parseRateTheDay(text)` with regex parsing for 1–10 scores and reasons.
+   - Added `recordHotTake`, `recordUnsaidThing`, `recordWhatIfAnswer`, and `recordRateTheDay`.
+5. **Interactive Group Handler (`src/services/birthdayTakeoverService.js`):**
+   - Intercepted replies to `hotTakeMessageId` (fires 🔥 for members, 🛡️ for birthday person rebuttal).
+   - Intercepted replies to `unsaidThingMessageId` (fires 🕊️).
+   - Intercepted replies to `whatIfMessageId` (fires 🎭).
+   - Intercepted replies to `rateTheDayMessageId` from target (fires ⭐).
+6. **Scheduler Dispatcher (`src/scheduler/birthdayScheduler.js`):**
+   - Dispatched all new events (`hot_take`, `unsaid_thing`, `what_if`, `ai_verdict`, `rate_the_day`).
+   - Integrated new data into `grand_recap` and `midnight_letter`.
+7. **Verification & Testing (`test/birthday.test.js`):**
+   - Updated test suite for 18-slot timeline, new formatters, state methods, and AI fallback generation.
+   - `node --test test/birthday.test.js`: 23/23 tests passed.
+   - Full test suite `node --test`: 368/368 tests passed across 79 suites (100% pass rate).
+
+---
+
 ## Session 64 — Silent Photo Story Acknowledgment (Reaction Only)
 
 | Field | Value |
