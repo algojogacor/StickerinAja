@@ -73,9 +73,9 @@ async function autoCropDocument(buffer) {
             const scaleX = width / thumbW;
             const scaleY = height / thumbH;
 
-            // Safe margin (1.5%)
-            const padX = Math.round(width * 0.015);
-            const padY = Math.round(height * 0.015);
+            // Safe generous margin (3.5% padding so headers/margins are never clipped)
+            const padX = Math.round(width * 0.035);
+            const padY = Math.round(height * 0.035);
 
             const cropLeft = Math.max(0, Math.round(startX * scaleX) - padX);
             const cropTop = Math.max(0, Math.round(startY * scaleY) - padY);
@@ -86,7 +86,9 @@ async function autoCropDocument(buffer) {
             const totalArea = width * height;
             const areaRatio = cropArea / totalArea;
 
-            if (areaRatio > 0.20 && areaRatio < 0.96 && cropWidth > width * 0.3 && cropHeight > height * 0.3) {
+            // Only crop if document is clearly framed inside background (between 25% and 88% area)
+            // If the document already fills > 88% of the camera shot, do not crop to preserve edges
+            if (areaRatio > 0.25 && areaRatio < 0.88 && cropWidth > width * 0.4 && cropHeight > height * 0.4) {
                 return sharp(buffer)
                     .extract({ left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight })
                     .toBuffer();
@@ -100,16 +102,28 @@ async function autoCropDocument(buffer) {
 }
 
 /**
- * CamScanner-Grade Illumination Normalization & Magic Filter
- * Uses Retinex-based illumination division to eliminate uneven shadows,
- * whiten document paper backgrounds, and preserve/boost colored stamps and text.
- *
- * @param {Buffer} buffer - Image buffer
- * @param {'magic'|'bw'} mode - 'magic' (Magic Color) or 'bw' (Clear B&W)
+ * Prepares image in its authentic, original state (100% untouched pixel colors/ink).
+ * Only applies EXIF auto-rotation and safe dimension scaling for PDF compatibility.
  */
-async function applyMagicScan(buffer, mode = 'magic') {
+async function prepareOriginalImage(buffer) {
     try {
-        // 1. Auto-orient based on EXIF and cap resolution at 2048px (high-res scan, memory safe for Koyeb)
+        return await sharp(buffer)
+            .rotate() // Auto-orient based on camera EXIF
+            .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+    } catch {
+        return buffer;
+    }
+}
+
+/**
+ * Gentle Document Enhancement (Filter Ringan)
+ * Levels background shadows gently and enhances text contrast without bleaching.
+ * Darkens pen/pencil ink strokes instead of cutting them off, so handwriting is 100% preserved.
+ */
+async function applyGentleScan(buffer) {
+    try {
         const pipeline = sharp(buffer)
             .rotate()
             .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
@@ -121,14 +135,13 @@ async function applyMagicScan(buffer, mode = 'magic') {
 
         const rawOrig = await pipeline.raw().toBuffer();
 
-        // 2. Generate smooth low-frequency background illumination map
-        // Large-scale downsample + blur + upsample acts as an ultra-fast large-kernel low-pass filter
+        // Background illumination map via large blur (low-pass filter)
         const downW = Math.max(16, Math.round(width / 32));
         const downH = Math.max(16, Math.round(height / 32));
 
         const rawBg = await sharp(rawOrig, { raw: { width, height, channels: 3 } })
             .resize(downW, downH, { fit: 'fill' })
-            .blur(12)
+            .blur(14)
             .resize(width, height, { fit: 'fill' })
             .raw()
             .toBuffer();
@@ -136,84 +149,64 @@ async function applyMagicScan(buffer, mode = 'magic') {
         const totalPixels = width * height;
         const outBuf = Buffer.alloc(totalPixels * 3);
 
-        const isMagicColor = (mode === 'magic' || mode === 'color');
+        for (let i = 0; i < totalPixels; i++) {
+            const idx = i * 3;
 
-        if (isMagicColor) {
-            // MODE 1: CAMSCANNER MAGIC COLOR
-            // Retinex illumination division: I_norm = (I_orig / I_bg) * 255
-            // Whitens paper, erases shadows, keeps stamps, ink, and photos vibrant
-            const whitePoint = 225;
-            const blackPoint = 35;
-            const range = whitePoint - blackPoint;
+            const origY = 0.299 * rawOrig[idx] + 0.587 * rawOrig[idx + 1] + 0.114 * rawOrig[idx + 2];
+            const bgY = Math.max(0.299 * rawBg[idx] + 0.587 * rawBg[idx + 1] + 0.114 * rawBg[idx + 2], 25);
 
-            for (let i = 0; i < totalPixels; i++) {
-                const idx = i * 3;
-                for (let c = 0; c < 3; c++) {
-                    const origVal = rawOrig[idx + c];
-                    const bgVal = Math.max(rawBg[idx + c], 25); // prevent divide by zero
+            // Normalized ratio (0.0 = dark ink, 1.0 = paper background)
+            const ratio = Math.min(1.0, origY / bgY);
 
-                    let norm = (origVal / bgVal) * 255;
+            // Gamma curve (1.45): darkens handwriting strokes (pencil/ballpoint) rather than bleaching them
+            let enhancedLuma = Math.pow(ratio, 1.45) * 255;
 
-                    if (norm >= whitePoint) {
-                        norm = 255;
-                    } else if (norm <= blackPoint) {
-                        norm = 0;
-                    } else {
-                        norm = ((norm - blackPoint) / range) * 255;
-                    }
-
-                    outBuf[idx + c] = Math.min(255, Math.max(0, Math.round(norm)));
-                }
+            // Smoothly whiten paper background only when ratio is very close to paper (> 0.94)
+            if (ratio > 0.94) {
+                const paperFactor = (ratio - 0.94) / 0.06;
+                enhancedLuma = enhancedLuma * (1 - paperFactor) + 255 * paperFactor;
             }
 
-            return sharp(outBuf, { raw: { width, height, channels: 3 } })
-                .modulate({ saturation: 1.2 }) // enhance stamps & signature color
-                .sharpen({ sigma: 0.8, m1: 0.5, m2: 1.5 })
-                .jpeg({ quality: 88 })
-                .toBuffer();
+            // Luminance scaling factor preserves colored ink, stamps, and highlighters
+            const factor = origY > 0 ? (enhancedLuma / origY) : 1;
 
-        } else {
-            // MODE 2: CLEAR B&W (DOKUMEN HITAM PUTIH BERSIH)
-            // High-contrast document binarization with anti-aliased text edges (zero muddy shadows)
-            for (let i = 0; i < totalPixels; i++) {
-                const idx = i * 3;
-                const origY = 0.299 * rawOrig[idx] + 0.587 * rawOrig[idx + 1] + 0.114 * rawOrig[idx + 2];
-                const bgY = Math.max(0.299 * rawBg[idx] + 0.587 * rawBg[idx + 1] + 0.114 * rawBg[idx + 2], 25);
-
-                const norm = (origY / bgY) * 255;
-
-                let val = 255;
-                if (norm < 190) {
-                    val = Math.max(0, Math.round(((norm - 40) / (190 - 40)) * 255));
-                }
-
-                outBuf[idx] = val;
-                outBuf[idx + 1] = val;
-                outBuf[idx + 2] = val;
+            for (let c = 0; c < 3; c++) {
+                const val = Math.round(rawOrig[idx + c] * factor);
+                outBuf[idx + c] = Math.min(255, Math.max(0, val));
             }
-
-            return sharp(outBuf, { raw: { width, height, channels: 3 } })
-                .sharpen({ sigma: 1.0, m1: 0.8, m2: 2.0 })
-                .jpeg({ quality: 85 })
-                .toBuffer();
         }
+
+        return await sharp(outBuf, { raw: { width, height, channels: 3 } })
+            .sharpen({ sigma: 0.6, m1: 0.3, m2: 1.2 }) // subtle acutance pop for crisp letters
+            .jpeg({ quality: 90 })
+            .toBuffer();
     } catch {
-        // Safe fallback in case of corrupted buffer
-        return sharp(buffer).jpeg({ quality: 90 }).toBuffer();
+        return await prepareOriginalImage(buffer);
     }
+}
+
+/**
+ * CamScanner-Grade Illumination Normalization
+ * Backward-compatible alias that now delegates to non-destructive gentle scanning.
+ */
+async function applyMagicScan(buffer, mode = 'magic') {
+    return await applyGentleScan(buffer);
 }
 
 const SCANNER_URL = process.env.SCANNER_URL || '';
 const SCANNER_TIMEOUT_MS = parseInt(process.env.SCANNER_TIMEOUT_MS || '15000', 10);
 
 /**
- * Dispatches document image to Python FastAPI scanner microservice (OpenCV 4-point warp + adaptive threshold)
- * with graceful fallback to local Retinex processing on error or timeout.
+ * Dispatches document image to scanner processor
+ * with graceful fallback to local non-destructive gentle processing.
  */
-async function callScanner(buffer, mode = 'bw', logger) {
+async function callScanner(buffer, mode = 'filter', logger) {
+    if (mode === 'original' || mode === 'asli' || mode === 'raw') {
+        return await prepareOriginalImage(buffer);
+    }
+
     if (!SCANNER_URL) {
-        const isColor = (mode === 'color' || mode === 'magic');
-        return await applyMagicScan(await autoCropDocument(buffer), isColor ? 'magic' : 'bw');
+        return await applyGentleScan(await autoCropDocument(buffer));
     }
 
     const controller = new AbortController();
@@ -242,8 +235,7 @@ async function callScanner(buffer, mode = 'bw', logger) {
         if (logger?.warn) {
             logger.warn({ err: err.message }, '[PDF Scanner] Microservice call failed or timed out, falling back to local');
         }
-        const isColor = (mode === 'color' || mode === 'magic');
-        return await applyMagicScan(await autoCropDocument(buffer), isColor ? 'magic' : 'bw');
+        return await applyGentleScan(await autoCropDocument(buffer));
     } finally {
         clearTimeout(timeout);
     }
@@ -410,6 +402,8 @@ module.exports = {
     imagesToPdf,
     autoCropDocument,
     applyMagicScan,
+    applyGentleScan,
+    prepareOriginalImage,
     callScanner,
     pdfSessions,
     handleActiveSession: async ({ sock, msg, senderJid, remoteJid, logger, messageText, PREFIX }) => {
@@ -434,8 +428,9 @@ module.exports = {
         }
 
         const compressed = await sharp(imageBuffer)
-            .resize(1600, 1600, { fit: 'inside' })
-            .jpeg({ quality: 80 })
+            .rotate()
+            .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 88 })
             .toBuffer();
         session.rawBuffers.push(compressed);
         session.lastActive = Date.now();
@@ -445,7 +440,7 @@ module.exports = {
             text: `✅ *Halaman ${count} Tersimpan!*\n\n` +
                   `• Total Halaman: *${count}*\n\n` +
                   `Silakan kirim foto berikutnya, atau ketik:\n` +
-                  `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Magic Color & Clear B&W)\n` +
+                  `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Original & Filter Ringan)\n` +
                   `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
         }, { quoted: msg });
 
@@ -468,7 +463,7 @@ module.exports = {
             return sock.sendMessage(remoteJid, { text: 'ℹ️ Tidak ada sesi PDF aktif.' }, { quoted: msg });
         }
 
-        // 2. FINISH & GENERATE DUAL PDF OUTPUT (Magic Color & Clear B&W)
+        // 2. FINISH & GENERATE DUAL PDF OUTPUT (Original & Filter Ringan)
         if (command === 'pdfdone' || command === 'donepdf') {
             const session = pdfSessions.get(sender);
             if (!session || session.rawBuffers.length === 0) {
@@ -483,53 +478,53 @@ module.exports = {
                 try {
                     const totalPages = session.rawBuffers.length;
                     await sock.sendMessage(remoteJid, {
-                        text: `⏳ *Menggabungkan ${totalPages} halaman & menyiapkan 2 versi PDF (Magic Color & Clear B&W)...*`
+                        text: `⏳ *Menggabungkan ${totalPages} halaman & menyiapkan 2 versi PDF (Original & Filter Ringan)...*`
                     }, { quoted: msg });
 
                     const finalTitle = customTitle || session.title || '';
                     const baseFileName = getCleanFileName(finalTitle, 'Dokumen_Scan');
                     const baseNameNoExt = baseFileName.replace(/\.pdf$/i, '');
 
-                    // Process Version 1: CamScanner Magic Color
+                    // Process Version 1: Original / Tanpa Filter (Asli)
                     const v1Buffers = [];
                     for (const raw of session.rawBuffers) {
-                        const enhanced = await callScanner(raw, 'color', logger);
-                        v1Buffers.push(enhanced);
+                        const original = await prepareOriginalImage(raw);
+                        v1Buffers.push(original);
                     }
                     const pdfV1 = await imagesToPdf(v1Buffers);
 
-                    // Process Version 2: CamScanner Clear B&W
+                    // Process Version 2: Gentle Filter (Filter Ringan)
                     const v2Buffers = [];
                     for (const raw of session.rawBuffers) {
-                        const enhanced = await callScanner(raw, 'bw', logger);
+                        const enhanced = await applyGentleScan(await autoCropDocument(raw));
                         v2Buffers.push(enhanced);
                     }
                     const pdfV2 = await imagesToPdf(v2Buffers);
 
-                    // Send PDF 1 (Magic Color)
+                    // Send PDF 1 (Original / Tanpa Filter)
                     await sock.sendMessage(remoteJid, {
                         document: pdfV1,
                         mimetype: 'application/pdf',
-                        fileName: `${baseNameNoExt}_MagicColor.pdf`,
-                        caption: `📄 *DOKUMEN PDF (VERSI 1 — MAGIC COLOR)*\n\n` +
+                        fileName: `${baseNameNoExt}_Original.pdf`,
+                        caption: `📄 *DOKUMEN PDF (VERSI 1 — ORIGINAL / TANPA FILTER)*\n\n` +
                                  `📑 *Total Halaman:* ${totalPages}\n` +
-                                 `🎨 *Mode:* CamScanner Magic Color\n` +
-                                 `✨ *Fitur:* Kertas putih bersih bebas bayangan, stempel & tanda tangan warna tetap hidup.\n\n` +
+                                 `📷 *Mode:* Foto Asli (Tanpa Filter)\n` +
+                                 `✨ *Fitur:* 100% mempertahankan foto asli jepretan kamera, tulisan tangan/pensil dijamin utuh & jelas terbaca.\n\n` +
                                  `_Pilih versi yang paling pas dengan lembar dokumen Anda._`
                     }, { quoted: msg });
 
                     // Brief pause before sending PDF 2
                     await new Promise(r => setTimeout(r, 1200));
 
-                    // Send PDF 2 (Clear B&W)
+                    // Send PDF 2 (Filter Ringan)
                     await sock.sendMessage(remoteJid, {
                         document: pdfV2,
                         mimetype: 'application/pdf',
-                        fileName: `${baseNameNoExt}_ClearBW.pdf`,
-                        caption: `📄 *DOKUMEN PDF (VERSI 2 — CLEAR B&W)*\n\n` +
+                        fileName: `${baseNameNoExt}_Filter.pdf`,
+                        caption: `📄 *DOKUMEN PDF (VERSI 2 — FILTER RINGAN)*\n\n` +
                                  `📑 *Total Halaman:* ${totalPages}\n` +
-                                 `🎨 *Mode:* Dokumen Hitam-Putih Bersih (Clear B&W)\n` +
-                                 `✨ *Fitur:* Teks hitam pekat tajam, latar belakang 100% bersih tanpa bintik (ideal untuk print/fotokopi).\n\n` +
+                                 `🎨 *Mode:* Dokumen Bersih (Gentle Filter)\n` +
+                                 `✨ *Fitur:* Bayangan diratakan & kontras tulisan dipertajam secara halus tanpa merusak/memudarkan tulisan tangan.\n\n` +
                                  `_Pilih versi yang paling pas dengan lembar dokumen Anda._`
                     }, { quoted: msg });
 
@@ -550,41 +545,41 @@ module.exports = {
             const { heavyTaskQueue } = require('../utils/cache');
             return heavyTaskQueue.add(async () => {
                 try {
-                    await sock.sendMessage(remoteJid, { text: '⏳ Sedang mengolah dokumen & menyiapkan 2 versi PDF (Magic Color & Clear B&W)...' }, { quoted: msg });
+                    await sock.sendMessage(remoteJid, { text: '⏳ Sedang mengolah dokumen & menyiapkan 2 versi PDF (Original & Filter Ringan)...' }, { quoted: msg });
 
                     const baseFileName = getCleanFileName(customTitle, 'Dokumen_Scan');
                     const baseNameNoExt = baseFileName.replace(/\.pdf$/i, '');
 
-                    // Version 1: CamScanner Magic Color
-                    const enhancedV1 = await callScanner(imageBuffer, 'color', logger);
-                    const pdfV1 = await imagesToPdf([enhancedV1]);
+                    // Version 1: Original / Tanpa Filter (Asli)
+                    const originalBuf = await prepareOriginalImage(imageBuffer);
+                    const pdfV1 = await imagesToPdf([originalBuf]);
 
-                    // Version 2: CamScanner Clear B&W
-                    const enhancedV2 = await callScanner(imageBuffer, 'bw', logger);
-                    const pdfV2 = await imagesToPdf([enhancedV2]);
+                    // Version 2: Filter Ringan
+                    const enhancedBuf = await applyGentleScan(await autoCropDocument(imageBuffer));
+                    const pdfV2 = await imagesToPdf([enhancedBuf]);
 
-                    // Send PDF 1 (Magic Color)
+                    // Send PDF 1 (Original / Tanpa Filter)
                     await sock.sendMessage(remoteJid, {
                         document: pdfV1,
                         mimetype: 'application/pdf',
-                        fileName: `${baseNameNoExt}_MagicColor.pdf`,
-                        caption: `📄 *DOKUMEN PDF (VERSI 1 — MAGIC COLOR)*\n\n` +
+                        fileName: `${baseNameNoExt}_Original.pdf`,
+                        caption: `📄 *DOKUMEN PDF (VERSI 1 — ORIGINAL / TANPA FILTER)*\n\n` +
                                  `📑 *Halaman:* 1 Halaman\n` +
-                                 `🎨 *Mode:* CamScanner Magic Color\n` +
-                                 `✨ *Fitur:* Kertas putih bersih bebas bayangan, stempel & tanda tangan warna tetap hidup.`
+                                 `📷 *Mode:* Foto Asli (Tanpa Filter)\n` +
+                                 `✨ *Fitur:* 100% mempertahankan foto asli jepretan kamera, tulisan tangan/pensil dijamin utuh & jelas terbaca.`
                     }, { quoted: msg });
 
                     await new Promise(r => setTimeout(r, 1200));
 
-                    // Send PDF 2 (Clear B&W)
+                    // Send PDF 2 (Filter Ringan)
                     return sock.sendMessage(remoteJid, {
                         document: pdfV2,
                         mimetype: 'application/pdf',
-                        fileName: `${baseNameNoExt}_ClearBW.pdf`,
-                        caption: `📄 *DOKUMEN PDF (VERSI 2 — CLEAR B&W)*\n\n` +
+                        fileName: `${baseNameNoExt}_Filter.pdf`,
+                        caption: `📄 *DOKUMEN PDF (VERSI 2 — FILTER RINGAN)*\n\n` +
                                  `📑 *Halaman:* 1 Halaman\n` +
-                                 `🎨 *Mode:* Dokumen Hitam-Putih Bersih (Clear B&W)\n` +
-                                 `✨ *Fitur:* Teks hitam pekat tajam, latar belakang 100% bersih tanpa bintik (ideal untuk print/fotokopi).\n\n` +
+                                 `🎨 *Mode:* Dokumen Bersih (Gentle Filter)\n` +
+                                 `✨ *Fitur:* Bayangan diratakan & kontras tulisan dipertajam secara halus tanpa merusak/memudarkan tulisan tangan.\n\n` +
                                  `_Tips: Untuk banyak foto jadi 1 file PDF, ketik \`${PREFIX}topdf\` atau \`${PREFIX}scan\`, kirim foto berurutan, lalu ketik \`${PREFIX}pdfdone\`._`
                     }, { quoted: msg });
 
@@ -607,19 +602,20 @@ module.exports = {
                     }, { quoted: msg });
                 }
                 const compressed = await sharp(imageBuffer)
-                    .resize(1600, 1600, { fit: 'inside' })
-                    .jpeg({ quality: 80 })
+                    .rotate()
+                    .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+                    .jpeg({ quality: 88 })
                     .toBuffer();
                 session.rawBuffers.push(compressed);
                 return sock.sendMessage(remoteJid, {
-                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF (Magic Color & Clear B&W).`
+                    text: `✅ *Halaman ${session.rawBuffers.length} Tersimpan!*\n\nKirim gambar berikutnya atau ketik *${PREFIX}pdfdone* untuk menyelesaikan dan download 2 versi PDF (Original & Filter Ringan).`
                 }, { quoted: msg });
             } else {
                 return sock.sendMessage(remoteJid, {
                     text: `📑 *Sesi PDF Sedang Aktif*\n\n` +
                           `• Halaman tersimpan: *${session.rawBuffers.length}*\n\n` +
                           `Silakan kirim gambar lagi, atau ketik:\n` +
-                          `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF\n` +
+                          `• \`${PREFIX}pdfdone\` : Selesai & Dapatkan 2 Versi PDF (Original & Filter Ringan)\n` +
                           `• \`${PREFIX}pdfcancel\` : Batalkan sesi`
                 }, { quoted: msg });
             }
@@ -629,8 +625,9 @@ module.exports = {
         let initialBuffer = null;
         if (imageBuffer) {
             initialBuffer = await sharp(imageBuffer)
-                .resize(1600, 1600, { fit: 'inside' })
-                .jpeg({ quality: 80 })
+                .rotate()
+                .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 88 })
                 .toBuffer();
         }
 
@@ -647,8 +644,8 @@ module.exports = {
                   (customTitle ? `📝 *Judul Dokumen:* ${customTitle}\n` : '') +
                   (initialCount > 0 ? `• Halaman 1 tersimpan!\n` : '') +
                   `\nSilakan kirim foto/dokumen satu per satu secara berurutan.\nSaat selesai, bot akan mengirimkan 2 versi PDF:\n` +
-                  `1. *Magic Color* (Warna asli dokumen diperjelas + kertas putih bersih bebas bayangan)\n` +
-                  `2. *Clear B&W* (Hitam putih pekat kontras tinggi siap cetak/print)\n\n` +
+                  `1. *Original (Tanpa Filter)* (100% foto asli jepretan kamera, tulisan tangan/pensil terjamin utuh)\n` +
+                  `2. *Filter Ringan* (Bayangan diratakan & kontras tulisan dipertajam tanpa memudarkan tulisan)\n\n` +
                   `📌 *Perintah Kontrol:*\n` +
                   `• \`${PREFIX}pdfdone\` : Selesai & download 2 versi PDF\n` +
                   `• \`${PREFIX}pdfcancel\` : Batalkan sesi`

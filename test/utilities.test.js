@@ -237,7 +237,49 @@ describe('Utility and Tools Command Suite', () => {
             assert.ok(docs.length >= 2, 'Should send both Version 1 and Version 2 PDFs');
             assert.equal(docs[0].mimetype, 'application/pdf');
             assert.equal(docs[1].mimetype, 'application/pdf');
+            assert.ok(docs[0].fileName.endsWith('_Original.pdf'), 'Version 1 should be Original');
+            assert.ok(docs[1].fileName.endsWith('_Filter.pdf'), 'Version 2 should be Filter');
+            assert.match(docs[0].caption, /ORIGINAL/);
+            assert.match(docs[1].caption, /FILTER RINGAN/);
             assert.ok(!pdfCmd.pdfSessions.has('user2@s.whatsapp.net'), 'Session should be cleared after completion');
+        });
+
+        it('preserves fine ink and pencil strokes in applyGentleScan without bleaching', async () => {
+            // 100x100 image with light grey paper (210) and pencil stroke (175)
+            const width = 100, height = 100;
+            const buf = Buffer.alloc(width * height * 3, 210); // paper
+            // Draw pencil line at y = 50
+            for (let x = 20; x <= 80; x++) {
+                const idx = (50 * width + x) * 3;
+                buf[idx] = 175;
+                buf[idx + 1] = 175;
+                buf[idx + 2] = 175;
+            }
+            const imgJpg = await sharp(buf, { raw: { width, height, channels: 3 } }).jpeg().toBuffer();
+
+            const enhanced = await pdfCmd.applyGentleScan(imgJpg);
+            assert.ok(Buffer.isBuffer(enhanced));
+
+            const rawOut = await sharp(enhanced).raw().toBuffer();
+            const pencilIdx = (50 * width + 50) * 3;
+            const pencilVal = rawOut[pencilIdx];
+
+            // In the old algorithm, pencil got bleached to 255 (erased)!
+            // In gentle scan, pencil must be preserved and distinctly darker than paper (< 220)
+            assert.ok(pencilVal < 220, `Pencil pixel should be preserved and clearly visible, got: ${pencilVal}`);
+        });
+
+        it('prepares authentic original image in prepareOriginalImage', async () => {
+            const img = await sharp({
+                create: { width: 80, height: 80, channels: 3, background: { r: 150, g: 100, b: 50 } }
+            }).jpeg().toBuffer();
+
+            const original = await pdfCmd.prepareOriginalImage(img);
+            assert.ok(Buffer.isBuffer(original));
+            const meta = await sharp(original).metadata();
+            assert.equal(meta.format, 'jpeg');
+            assert.equal(meta.width, 80);
+            assert.equal(meta.height, 80);
         });
 
         it('cancels active session with pdfcancel', async () => {

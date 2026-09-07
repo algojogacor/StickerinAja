@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-07 WIB (+0700)
 **Current implementation:** Multi-Provider LLM Rotator (Groq + Alibaba Cloud DashScope `qwen3.8-flash` text/vision + ByteDance Volcano Ark Doubao `doubao-seed-1-6-flash-250615` text/vision) with automatic failover, key rotation, and vision support; Birthday Takeover Full Upgrade — 18-Slot Timeline (07:00-02:00 WIB), Truth Questions, Dual DM Outreach, Hot Take Night (18:30), Satu Hal yang Belum Pernah Diucapkan (19:00), Skenario Absurd Kalau Kamu Jadi... (19:15), Wish Jar (20:00), AI Verdict: Siapa Kamu Sebenarnya? (20:30), Grand Recap (21:00), Closing Quest (23:00), Rate The Day (23:30), Midnight Letter (00:00 humanized), Surat Dini Hari (02:00 narrator), Cloudinary Photo Storage, Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
-**Last verified tests:** 369/369 pass across 79 test suites; 100% pass rate
+**Last verified tests:** 371/371 pass across 79 test suites; 100% pass rate
 
 ---
 
@@ -44,7 +44,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | USD/IDR Market Intelligence | Code preserved & ready; scheduler paused via `FX_USD_IDR_ENABLED=false` | `src/services/fxRate*.js`, `src/repositories/fxRepository.js`, `src/commands/fx.js`, `src/scheduler/fxCron.js` |
 | Birthday Takeover (Full Upgrade) | Active; Turso + Cloudinary backed, 18-slot timeline across 24h, automatic personal session (`pribadi`) fallback if bot session is unavailable, Truth Questions (honor system), Dual DM Outreach (Confess anon + Prediction named), Hot Take Night, Satu Hal yang Belum Pernah Diucapkan, Kalau Kamu Jadi..., Wish Jar, AI Verdict: Siapa Kamu Sebenarnya?, Grand Recap, Rate The Day, Multi-Provider LLM (Groq / Qwen 3.8 / Doubao) for Midnight Letter (humanized) + Surat Dini Hari (omniscient narrator), Memory Wall, Photo Story, Quests, Random Flashback (3-8 weeks), and strict group isolation via `BIRTHDAY_TARGET_JID` | `src/config/birthdayConfig.js`, `src/repositories/birthdayRepository.js`, `src/services/birthdayService.js`, `src/services/birthdayTakeoverService.js`, `src/services/birthdayAiService.js`, `src/services/cloudinaryService.js`, `src/scheduler/birthdayScheduler.js`, `src/commands/birthday.js`, `src/commands/kenangan.js`, `test/birthday.test.js` |
 | Group Memory Album | Active; manual photo saving and listing via `!kenangan tambah [cerita]` and `!kenangan list` | `src/commands/kenangan.js`, `src/services/cloudinaryService.js`, `src/services/birthdayAiService.js` |
-| Document Scanner & PDF | Active; CamScanner-style dual output (Magic Color + Clear B&W), Python FastAPI microservice (`scanner/`) with OpenCV 4-point perspective warp + adaptive thresholding, with pure Node.js/Sharp Retinex illumination division fallback | `src/commands/pdf.js`, `scanner/main.py`, `scanner/processor.py`, `scanner/Dockerfile` |
+| Document Scanner & PDF | Active; Dual output (Original / Tanpa Filter + Filter Ringan / Dokumen Bersih) with non-destructive Retinex midtone gamma curves (ink darkening, zero text bleaching) and safe padding auto-crop | `src/commands/pdf.js`, `scanner/main.py`, `scanner/processor.py`, `scanner/Dockerfile` |
 | Hermes Relay | Active | `src/baileys.js`, `index.js` |
 
 ---

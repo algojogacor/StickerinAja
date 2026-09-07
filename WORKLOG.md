@@ -6,6 +6,45 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 67 — PDF Scanner Optimization: Dual Output (Original & Gentle Filter)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 15:42 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `0833b29` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Objectives
+- **User report & feedback:**
+  - On the PDF scanner feature, using aggressive filters caused handwritten documents (e.g. university exam/homework paper on lined folio) to be bleached out and unreadable.
+  - The user requested: either without filter at all ("better tanpa filter aja deh"), or the filter should be really reduced ("filter nya benar benar dikurangi"), or shape the dual-file delivery so the bot sends one WITH filter and one WITHOUT filter ("kirim dua file itu dibentuk agar kirim dengan filter dan tanpa filter").
+- **Root Cause Analysis:**
+  - Previous `applyMagicScan` used a harsh linear Retinex division window (`whitePoint = 225`, `blackPoint = 35`) and `val = 255 if norm >= 190`.
+  - Normal pencil/ink strokes on lined paper (luminance 150-190 on paper background 210) had `norm` values of 190-230, which got mapped to pure white (255) or light grey, erasing the handwriting.
+  - Previous dual output sent `_MagicColor.pdf` and `_ClearBW.pdf` — both of which were aggressively filtered, leaving the user with no unfiltered original fallback.
+- **Solution Strategy:**
+  1. Re-architect the dual PDF delivery:
+     - **File 1 (Original / Tanpa Filter):** Untouched camera pixels, auto-orient EXIF rotation, high quality (quality 90, max 2048px), 100% preserved handwriting and colors (`${baseNameNoExt}_Original.pdf`).
+     - **File 2 (Gentle Filter / Filter Ringan):** Re-engineered gentle illumination normalization without clipping, smooth gamma curve (1.45) to darken ink strokes instead of bleaching them, preserving pencil/ballpoint details and stamps (`${baseNameNoExt}_Filter.pdf`).
+  2. Update single-image direct conversion and multi-page (`!pdfdone`) flows to output this new dual format with clear, informative captions.
+  3. Increased `autoCropDocument` margin padding from 1.5% to 3.5% and capped cropping at 88% area to guarantee document headers and edges are never clipped.
+  4. Added unit tests in `test/utilities.test.js` validating both `_Original.pdf` and `_Filter.pdf` generation, authentic original image preservation, and non-bleaching of fine pencil strokes in `applyGentleScan`.
+  5. Verified full test suite: 371/371 pass across 79 suites (100% pass rate).
+
+### Files Modified
+- `src/commands/pdf.js` — Replaced harsh binarization with `applyGentleScan` and `prepareOriginalImage`, adjusted auto-crop padding, and implemented dual Original + Filter PDF delivery.
+- `test/utilities.test.js` — Added tests for `_Original.pdf`, `_Filter.pdf`, `applyGentleScan`, and `prepareOriginalImage`.
+- `PROJECT_STATE.md` — Updated PDF scanner description and test count.
+- `WORKLOG.md` — Logged Session 67.
+
+---
+
 ## Session 66 — Fix Birthday Takeover Reply Routing for Prefixed Answers (!nggak lah)
 
 | Field | Value |
