@@ -41,6 +41,34 @@ async function getTargetGroups() {
   return defaultJid ? [defaultJid] : [];
 }
 
+async function resolveMentionsForGroup(sock, targetJid, persons) {
+  const baseMentions = persons.map((p) => p.participantId).filter(Boolean);
+  if (!targetJid?.endsWith("@g.us") || typeof sock?.groupMetadata !== "function") {
+    return baseMentions;
+  }
+  try {
+    const metadata = await sock.groupMetadata(targetJid);
+    const enriched = [...baseMentions];
+    for (const person of persons) {
+      const target = (person.participantId || "").replace(/:\d+(?=@)/, "");
+      const match = (metadata?.participants || []).find((part) => {
+        const pid = (part?.id || "").replace(/:\d+(?=@)/, "");
+        const pjid = (part?.jid || "").replace(/:\d+(?=@)/, "");
+        const plid = (part?.lid || "").replace(/:\d+(?=@)/, "");
+        return pid === target || pjid === target || plid === target;
+      });
+      if (match) {
+        if (match.id) enriched.push(match.id.replace(/:\d+(?=@)/, ""));
+        if (match.jid) enriched.push(match.jid.replace(/:\d+(?=@)/, ""));
+        if (match.lid) enriched.push(match.lid.replace(/:\d+(?=@)/, ""));
+      }
+    }
+    return [...new Set(enriched.filter(Boolean))];
+  } catch {
+    return baseMentions;
+  }
+}
+
 async function runEventForGroup(event, targetJid, personsOverride) {
   if (!event || !targetJid) return false;
   const config = getConfig();
@@ -61,15 +89,21 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       return false;
     }
 
+    const groupMentions = await resolveMentionsForGroup(sock, targetJid, persons);
+
     let sentMessage = null;
     if (event === "opening") {
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatOpening(persons));
+      const msg = formatter.formatOpening(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
       const sticker = assetBuffer("BIRTHDAY_STICKER_PATH");
       if (sticker) await sock.sendMessage(targetJid, { sticker });
     } else if (event === "song") {
       // If opening was missed earlier today (e.g. birthday added after 07:00), send opening first
       if (!await birthday.hasSentEvent(targetJid, "opening")) {
-        await sock.sendMessage(targetJid, formatter.formatOpening(persons));
+        const openingMsg = formatter.formatOpening(persons);
+        openingMsg.mentions = groupMentions;
+        await sock.sendMessage(targetJid, openingMsg);
         const sticker = assetBuffer("BIRTHDAY_STICKER_PATH");
         if (sticker) await sock.sendMessage(targetJid, { sticker });
         await birthday.addSentEvent(targetJid, "opening");
@@ -78,23 +112,33 @@ async function runEventForGroup(event, targetJid, personsOverride) {
       if (audio) {
         await sock.sendMessage(targetJid, { audio, mimetype: "audio/mpeg", ptt: false });
       }
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatSong(persons));
+      const songMsg = formatter.formatSong(persons);
+      songMsg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, songMsg);
     } else if (event === "card") {
       const card = assetBuffer("BIRTHDAY_CARD_PATH");
       const message = formatter.formatCard(persons);
       sentMessage = card
-        ? await sock.sendMessage(targetJid, { image: card, caption: message.text, mentions: message.mentions })
-        : await sock.sendMessage(targetJid, message);
+        ? await sock.sendMessage(targetJid, { image: card, caption: message.text, mentions: groupMentions })
+        : await sock.sendMessage(targetJid, { text: message.text, mentions: groupMentions });
     } else if (event === "spotlight") {
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatSpotlight(persons));
+      const msg = formatter.formatSpotlight(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
     } else if (event === "reminder") {
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatReminder(persons));
+      const msg = formatter.formatReminder(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
     } else if (event === "recap") {
       const wishMessageId = await birthday.getWishMessageId(targetJid);
       const wishes = wishMessageId ? await birthday.getWishes(targetJid, wishMessageId) : [];
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatRecap(persons, wishes));
+      const msg = formatter.formatRecap(persons, wishes);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
     } else if (event === "closing") {
-      sentMessage = await sock.sendMessage(targetJid, formatter.formatClosing(persons));
+      const msg = formatter.formatClosing(persons);
+      msg.mentions = groupMentions;
+      sentMessage = await sock.sendMessage(targetJid, msg);
       const year = birthday.getWIBToday().year;
       for (const person of persons) await birthday.markCelebrated(targetJid, person.participantId, year);
     }

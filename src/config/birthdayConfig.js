@@ -23,7 +23,7 @@ function getConfig() {
     BIRTHDAY_TAKEOVER_ENABLED: isEnabled("BIRTHDAY_TAKEOVER_ENABLED"),
     BIRTHDAY_TARGET_JID: process.env.BIRTHDAY_TARGET_JID || "",
     BIRTHDAY_SONG_URL: process.env.BIRTHDAY_SONG_URL || "",
-    BIRTHDAY_AUDIO_PATH: process.env.BIRTHDAY_AUDIO_PATH || "",
+    BIRTHDAY_AUDIO_PATH: process.env.BIRTHDAY_AUDIO_PATH || "./assets/birthday/selamat_ulang_tahun.mp3",
     BIRTHDAY_CARD_PATH: process.env.BIRTHDAY_CARD_PATH || "",
     BIRTHDAY_STICKER_PATH: process.env.BIRTHDAY_STICKER_PATH || "",
     BIRTHDAY_WISH_MAX_LENGTH: Math.max(

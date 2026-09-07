@@ -1,7 +1,7 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-07 WIB (+0700)
-**Current implementation:** Telegram Sticker Importer (`!tg`) & Automated Scheduler Dispatch + Absurd Reaction Memes & WA Sticker Curation Revamp + Birthday Takeover LID Support (`@lid`) & Target JID Group Isolation (`BIRTHDAY_TARGET_JID`) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
+**Current implementation:** Telegram Sticker Importer (`!tg`) & Automated Scheduler Dispatch + Absurd Reaction Memes & WA Sticker Curation Revamp + Birthday Takeover LID Support (`@lid`) & Target JID Group Isolation (`BIRTHDAY_TARGET_JID`) & Proper Native WhatsApp Mention Tagging + Bundled Birthday Song MP3 Audio (`assets/birthday/selamat_ulang_tahun.mp3`) + Resilience Hardening (Batched Turso LibSQL, Global Crash Handlers, AI Self-Quoted Fix, FFmpeg Probe, PDF OOM Guard, Sharp In-Memory, QR Loop Halt, ProcessQueue Abort) + Turso GC; `.env` remains local/ignored
 **Last verified tests:** 357/357 pass across 78 test suites; 100% pass rate
 
 ---

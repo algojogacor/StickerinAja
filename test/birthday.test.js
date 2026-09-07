@@ -112,13 +112,13 @@ describe("Birthday repository and service", () => {
 });
 
 describe("Birthday formatting and configuration", () => {
-  it("formats mentions without exposing raw JIDs", () => {
+  it("formats mentions with valid user ID tag and custom display name", () => {
     const result = birthdayFormatter.formatOpening([
       { participantId: "628123@s.whatsapp.net", name: "Rina" },
     ]);
-    assert.ok(result.text.includes("@Rina"));
+    assert.ok(result.text.includes("@628123 (Rina)"));
     assert.deepEqual(result.mentions, ["628123@s.whatsapp.net"]);
-    assert.equal(result.text.includes("628123@s.whatsapp.net"), false);
+    assert.equal(result.text.includes("@s.whatsapp.net"), false);
   });
 
   it("keeps the production event schedule inside the active WIB window", () => {

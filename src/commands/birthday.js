@@ -119,7 +119,7 @@ function extractCustomName(args, dateArg, participant) {
 }
 
 function usage(PREFIX) {
-  return `🎂 *Birthday Takeover*\n\n${PREFIX}ultah tambah DD-MM [@mention] [nama]\n${PREFIX}ultah ubah DD-MM [@mention] [nama]\n${PREFIX}ultah hapus [@mention]\n${PREFIX}ultah list\n${PREFIX}ultah hariini | besok\n${PREFIX}ultah mode on|off|status`;
+  return `🎂 *Birthday Takeover*\n\n${PREFIX}ultah tambah DD-MM [@mention] [nama]\n${PREFIX}ultah ubah DD-MM [@mention] [nama]\n${PREFIX}ultah hapus [@mention]\n${PREFIX}ultah list\n${PREFIX}ultah hariini | besok\n${PREFIX}ultah mode on|off|status\n${PREFIX}ultah test [song|card|opening|spotlight|reminder|recap|closing]`;
 }
 
 async function reply(sock, remoteJid, msg, text, mentions) {
@@ -192,6 +192,27 @@ module.exports = {
         await birthday.deactivateTakeover(remoteJid);
         await reply(sock, remoteJid, msg, "✅ Birthday Takeover dimatikan untuk hari ini.");
       } else await reply(sock, remoteJid, msg, "Gunakan mode on, off, atau status.");
+      return;
+    }
+
+    if (sub === "test") {
+      if (!privileged) {
+        await reply(sock, remoteJid, msg, "⚠️ Command ini hanya untuk admin/owner.");
+        return;
+      }
+      const eventName = (args[1] || "song").toLowerCase();
+      const birthdayScheduler = require("../scheduler/birthdayScheduler");
+      const repository = require("../repositories/birthdayRepository");
+      const today = birthday.getWIBToday();
+      const state = await repository.getTakeoverState(remoteJid, today.dateStr);
+      if (state?.sentEvents?.includes(eventName)) {
+        state.sentEvents = state.sentEvents.filter((e) => e !== eventName);
+        await repository.setTakeoverState(remoteJid, today.dateStr, state);
+      }
+      const success = await birthdayScheduler.runEventForGroup(eventName, remoteJid);
+      if (!success) {
+        await reply(sock, remoteJid, msg, `⚠️ Gagal menjalankan test event '${eventName}'. Pastikan ada yang berulang tahun hari ini.`);
+      }
       return;
     }
 

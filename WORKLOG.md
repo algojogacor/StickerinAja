@@ -2449,3 +2449,34 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/birthday.test.js`: **14 pass, 0 fail**.
   - `node --test test/**/*.test.js`: **357 pass, 0 fail across 78 suites**.
 - **Status:** Completed
+
+---
+
+## Session 54 — Fix Native WhatsApp Mentions and Bundle Birthday Song MP3 Audio
+
+- **Date:** 2026-09-07
+- **Start:** 09:02 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Fix Birthday Takeover messages so that the target person is natively tagged with blue clickable mention (@) instead of plain text (@rafichan), and send the actual birthday audio (MP3) directly instead of a fallback YouTube link.
+- **Scope:**
+  - `src/formatters/birthdayMessageFormatter.js`:
+    - Changed `mentionText` to output `@<userNumber> (<customName>)` (e.g. `@6281774156939 (rafichan)`), which WhatsApp natively links to the participant's JID in `mentions` array and renders as a clickable mention with contact name while displaying the custom nickname.
+    - Updated `formatSong` so that when `BIRTHDAY_AUDIO_PATH` exists, it does not send the YouTube link.
+  - `assets/birthday/selamat_ulang_tahun.mp3`:
+    - Downloaded and bundled Jamrud - Selamat Ulang Tahun (3.39 MB) into the repository directly, guaranteeing zero external network dependencies and 100% availability in Docker/Koyeb.
+  - `src/config/birthdayConfig.js`:
+    - Set default `BIRTHDAY_AUDIO_PATH` to `./assets/birthday/selamat_ulang_tahun.mp3`.
+  - `src/scheduler/birthdayScheduler.js`:
+    - Added `resolveMentionsForGroup()` which dynamically enriches `mentions` with matching participant LID and phone number JIDs from `sock.groupMetadata()` so all WhatsApp versions match.
+    - Ensured `mentions` is propagated across all event message calls.
+  - `src/commands/birthday.js`:
+    - Added `!ultah test [song|card|opening|...]` subcommand for privileged/admin users to trigger and verify events immediately.
+  - `test/birthday.test.js`:
+    - Updated mention formatting test to assert `@<id> (<name>)` format and verify that raw domains are not exposed.
+  - `PROJECT_STATE.md`:
+    - Updated current implementation with native mention tagging and bundled MP3 audio.
+- **Branch:** `main`
+- **Verification:**
+  - `node --test test/birthday.test.js`: **14 pass, 0 fail**.
+  - `node --test test/**/*.test.js`: **357 pass, 0 fail across 78 suites**.
+- **Status:** Completed

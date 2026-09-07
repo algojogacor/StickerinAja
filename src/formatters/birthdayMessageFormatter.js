@@ -1,7 +1,14 @@
+const fs = require("fs");
 const { getConfig } = require("../config/birthdayConfig");
 
 function mentionText(persons) {
-  return persons.map((person) => `@${String(person.name || "Unknown").replace(/[^\p{L}\p{N} _.-]/gu, "")}`).join(", ");
+  return persons
+    .map((person) => {
+      const id = (person.participantId || "").replace(/:\d+(?=@)/, "").split("@")[0];
+      const customName = person.name && person.name !== id ? ` (${person.name})` : "";
+      return id ? `@${id}${customName}` : `@${person.name || "Unknown"}`;
+    })
+    .join(", ");
 }
 
 function mentions(persons) {
@@ -17,8 +24,10 @@ function formatOpening(persons) {
 }
 
 function formatSong(persons) {
-  const url = getConfig().BIRTHDAY_SONG_URL;
-  return result(`🎵 *LAGU ULANG TAHUN*\n\nSelamat ulang tahun untuk ${mentionText(persons)}!\n${url ? `\n🎶 ${url}` : ""}`, persons);
+  const config = getConfig();
+  const hasAudio = Boolean(config.BIRTHDAY_AUDIO_PATH && fs.existsSync(config.BIRTHDAY_AUDIO_PATH));
+  const fallbackUrl = !hasAudio && config.BIRTHDAY_SONG_URL ? `\n\n🎶 ${config.BIRTHDAY_SONG_URL}` : "";
+  return result(`🎵 *LAGU ULANG TAHUN*\n\nSelamat ulang tahun untuk ${mentionText(persons)}! 🎂🎉${fallbackUrl}`, persons);
 }
 
 function formatCard(persons) {
