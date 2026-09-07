@@ -195,11 +195,7 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
         timestamp: Date.now(),
       });
 
-      if (uploadedAiStory) {
-        await sock.sendMessage(remoteJid, { text: `📸 *Satu Foto Satu Cerita*\n\n${uploadedAiStory}` }, { quoted: msg });
-      } else {
-        await sock.sendMessage(remoteJid, { react: { text: "📸", key: msg.key } }).catch(() => {});
-      }
+      await sock.sendMessage(remoteJid, { react: { text: "📸", key: msg.key } }).catch(() => {});
       return true;
     }
 

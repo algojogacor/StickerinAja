@@ -6,6 +6,30 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 64 — Silent Photo Story Acknowledgment (Reaction Only)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 15:12 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `8aad8c1` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Implementation
+- **User request:** "pada mode ini. bot akan membalas analisa terhadap foto kah? bukannya aku minta kalau analisa nya hanya disimpan untuk kegiatan jam 00 dan 02?"
+- **Changes made:**
+  - Removed instant text message reply containing `uploadedAiStory` in `src/services/birthdayTakeoverService.js`.
+  - When members send photos, the bot silently extracts and saves the AI photo story analysis into `photoStories` and `group_memories`, acknowledging in chat solely with a reaction emoji (`📸`).
+  - Preserves the surprise element for the Grand Recap (21:00 WIB), Midnight Letter (00:00 WIB), and Narrator Letter (02:00 WIB).
+- **Verification:** All 21 tests in `test/birthday.test.js` pass.
+
+---
+
 ## Session 63 — Truth Questions Quota Expansion (3 to 5)
 
 | Field | Value |
