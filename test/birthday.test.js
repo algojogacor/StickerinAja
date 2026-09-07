@@ -288,26 +288,35 @@ describe("Birthday command", () => {
     }
   });
 
-  it("enforces Truth Questions quota of 3 per member and records answers", async () => {
+  it("enforces Truth Questions quota of 5 per member and records answers", async () => {
     await birthdayRepository.init();
     await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
 
-    // Ask questions 1, 2, 3
+    // Ask questions 1 to 5
     const q1 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Kenapa suka mie ayam?", "msg-q1");
     assert.equal(q1.success, true);
-    assert.equal(q1.quotaRemaining, 2);
+    assert.equal(q1.quotaRemaining, 4);
 
     const q2 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Siapa gebetanmu?", "msg-q2");
     assert.equal(q2.success, true);
-    assert.equal(q2.quotaRemaining, 1);
+    assert.equal(q2.quotaRemaining, 3);
 
     const q3 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pernah bolos gak?", "msg-q3");
     assert.equal(q3.success, true);
-    assert.equal(q3.quotaRemaining, 0);
+    assert.equal(q3.quotaRemaining, 2);
 
-    // Question 4 should exceed quota
-    const q4 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pertanyaan ke-4", "msg-q4");
-    assert.equal(q4.error, "quota_exceeded");
+    const q4 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pilih siapa?", "msg-q4");
+    assert.equal(q4.success, true);
+    assert.equal(q4.quotaRemaining, 1);
+
+    const q5 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pertanyaan ke-5", "msg-q5");
+    assert.equal(q5.success, true);
+    assert.equal(q5.quotaRemaining, 0);
+
+    // Question 6 should exceed quota
+    const q6 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pertanyaan ke-6", "msg-q6");
+    assert.equal(q6.error, "quota_exceeded");
+    assert.equal(q6.maxQuota, 5);
 
     // Record honest answer with ! prefix
     const ans1 = await birthdayService.recordTruthAnswer("120@g.us", "628123@s.whatsapp.net", "!Karena bumbunya enak banget", "msg-q1");
@@ -322,7 +331,7 @@ describe("Birthday command", () => {
     assert.equal(ans2.question.answer, "Rahasia dong");
 
     const interactions = await birthdayService.getTruthInteractions("120@g.us");
-    assert.equal(interactions.length, 3);
+    assert.equal(interactions.length, 5);
   });
 
   it("manages DM session, parses response, and stores confess anonymously & prediction with name", async () => {

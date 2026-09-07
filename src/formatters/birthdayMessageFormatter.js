@@ -64,7 +64,7 @@ function formatTruthQuestionsPrompt(persons) {
   return result(
     `🎲🔥 *SESI TRUTH QUESTIONS DIBUKA!* 🔥🎲\n\n` +
     `Aturan main:\n` +
-    `• Setiap anggota punya jatah *maksimal 3 pertanyaan*.\n` +
+    `• Setiap anggota punya jatah *maksimal 5 pertanyaan*.\n` +
     `• ${mentionText(persons)} boleh tanya ke *siapapun* di grup (sebut/mention orangnya).\n` +
     `• Anggota lain *hanya boleh bertanya ke ${mentionText(persons)}*.\n\n` +
     `⚖️ *Aturan Jawaban (Honor System):*\n` +

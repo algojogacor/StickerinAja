@@ -151,7 +151,7 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
       const res = await birthday.recordTruthQuestion(remoteJid, senderJid, senderName, target.participantId, target.name, messageText, msg.key.id);
       if (res?.error === "quota_exceeded") {
-        await sock.sendMessage(remoteJid, { text: "⚠️ Jatah 3 pertanyaan Truth kamu sudah habis!" }, { quoted: msg });
+        await sock.sendMessage(remoteJid, { text: `⚠️ Jatah ${res.maxQuota || 5} pertanyaan Truth kamu sudah habis!` }, { quoted: msg });
       } else {
         await sock.sendMessage(remoteJid, { react: { text: "❓", key: msg.key } }).catch(() => {});
       }

@@ -6,6 +6,32 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 63 — Truth Questions Quota Expansion (3 to 5)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 14:22 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `e9292cb` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Implementation
+- **User request:** Expand question quota ("Lebih perluas dengan 5 batasan" -> "maksudku jatah pertanyaan") from 3 questions to 5 questions per member.
+- **Changes made:**
+  1. Configured `BIRTHDAY_TRUTH_MAX_QUESTIONS` in `src/config/birthdayConfig.js` (defaulting to 5).
+  2. Updated `recordTruthQuestion` in `src/services/birthdayService.js` to enforce `maxQuota` (default 5).
+  3. Updated warning message in `src/services/birthdayTakeoverService.js` to dynamic `⚠️ Jatah ${res.maxQuota || 5} pertanyaan Truth kamu sudah habis!`.
+  4. Updated announcement text in `src/formatters/birthdayMessageFormatter.js` to `maksimal 5 pertanyaan`.
+  5. Updated test in `test/birthday.test.js` verifying questions 1–5 succeed and question 6 returns `quota_exceeded`.
+- **Verification:** All 21 tests in `test/birthday.test.js` pass.
+
+---
+
 ## Session 62 — Photo Upload Support for Memory Wall & Birthday Quests
 
 | Field | Value |

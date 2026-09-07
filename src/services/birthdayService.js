@@ -418,9 +418,11 @@ async function recordTruthQuestion(groupJid, fromId, fromName, toId, toName, que
 
   await updateTakeoverMetadata(group, (meta) => {
     const truthData = meta.truthData || { questions: [], quotas: {} };
+    truthData.quotas = truthData.quotas || {};
+    const maxQuota = getConfig().BIRTHDAY_TRUTH_MAX_QUESTIONS || 5;
     const currentQuota = truthData.quotas[fid] || 0;
-    if (currentQuota >= 3) {
-      result = { error: "quota_exceeded", count: currentQuota };
+    if (currentQuota >= maxQuota) {
+      result = { error: "quota_exceeded", count: currentQuota, maxQuota };
       return meta;
     }
 
@@ -437,7 +439,7 @@ async function recordTruthQuestion(groupJid, fromId, fromName, toId, toName, que
       askedAt: Date.now(),
     };
     truthData.questions.push(qObj);
-    result = { success: true, question: qObj, quotaRemaining: 3 - truthData.quotas[fid] };
+    result = { success: true, question: qObj, quotaRemaining: maxQuota - truthData.quotas[fid], maxQuota };
     return { ...meta, truthData };
   });
 
