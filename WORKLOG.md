@@ -3275,4 +3275,15 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 - **Verification:**
   - `node --test test/birthday.test.js`: **26 pass, 0 fail**.
   - `node --test test/**/*.test.js`: **376 pass, 0 fail across 79 suites**.
+  - **Live Koyeb Deployment & Delivery:**
+    - Deployment `b41561ff` (commit `a6e97ef`) started at 04:56 WIB on instance `e1e7e578`.
+    - Waited through 60-second rolling replacement cooldown, socket reconnected at 04:58:53 WIB.
+    - `catchUpPendingTakeoverEvents` executed cleanly.
+    - AI Pipeline Rotator: DashScope hit timeout, rotated dynamically to Groq (`openai/gpt-oss-120b`).
+    - The AI dynamically generated both letters using full memories, wish jar, and Rafi's Rate The Day input (`10/10, hri ini gada matkul gw`).
+    - Live logs confirmed delivery:
+      - `midnight_letter` delivered at `22:01:11 UTC` (05:01:11 WIB) to Ambarya (`120363253471284606@g.us`).
+      - `narrator_letter` delivered at `22:01:54 UTC` (05:01:54 WIB) to Ambarya (`120363253471284606@g.us`).
+    - Verified production Turso DB: takeover gracefully closed (`is_active: 0, cron_suppressed: 0`).
 - **Status:** Completed
+
