@@ -80,7 +80,17 @@ async function messageHandler(sock, msg, logger, sessionId) {
     const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
     if (!shouldProcessMessage(msg, botMode)) return;
 
-    const { text: messageText } = extractMessageContent(msg);
+    const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
+
+    // Birthday DM session interception (Confess & Prediction outreach)
+    if (!msg.key?.fromMe && !msg.key?.remoteJid?.endsWith('@g.us')) {
+        try {
+            const handledDm = await birthdayTakeover.handleIncomingDm(sock, msg, messageText, logger);
+            if (handledDm) return;
+        } catch (dmErr) {
+            logger.debug({ err: dmErr }, '[Birthday] Error handling incoming DM');
+        }
+    }
 
     // If it looks like a sticker command, process normally
     if (messageText.startsWith(PREFIX)) {
@@ -105,12 +115,12 @@ async function messageHandler(sock, msg, logger, sessionId) {
         return handler(sock, msg, logger, sessionId, botMode);
     }
 
-    // Birthday wishes are replies to the card message; persistence is best-effort.
-    if (!msg.key?.fromMe) {
+    // Interactive group messages during Birthday Takeover (Truth, Photo Story, Memory Wall, Roast, Wish Jar, Quests)
+    if (!msg.key?.fromMe && msg.key?.remoteJid?.endsWith('@g.us')) {
         try {
-            await birthdayTakeover.recordWishFromMessage(msg);
+            await birthdayTakeover.handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger);
         } catch (error) {
-            logger.debug({ err: error }, '[Birthday] Failed to record wish');
+            logger.debug({ err: error }, '[Birthday] Failed to process interactive message');
         }
     }
 }

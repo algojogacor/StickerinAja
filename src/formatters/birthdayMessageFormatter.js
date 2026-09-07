@@ -2,7 +2,7 @@ const fs = require("fs");
 const { getConfig } = require("../config/birthdayConfig");
 
 function mentionText(persons) {
-  return persons
+  return (Array.isArray(persons) ? persons : [persons])
     .map((person) => {
       const id = (person.participantId || "").replace(/:\d+(?=@)/, "").split("@")[0];
       const customName = person.name && person.name !== id ? ` (${person.name})` : "";
@@ -12,15 +12,33 @@ function mentionText(persons) {
 }
 
 function mentions(persons) {
-  return persons.map((person) => person.participantId).filter(Boolean);
+  return (Array.isArray(persons) ? persons : [persons]).map((person) => person.participantId).filter(Boolean);
 }
 
 function result(text, persons) {
   return { text, mentions: mentions(persons) };
 }
 
-function formatOpening(persons) {
-  return result(`🚨🎉 *BIRTHDAY TAKEOVER AKTIF!* 🎉🚨\n\nHari ini grup merayakan ${mentionText(persons)} 🎂\n\nSelamat ulang tahun! Semoga hari ini penuh kabar baik, tawa, dan traktiran.`, persons);
+function formatOpeningQuest(persons, questText, lastYearPredictions = []) {
+  const parts = [];
+  if (Array.isArray(lastYearPredictions) && lastYearPredictions.length > 0) {
+    parts.push(`🔮 *KILAS BALIK PREDIKSI TAHUN LALU* 🔮\n\nSebelum mulai, yuk kita cek ramalan teman-teman tahun lalu untuk ${mentionText(persons)}:`);
+    for (const pred of lastYearPredictions) {
+      parts.push(`• *${pred.senderName || 'Warga'}*: “${pred.predictionText}”`);
+    }
+    parts.push(`Kira-kira ada yang beneran kejadian gak nih? 😄\n\n━━━━━━━━━━━━━━━━━━━━\n`);
+  }
+
+  parts.push(
+    `🚨🎉 *BIRTHDAY TAKEOVER AKTIF!* 🎉🚨\n\n` +
+    `Hari ini panggung utama grup milik ${mentionText(persons)}! 🎂✨\n` +
+    `Semoga hari ini penuh kabar baik, tawa lepas, dan traktiran.\n\n` +
+    `🎯 *BIRTHDAY QUEST HARI INI:*\n` +
+    `“${questText || 'Kirim 1 foto paling bahagia lo hari ini ke grup!'}”\n\n` +
+    `📢 _Balas (reply) pesan ini untuk menyelesaikan quest sebelum jam 23:00 WIB! Kalau tuntas dapet apresiasi, kalau mangkir ada sanksi kocak!_`
+  );
+
+  return result(parts.join("\n"), persons);
 }
 
 function formatSong(persons) {
@@ -30,44 +48,225 @@ function formatSong(persons) {
   return result(`🎵 *LAGU ULANG TAHUN*\n\nSelamat ulang tahun untuk ${mentionText(persons)}! 🎂🎉${fallbackUrl}`, persons);
 }
 
-function formatCard(persons) {
-  return result(`🎁 *BIRTHDAY CARD*\n\nKartu spesial untuk ${mentionText(persons)} dari seluruh warga grup 💐\n\nSemoga tahun baru kehidupanmu membawa lebih banyak bahagia dan hal baik.\n\n📢 Reply pesan ini dengan ucapan atau doa; nanti dirangkum malam hari.`, persons);
+function formatMemoryWallPrompt(persons) {
+  return result(
+    `🧱✨ *MEMORY WALL & UCAPAN DIBUKA!* ✨🧱\n\n` +
+    `Spesial untuk ${mentionText(persons)}!\n` +
+    `Kalian punya 2 misi di sesi ini via reply pesan ini:\n\n` +
+    `1️⃣ Kirim *ucapan atau doa terbaik* kalian.\n` +
+    `2️⃣ Kirim *memori paling absurd, lucu, atau berkesan* bareng dia!\n\n` +
+    `📢 _Reply pesan ini ya! Ucapan dan memori terabsurd akan dirangkum terpisah di Grand Recap jam 21:00 WIB!_`,
+    persons
+  );
 }
 
-function formatSpotlight(persons) {
-  return result(`🌟 *BIRTHDAY SPOTLIGHT*\n\nTokoh utama grup hari ini: ${mentionText(persons)}\n\nMisi hari ini:\n✅ Bahagia\n✅ Makan enak\n✅ Dapat kabar baik\n✅ Traktir opsional 😄`, persons);
+function formatTruthQuestionsPrompt(persons) {
+  return result(
+    `🎲🔥 *SESI TRUTH QUESTIONS DIBUKA!* 🔥🎲\n\n` +
+    `Aturan main:\n` +
+    `• Setiap anggota punya jatah *maksimal 3 pertanyaan*.\n` +
+    `• ${mentionText(persons)} boleh tanya ke *siapapun* di grup (sebut/mention orangnya).\n` +
+    `• Anggota lain *hanya boleh bertanya ke ${mentionText(persons)}*.\n\n` +
+    `⚖️ *Aturan Jawaban (Honor System):*\n` +
+    `• Jawab dengan awalan tanda seru (*!*) = Jawaban JUJUR & mengikat!\n` +
+    `• Tanpa tanda seru = Jawaban bebas/candaan.\n\n` +
+    `📢 _Reply pesan ini untuk mengajukan pertanyaan! Highlight tanya-jawab seru bakal masuk recap jam 21:00!_`,
+    persons
+  );
 }
 
-function formatReminder(persons) {
-  return result(`🎊 *PENGINGAT ULANG TAHUN*\n\nYang belum mengucapkan selamat kepada ${mentionText(persons)}, masih ada waktu sampai malam 🎂`, persons);
+function formatPhotoStoryPrompt(persons) {
+  return result(
+    `📸📖 *SATU FOTO SATU CERITA* 📖📸\n\n` +
+    `Yuk buka galeri kalian! Masing-masing anggota grup (selain ${mentionText(persons)}) diminta kirim/reply *1 foto kenangan atau foto apapun bareng dia*.\n\n` +
+    `Foto bakal disimpan ke arsip kenangan grup, dibaca oleh AI Vision, dan diulas di recap jam 21:00! Kirim sekarang ya! 🎞️`,
+    persons
+  );
 }
 
-function formatWishesOpen(persons) {
-  return result(`📢 *SESI UCAPAN DIBUKA!*\n\nReply pesan ini dengan ucapan, doa, atau cerita lucu untuk ${mentionText(persons)}. Ucapan akan dirangkum malam nanti 💌`, persons);
+function formatRoastPrompt(persons) {
+  return result(
+    `🔥🌶️ *SESI BIRTHDAY ROAST DIBUKA!* 🌶️🔥\n\n` +
+    `Karena ${mentionText(persons)} sudah opt-in untuk di-roast:\n` +
+    `Sekarang saatnya warga grup keluarin roasting terlucu, fakta kocak, atau ledekan penuh kasih sayang buat dia! 😂\n\n` +
+    `📢 _Reply pesan ini dengan roast terbaikmu! Roast yang dapet emoji reaction terbanyak bakal dinobatkan sebagai Best Roast di recap jam 21:00!_`,
+    persons
+  );
 }
 
-function formatRecap(persons, wishes) {
-  const lines = [`💌 *BIRTHDAY RECAP*`, `\nUntuk ${mentionText(persons)}:`, ""];
-  if (!wishes?.length) lines.push("Belum ada ucapan yang tercatat — tapi doa baik tetap terkirim 🎂");
-  else {
-    for (const wish of wishes.slice(0, 30)) {
-      lines.push(`• ${wish.senderName || "Warga grup"}: “${String(wish.messageText || "").slice(0, 300)}”`);
+function formatDmAnnouncementGroup(targetName, pendingMembers = []) {
+  const memberMentions = pendingMembers.map((m) => `@${m.replace(/:\d+(?=@)/, "").split("@")[0]}`).join(", ");
+  const rawJids = pendingMembers.map((m) => m.replace(/:\d+(?=@)/, ""));
+  return {
+    text:
+      `🕵️‍♂️🤫 *MISI RAHASIA: CONFESS & PREDIKSI* 🤫🕵️‍♂️\n\n` +
+      `Bot baru saja mencoba kirim DM rahasia ke teman-teman selain *${targetName}*.\n\n` +
+      `Bagi kalian yang belum pernah chat bot secara pribadi di WhatsApp, silakan buka nomor bot ini dan *chat apapun dulu di DM pribadi* agar sesi rahasia bisa dimulai!\n\n` +
+      `Menunggu balasan dari: ${memberMentions || 'Semua teman'}\n\n` +
+      `⏳ _Waktu pengisian: 5 jam. Confess akan dikirim 100% anonim jam 18:00!_`,
+    mentions: rawJids,
+  };
+}
+
+function formatDmPrompt(targetName) {
+  return (
+    `Halo! Ini pesan rahasia dari Bot untuk perayaan ulang tahun *${targetName}* 🎂\n\n` +
+    `Mohon balas pesan ini dengan 2 hal berikut sekaligus:\n\n` +
+    `1️⃣ *Confess Something*: Satu pengakuan, rahasia kecil, atau hal yang selama ini belum pernah lo ungkapin langsung ke dia. (Akan dikirim ke grup secara 100% ANONIM jam 18:00).\n\n` +
+    `2️⃣ *Prediksi Masa Depan*: Satu prediksi absurd atau sungguh-sungguh tentang apa yang bakal terjadi sama dia di setahun ke depan. (Akan dibacakan di recap jam 21:00 dengan nama lo, dan di-review tahun depan!).\n\n` +
+    `_Kirim balasanmu langsung ke chat ini ya!_`
+  );
+}
+
+function formatConfessReveal(targetName, confessions = []) {
+  const list = (Array.isArray(confessions) && confessions.length > 0)
+    ? confessions.map((c, i) => `🔹 *Pengakuan #${i + 1}:*\n“${c.text}”`).join("\n\n")
+    : "Belum ada pengakuan yang masuk, tapi rahasia tetap aman 😄";
+
+  return {
+    text:
+      `💌🕯️ *CONFESS SOMETHING (100% ANONIM)* 🕯️💌\n\n` +
+      `Khusus untuk *${targetName}*, ada beberapa pengakuan jujur dari warga grup yang dikirim via jalur rahasia:\n\n` +
+      `${list}\n\n` +
+      `_Semua pengakuan di atas dikirim tanpa nama pengirim._`,
+    mentions: [],
+  };
+}
+
+function formatWishJarPrompt(persons) {
+  return result(
+    `🫙✨ *SESI WISH JAR DIBUKA!* ✨🫙\n\n` +
+    `Sebelum hari berakhir, mari kita isi toples harapan untuk ${mentionText(persons)}!\n\n` +
+    `Kalian wajib menggunakan format awalan:\n` +
+    `👉 *"Tahun ini, semoga kamu [harapanmu]..."*\n\n` +
+    `📢 _Reply pesan ini ya! Semua harapan yang masuk akan menjadi bahan utama yang diramu AI untuk Midnight Letter jam 00:00 nanti!_`,
+    persons
+  );
+}
+
+function formatGrandRecap({ persons, wishes = [], memories = [], roast = [], photoStories = [], predictions = [], truthHighlights = [] }) {
+  const lines = [
+    `👑🌟 *GRAND BIRTHDAY RECAP (JAM 21:00 WIB)* 🌟👑`,
+    `Spesial untuk: ${mentionText(persons)}\n`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+  ];
+
+  // 1. Ucapan & Doa
+  lines.push(`💌 *1. UCAPAN & DOA HARI INI:*`);
+  if (!wishes.length) {
+    lines.push(`• Belum ada ucapan tertulis, tapi doa terbaik tetap menyertai 🎂`);
+  } else {
+    for (const w of wishes.slice(0, 15)) {
+      lines.push(`• *${w.senderName || 'Warga'}*: “${w.messageText}”`);
     }
   }
+  lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+
+  // 2. Memory Wall
+  lines.push(`🧱 *2. MEMORY WALL TERABSURD:*`);
+  if (!memories.length) {
+    lines.push(`• Tidak ada memori aneh yang dibongkar hari ini 😄`);
+  } else {
+    for (const m of memories.slice(0, 15)) {
+      lines.push(`• *${m.senderName || 'Warga'}*: “${m.text}”`);
+    }
+  }
+  lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+
+  // 3. Roast Session
+  if (roast.length) {
+    lines.push(`🔥 *3. BEST ROAST OF THE DAY:*`);
+    for (const r of roast.slice(0, 5)) {
+      lines.push(`• *${r.senderName || 'Warga'}*: “${r.text}” ${r.reactions ? `(${r.reactions} reaksi)` : ''}`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 4. Truth Questions Highlights
+  if (truthHighlights.length) {
+    lines.push(`🎲 *4. HIGHLIGHT TRUTH QUESTIONS:*`);
+    for (const t of truthHighlights.slice(0, 6)) {
+      const tag = t.isHonest ? '🔒 [JUJUR!]' : '💬 [BEBAS]';
+      lines.push(`• Tanya (${t.askerName} ➔ ${t.targetName}): “${t.question}”`);
+      if (t.answer) lines.push(`  ↳ Jawab ${tag}: “${t.answer}”`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 5. Arsip Foto Cerita
+  if (photoStories.length) {
+    lines.push(`📸 *5. ARSIP KENANGAN HARI INI:*`);
+    for (const p of photoStories.slice(0, 5)) {
+      lines.push(`• Foto dari *${p.senderName || 'Teman'}*: ${p.description || p.caption || 'Momen seru hari ini'}`);
+    }
+    lines.push(`\n━━━━━━━━━━━━━━━━━━━━`);
+  }
+
+  // 6. Prediksi Masa Depan (Non-Anonim)
+  lines.push(`🔮 *6. PREDIKSI MASA DEPAN TAHUN INI:*`);
+  if (!predictions.length) {
+    lines.push(`• Belum ada ramalan yang masuk.`);
+  } else {
+    for (const p of predictions.slice(0, 10)) {
+      lines.push(`• *${p.senderName || 'Warga'}*: “${p.predictionText}”`);
+    }
+  }
+  lines.push(`\n_Catatan: Prediksi di atas disimpan dan akan ditagih tahun depan! 😉_`);
+
   return result(lines.join("\n"), persons);
 }
 
-function formatClosing(persons) {
-  return result(`🌙 *BIRTHDAY TAKEOVER SELESAI*\n\nTerima kasih sudah ikut merayakan ${mentionText(persons)}. Selamat ulang tahun sekali lagi 🎂✨`, persons);
+function formatClosingQuest(persons, questCompleted, penaltyText) {
+  const questVerdict = questCompleted
+    ? `🎖️ *STATUS QUEST: COMPLETED!* ✅\n` +
+      `Keren banget ${mentionText(persons)} udah nyelesaiin Birthday Quest hari ini! Misi terselesaikan dengan gemilang 👏🎉`
+    : `⚠️ *STATUS QUEST: MISSED!* ❌\n` +
+      `Wah ${mentionText(persons)} mangkir dari Birthday Quest hari ini!\n` +
+      `Sesuai aturan, lo kena sanksi jenaka:\n` +
+      `👉 *${penaltyText || 'Wajib mendoakan semua warga grup sebelum tidur malam ini!'}*\n` +
+      `Jangan lupa dijalani ya! 😄`;
+
+  return result(
+    `🌙✨ *BIRTHDAY TAKEOVER SELESAI* ✨🌙\n\n` +
+    `${questVerdict}\n\n` +
+    `Terima kasih untuk seluruh warga grup yang sudah meramaikan hari ini dari pagi sampai malam.\n` +
+    `Selamat ulang tahun sekali lagi untuk ${mentionText(persons)}! 🎂💐\n\n` +
+    `_P.S. Jangan tidur dulu, tunggu kejutan Midnight Letter tepat jam 00:00 nanti..._`,
+    persons
+  );
+}
+
+function formatFlashbackPhoto(photoRecord) {
+  const dateStr = photoRecord.createdAt
+    ? new Date(photoRecord.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Suatu hari';
+
+  return (
+    `📸🕰️ *KILAS BALIK KENANGAN (MEMORY FLASHBACK)* 🕰️📸\n\n` +
+    `_Tanggal asli: ${dateStr}_ • Dari: *${photoRecord.senderName || 'Warga grup'}*\n\n` +
+    `💬 *Caption:* "${photoRecord.caption || '-'}"\n\n` +
+    `🤖 *Catatan AI Vision:*\n` +
+    `${photoRecord.aiDescription || 'Momen seru tak terlupakan bersama kawan-kawan!'}`
+  );
 }
 
 module.exports = {
-  formatOpening,
+  mentionText,
+  mentions,
+  result,
+  formatOpening: formatOpeningQuest,
+  formatOpeningQuest,
   formatSong,
-  formatCard,
-  formatSpotlight,
-  formatReminder,
-  formatWishesOpen,
-  formatRecap,
-  formatClosing,
+  formatMemoryWallPrompt,
+  formatTruthQuestionsPrompt,
+  formatPhotoStoryPrompt,
+  formatRoastPrompt,
+  formatDmAnnouncementGroup,
+  formatDmPrompt,
+  formatConfessReveal,
+  formatWishJarPrompt,
+  formatGrandRecap,
+  formatClosingQuest,
+  formatFlashbackPhoto,
 };
+

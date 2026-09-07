@@ -6,6 +6,57 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 53 — Birthday Takeover Full Upgrade (Truth Questions, Dual DM Outreach, AI Letters, Multi-Bubble, Flashback)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 09:30 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `83e8c23` |
+| **Ending HEAD** | Working tree staged |
+| **Status** | Completed |
+
+### Implementation Details
+1. **13-Slot Timeline & 24h Scheduler (`src/config/birthdayConfig.js`, `src/scheduler/birthdayScheduler.js`):**
+   - Configured exact 13-slot timeline: 07:00 (Opening+Quest), 09:00 (Song), 12:00 (Memory Wall), 14:00 (Truth Questions), 15:00 (Photo Story), 16:00 (Roast), 17:00 (Dual DM Outreach), 18:00 (Confess Reveal), 20:00 (Wish Jar), 21:00 (Grand Recap), 23:00 (Closing+Verdict), 00:00 (Midnight Letter), 02:00 (Surat Dini Hari).
+   - Set `allow24Hours: true` in `createWindowedScheduler` to support night-time slots (`23:00`, `00:00`, `02:00`).
+   - Implemented `sendMultiBubble` for natural chat flow with 2-second typing delay when letters exceed 1200 characters.
+
+2. **Truth Questions Session (14:00 slot replacing Title of the Year):**
+   - Honor system: `!` prefix indicates a truthful, binding answer; no prefix indicates casual/free answers.
+   - Enforced 3-question quota per member. Birthday person can ask anyone by tagging them; other members can only ask the birthday person.
+   - Captured via message replies and acknowledged with emoji reactions.
+
+3. **Dual DM Outreach (17:00 slot):**
+   - Bot sends direct DM to non-birthday members requesting Confess & Prediction, while simultaneously tagging them in group notice to open a chat to the bot.
+   - Timeout: 5 hours (`dmSessions` in-memory store).
+   - Structured parsing: Confess is stored 100% anonymously (zero sender info retained); Prediction is stored with sender's name for evening reveal.
+
+4. **Humanized AI Midnight Letter (00:00) & Surat Dini Hari (02:00):**
+   - Detailed group chat logging from 07:00 to 23:00 (`recordGroupChatMessage`) summarized in depth via Groq Qwen (`summarizeDayChat`).
+   - Groq Qwen prompt engineered explicitly for emotional, humanized tone: natural speech, emotional repetitions, no rigid bullet-point corporate reports.
+   - Surat Dini Hari written from 3rd-person omniscient narrator perspective, providing deep emotional warmth and comfort for the birthday person to read upon waking up.
+
+5. **Cloudinary REST & Group Memories (`src/services/cloudinaryService.js`, `src/commands/kenangan.js`):**
+   - Implemented zero-dependency Cloudinary REST upload with SHA-1 signature authentication using `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+   - Turso table `group_memories` and `group_flashback_schedules`.
+   - Command suite: `!kenangan tambah [cerita]` and `!kenangan list`.
+   - Random memory flashback check at 21:00 (every 3–8 weeks on non-birthday days).
+
+6. **Interactive Reply Interception (`index.js`, `src/services/birthdayTakeoverService.js`):**
+   - Intercepts DMs from active `dmSessions` before command handler.
+   - Intercepts group replies to active takeover events (Truth, Quest, Memory, Photo, Roast, Wish Jar).
+
+7. **Verification & Tests (`test/birthday.test.js`):**
+   - Added unit tests for Truth Questions quota and honest/normal answers, DM session parsing and anonymous confess handling, `--roast` flag, and flashback schedule advancement.
+   - Total test suite: 361/361 tests pass across 78 test suites.
+
+---
+
 ## Session 52 — Enable Multi-Group Birthday Takeover Scheduler Dispatch and Catch-Up Delivery
 
 | Field | Value |

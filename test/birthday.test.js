@@ -121,13 +121,15 @@ describe("Birthday formatting and configuration", () => {
     assert.equal(result.text.includes("@s.whatsapp.net"), false);
   });
 
-  it("keeps the production event schedule inside the active WIB window", () => {
-    assert.ok(birthdayConfig.EVENT_SCHEDULES.length >= 5);
-    for (const slot of birthdayConfig.EVENT_SCHEDULES) {
-      const [hour, minute] = slot.time.split(":").map(Number);
-      assert.ok(hour * 60 + minute >= 7 * 60);
-      assert.ok(hour * 60 + minute <= 22 * 60);
-    }
+  it("keeps the production event schedule aligned with the 13-slot timeline", () => {
+    assert.equal(birthdayConfig.EVENT_SCHEDULES.length, 13);
+    const times = birthdayConfig.EVENT_SCHEDULES.map((s) => s.time);
+    assert.ok(times.includes("07:00"));
+    assert.ok(times.includes("14:00"));
+    assert.ok(times.includes("17:00"));
+    assert.ok(times.includes("23:00"));
+    assert.ok(times.includes("00:00"));
+    assert.ok(times.includes("02:00"));
   });
 });
 
@@ -284,5 +286,98 @@ describe("Birthday command", () => {
     } finally {
       process.env.OWNER_JID = prevOwner;
     }
+  });
+
+  it("enforces Truth Questions quota of 3 per member and records answers", async () => {
+    await birthdayRepository.init();
+    await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
+
+    // Ask questions 1, 2, 3
+    const q1 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Kenapa suka mie ayam?", "msg-q1");
+    assert.equal(q1.success, true);
+    assert.equal(q1.quotaRemaining, 2);
+
+    const q2 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Siapa gebetanmu?", "msg-q2");
+    assert.equal(q2.success, true);
+    assert.equal(q2.quotaRemaining, 1);
+
+    const q3 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pernah bolos gak?", "msg-q3");
+    assert.equal(q3.success, true);
+    assert.equal(q3.quotaRemaining, 0);
+
+    // Question 4 should exceed quota
+    const q4 = await birthdayService.recordTruthQuestion("120@g.us", "628555@s.whatsapp.net", "Budi", "628123@s.whatsapp.net", "Rina", "Pertanyaan ke-4", "msg-q4");
+    assert.equal(q4.error, "quota_exceeded");
+
+    // Record honest answer with ! prefix
+    const ans1 = await birthdayService.recordTruthAnswer("120@g.us", "628123@s.whatsapp.net", "!Karena bumbunya enak banget", "msg-q1");
+    assert.equal(ans1.success, true);
+    assert.equal(ans1.isHonest, true);
+    assert.equal(ans1.question.answer, "Karena bumbunya enak banget");
+
+    // Record non-binding answer without ! prefix
+    const ans2 = await birthdayService.recordTruthAnswer("120@g.us", "628123@s.whatsapp.net", "Rahasia dong", "msg-q2");
+    assert.equal(ans2.success, true);
+    assert.equal(ans2.isHonest, false);
+    assert.equal(ans2.question.answer, "Rahasia dong");
+
+    const interactions = await birthdayService.getTruthInteractions("120@g.us");
+    assert.equal(interactions.length, 3);
+  });
+
+  it("manages DM session, parses response, and stores confess anonymously & prediction with name", async () => {
+    await birthdayRepository.init();
+    await birthdayService.activateTakeover("120@g.us", [{ participantId: "628123@s.whatsapp.net", name: "Rina" }]);
+
+    birthdayService.startDmSession("628777@s.whatsapp.net", {
+      groupJid: "120@g.us",
+      participantName: "Siti",
+      birthdayPersons: [{ participantId: "628123@s.whatsapp.net", name: "Rina" }],
+    });
+
+    const sess = birthdayService.getDmSession("628777@s.whatsapp.net");
+    assert.ok(sess);
+    assert.equal(sess.participantName, "Siti");
+
+    const dmText = `Confess: Dulu aku yang ga sengaja tumpahin kopi ke bukumu hehe\n\nPrediksi: Tahun depan Rina bakal dapet promosi jabatan!`;
+    const recorded = await birthdayService.recordDmAnswer("628777@s.whatsapp.net", dmText);
+    assert.equal(recorded, true);
+
+    const meta = await birthdayService.getTakeoverMetadata("120@g.us");
+    // Confession exists and has no senderId/senderName attached
+    assert.equal(meta.confessions.length, 1);
+    assert.equal(meta.confessions[0].text, "Dulu aku yang ga sengaja tumpahin kopi ke bukumu hehe");
+    assert.equal(meta.confessions[0].senderId, undefined);
+    assert.equal(meta.confessions[0].senderName, undefined);
+
+    // Prediction has senderName attached
+    assert.equal(meta.predictions.length, 1);
+    assert.equal(meta.predictions[0].senderName, "Siti");
+    assert.ok(meta.predictions[0].predictionText.includes("promosi"));
+  });
+
+  it("supports roastOptIn flag in addBirthday and updateBirthday", async () => {
+    await birthdayRepository.init();
+    const created = await birthdayService.addBirthday("120@g.us", "628999@s.whatsapp.net", "Andi", 10, 5, 1999, "admin", 1);
+    assert.equal(created.roastOptIn, 1);
+
+    const rows = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(rows[0].roastOptIn, 1);
+
+    await birthdayService.updateBirthday("120@g.us", "628999@s.whatsapp.net", { roastOptIn: 0 });
+    const updated = await birthdayService.getBirthdaysList("120@g.us");
+    assert.equal(updated[0].roastOptIn, 0);
+  });
+
+  it("checks flashback due and advances schedule", async () => {
+    await birthdayRepository.init();
+    const isDueInitial = await birthdayService.checkFlashbackDue("120@g.us");
+    assert.equal(isDueInitial, true);
+
+    const nextDate = await birthdayService.advanceFlashbackSchedule("120@g.us");
+    assert.ok(nextDate > new Date());
+
+    const isDueAfter = await birthdayService.checkFlashbackDue("120@g.us");
+    assert.equal(isDueAfter, false);
   });
 });
