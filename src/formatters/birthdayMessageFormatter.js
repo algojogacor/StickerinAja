@@ -289,7 +289,8 @@ function formatClosingQuest(persons, questOrCompleted, completedOrPenalty, maybe
     `🌙✨ *BIRTHDAY TAKEOVER SELESAI* ✨🌙\n\n` +
     `${questVerdict}\n\n` +
     `Terima kasih untuk seluruh warga grup yang sudah meramaikan hari ini dari pagi sampai malam.\n` +
-    `Selamat ulang tahun sekali lagi untuk ${mentionText(persons)}! 🎂💐`,
+    `Selamat ulang tahun sekali lagi untuk ${mentionText(persons)}! 🎂💐\n\n` +
+    `_P.S. Jangan tidur dulu, bakal ada kejutan beberapa saat lagi..._`,
     persons
   );
 }

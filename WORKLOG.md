@@ -6,6 +6,30 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 59 — Subtle Teaser in Closing Quest (No Spoilers)
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 13:20 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `de34b0c` |
+| **Ending HEAD** | In progress |
+| **Status** | Completed |
+
+### Problem & Request
+- **User request:** "Sebelumnya: _P.S. Jangan tidur dulu, tunggu kejutan Midnight Letter tepat jam 00:00 nanti..._ Untuk ini, tolong tetap diadakan tapi jangan diberi tahu bakal ada midnight letter. cuma kasih tau, jgn tidur dlu. bakal ada kejutan beberapa saat lagi"
+- **Implementation:**
+  - Updated `formatClosingQuest` in `src/formatters/birthdayMessageFormatter.js`.
+  - Added subtle teaser without revealing the midnight letter or specific hour:
+    `_P.S. Jangan tidur dulu, bakal ada kejutan beberapa saat lagi..._`
+  - Tests verified: 365/365 passed.
+
+---
+
 ## Session 58 — Remove All Future Event Spoilers from Birthday Prompts
 
 | Field | Value |
