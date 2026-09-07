@@ -707,4 +707,87 @@ describe("Birthday command", () => {
     assert.equal(metaAfterEvasive.truthData.questions[0].answer, "biar waktu yang menjawabny");
     assert.equal(metaAfterEvasive.truthData.questions[0].isHonest, false);
   });
+
+  it("resolves yesterday's active takeover across midnight via getEffectiveTakeover", async () => {
+    const yesterday = birthdayService.getWIBYesterday();
+    const groupJid = "120363253471284606@g.us";
+
+    // Seed an active takeover under yesterday's date
+    await birthdayRepository.setTakeoverState(groupJid, yesterday.dateStr, {
+      birthdayPersonIds: "6281774156939@s.whatsapp.net",
+      birthdayPersonNames: "rafichan",
+      isActive: true,
+      cronSuppressed: true,
+      sentEvents: ["rate_the_day"],
+      metadata: { rateTheDayMessageId: "msg-123" },
+    });
+
+    const effective = await birthdayService.getEffectiveTakeover(groupJid);
+    assert.equal(effective.dateStr, yesterday.dateStr);
+    assert.equal(effective.state.isActive, true);
+
+    // Verify getState and isTakeoverActive work across midnight
+    const state = await birthdayService.getState(groupJid);
+    assert.equal(state.birthdayPersonNames, "rafichan");
+    assert.equal(await birthdayService.isTakeoverActive(groupJid), true);
+
+    // Verify addSentEvent and deactivateTakeover write to yesterday's state
+    await birthdayService.addSentEvent(groupJid, "midnight_letter");
+    const updatedState = await birthdayRepository.getTakeoverState(groupJid, yesterday.dateStr);
+    assert.ok(updatedState.sentEvents.includes("midnight_letter"));
+
+    await birthdayService.deactivateTakeover(groupJid);
+    const deactivated = await birthdayRepository.getTakeoverState(groupJid, yesterday.dateStr);
+    assert.equal(deactivated.isActive, false);
+    assert.equal(deactivated.cronSuppressed, false);
+  });
+
+  it("resolves multi-device @lid senders to their canonical birthday person identity via group metadata", async () => {
+    const groupJid = "120363999999999999@g.us";
+    const today = birthdayService.getWIBToday();
+
+    await birthdayRepository.setTakeoverState(groupJid, today.dateStr, {
+      birthdayPersonIds: "6289999999999@s.whatsapp.net",
+      birthdayPersonNames: "budi",
+      isActive: true,
+      cronSuppressed: true,
+      sentEvents: [],
+      metadata: { hotTakeMessageId: "hottake-prompt-1" },
+    });
+
+    const sentReactions = [];
+    const mockSock = {
+      sendMessage: async (jid, payload) => {
+        if (payload?.react) sentReactions.push(payload.react);
+        return { key: { id: "mock-id" } };
+      },
+      groupMetadata: async (jid) => ({
+        id: jid,
+        participants: [
+          { id: "6289999999999:1@s.whatsapp.net", lid: "111222333444555:2@lid" },
+          { id: "6281111111111:1@s.whatsapp.net", lid: "999888777666555:1@lid" }
+        ],
+      }),
+    };
+
+    // Budi sends response using linked device LID
+    const lidMsg = {
+      key: { remoteJid: groupJid, fromMe: false, participant: "111222333444555:2@lid", id: "ans-lid-1" },
+      pushName: "budi laptop",
+      message: { conversation: "gw ga seintrovert itu woy" }
+    };
+
+    const handled = await birthdayTakeoverService.handleInteractiveGroupMessage(
+      mockSock, lidMsg, "gw ga seintrovert itu woy", "hottake-prompt-1", {}, console, { isKnownCommand: false }
+    );
+
+    assert.equal(handled, true);
+    assert.equal(sentReactions.length, 1);
+    // Because sender is birthday person, reacts with 🛡️ (shield)
+    assert.equal(sentReactions[0].text, "🛡️");
+
+    const meta = await birthdayService.getTakeoverMetadata(groupJid);
+    assert.equal(meta.hotTakes.length, 1);
+    assert.equal(meta.hotTakes[0].isRebuttal, true);
+  });
 });

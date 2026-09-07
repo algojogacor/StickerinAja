@@ -3232,3 +3232,47 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
   - `node --test test/birthday.test.js`: **14 pass, 0 fail**.
   - `node --test test/**/*.test.js`: **357 pass, 0 fail across 78 suites**.
 - **Status:** Completed
+
+---
+
+## Session 55 — Overnight Investigation: Timeline Desync, Rate The Day LID Timing, and Midnight Date Rollover
+
+- **Date:** 2026-09-08
+- **Start:** 04:42 WIB (Asia/Jakarta)
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Investigate overnight events reflected in user screenshot (23:00 spoiler message, 23:05 takeover selesai, 23:30 Rate The Day, 23:32 unacknowledged reply from birthday person, and missing 00:00 Midnight Letter & 02:00 Narrator Letter).
+- **Scope & Findings:**
+  1. **23:00 Spoiler Line (`P.S. Jangan tidur dulu...`):**
+     - Commit `9a11d15` removing the teaser was authored at 23:06:33 WIB.
+     - The 23:00 message was dispatched 6 minutes earlier by the running Koyeb instance before that commit deployed.
+  2. **23:05 Takeover Selesai vs 23:30 Rate The Day:**
+     - The 23:00 slot `closing_quest` had a hardcoded title `🌙✨ BIRTHDAY TAKEOVER SELESAI ✨🌙` in `formatClosingQuest`, making it look like the event ended before the 23:30 interactive `rate_the_day` prompt ran.
+  3. **23:32 Unacknowledged Rate The Day Reply:**
+     - Rafi quoted the prompt with `"10/10, hri ini gada matkul gw"` at 23:32 WIB.
+     - The running deployment at 23:32 was deployment `4e12b061` which strictly compared sender phone JID against participantId, ignoring the WhatsApp Linked Device LID (`251049612955654@lid`).
+     - Fix `cc0fdbb` deployed at 23:41 WIB on instance `09b43a0d`, 9 minutes after the reply was received.
+  4. **00:00 Midnight Letter & 02:00 Narrator Letter:**
+     - At 00:00 and 02:00 WIB, the date rolled over to `20260908`.
+     - `birthday.isTakeoverActive` checks `getWIBToday().dateStr` (`20260908`). Since there was no birthday on Sept 8, `isTakeoverActive` returned `false`.
+     - `runEventForGroup` immediately returned `true` without sending letters.
+     - Reddit sticker cron resumed because suppression was evaluated against Sept 8 instead of the ongoing takeover.
+- **Actions Taken:**
+  1. **Manual Rate The Day Injected to Production Turso DB:**
+     - Safely injected Rafi's response (`rating: 10`, `reason: "hri ini gada matkul gw"`, `rawText: "10/10, hri ini gada matkul gw"`) into `birthday_takeover` metadata for `20260907` / `120363253471284606@g.us` in production Turso database.
+  2. **Midnight Date Rollover Fix (`src/services/birthdayService.js`):**
+     - Implemented `getWIBYesterday()`.
+     - Implemented `getEffectiveTakeover(groupJid)`: checks today's state first; if not active, bridges to yesterday's active takeover so post-midnight slots (00:00 `midnight_letter` and 02:00 `narrator_letter`) execute against the ongoing birthday takeover.
+     - Updated `getState`, `evaluateAndActivate`, `addSentEvent`, `deactivateTakeover`, `setWishMessageId`, and `updateTakeoverMetadata` to route through `getEffectiveTakeover`.
+  3. **Multi-Device / Linked Device (LID) Participant Matching (`src/services/birthdayTakeoverService.js`):**
+     - Implemented `getCachedGroupMetadata` and `isBirthdayPersonMatch` to resolve `@lid` companion devices to canonical phone JIDs in WhatsApp group metadata.
+     - Applied to Truth Questions, Hot Take Night, and group interactive handlers.
+  4. **Closing Quest Template Header Sanitized (`src/formatters/birthdayMessageFormatter.js`):**
+     - Renamed 23:00 header from `🌙✨ BIRTHDAY TAKEOVER SELESAI ✨🌙` to `🌙✨ HASIL BIRTHDAY QUEST & MALAM PENUTUP ✨🌙`, preventing misleading impressions before Rate The Day and AI letters.
+  5. **Automated Catch-up on Startup (`src/scheduler/birthdayScheduler.js`):**
+     - Added `catchUpPendingTakeoverEvents` which automatically checks active takeovers on boot and dispatches any unsent letters (`midnight_letter` then `narrator_letter`) to complete pending takeovers immediately.
+  6. **Unit Tests Added (`test/birthday.test.js`):**
+     - Added tests for `getEffectiveTakeover` bridging across midnight and multi-device `@lid` participant resolution via group metadata.
+- **Verification:**
+  - `node --test test/birthday.test.js`: **26 pass, 0 fail**.
+  - `node --test test/**/*.test.js`: **376 pass, 0 fail across 79 suites**.
+- **Status:** Completed

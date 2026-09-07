@@ -17,6 +17,11 @@ function getWIBToday(now = new Date()) {
   return { year, month, day, dateStr: `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}` };
 }
 
+function getWIBYesterday(now = new Date()) {
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return getWIBToday(yesterday);
+}
+
 function normalizeGroupJid(groupJid) {
   const value = String(groupJid || "").trim();
   if (!value.endsWith("@g.us")) throw new Error("Birthday data hanya boleh disimpan untuk group");
@@ -133,9 +138,26 @@ function personsFromState(state) {
   return ids.map((participantId, index) => ({ participantId, name: names[index] || "Unknown" }));
 }
 
-async function getState(groupJid) {
+async function getEffectiveTakeover(groupJid) {
+  const group = normalizeGroupJid(groupJid);
   const today = getWIBToday();
-  return repository.getTakeoverState(normalizeGroupJid(groupJid), today.dateStr);
+  const todayState = await repository.getTakeoverState(group, today.dateStr);
+  if (todayState?.isActive) {
+    return { dateStr: today.dateStr, state: todayState };
+  }
+
+  const yesterday = getWIBYesterday();
+  const yesterdayState = await repository.getTakeoverState(group, yesterday.dateStr);
+  if (yesterdayState?.isActive) {
+    return { dateStr: yesterday.dateStr, state: yesterdayState };
+  }
+
+  return { dateStr: today.dateStr, state: todayState || yesterdayState || null };
+}
+
+async function getState(groupJid) {
+  const { state } = await getEffectiveTakeover(groupJid);
+  return state;
 }
 
 async function activateTakeover(groupJid, birthdayPersons) {
@@ -162,6 +184,13 @@ async function evaluateAndActivate(groupJid) {
   const today = getWIBToday();
   const existing = await repository.getTakeoverState(group, today.dateStr);
   if (existing) return existing.isActive ? personsFromState(existing) : null;
+
+  const yesterday = getWIBYesterday();
+  const yesterdayExisting = await repository.getTakeoverState(group, yesterday.dateStr);
+  if (yesterdayExisting?.isActive) {
+    return personsFromState(yesterdayExisting);
+  }
+
   const birthdays = await getTodayBirthdays(group);
   if (!birthdays.length) return null;
   await activateTakeover(group, birthdays);
@@ -187,12 +216,11 @@ async function shouldSuppressCron(groupJid) {
 
 async function addSentEvent(groupJid, eventName) {
   const group = normalizeGroupJid(groupJid);
-  const today = getWIBToday();
-  const state = await repository.getTakeoverState(group, today.dateStr);
+  const { dateStr, state } = await getEffectiveTakeover(group);
   if (!state || !state.isActive) return false;
   if (state.sentEvents.includes(eventName)) return false;
   state.sentEvents = [...state.sentEvents, String(eventName).slice(0, 80)];
-  await repository.setTakeoverState(group, today.dateStr, state);
+  await repository.setTakeoverState(group, dateStr, state);
   return true;
 }
 
@@ -203,10 +231,9 @@ async function hasSentEvent(groupJid, eventName) {
 
 async function deactivateTakeover(groupJid) {
   const group = normalizeGroupJid(groupJid);
-  const today = getWIBToday();
-  const state = await repository.getTakeoverState(group, today.dateStr);
+  const { dateStr, state } = await getEffectiveTakeover(group);
   if (!state) return false;
-  await repository.setTakeoverState(group, today.dateStr, { ...state, isActive: false, cronSuppressed: false });
+  await repository.setTakeoverState(group, dateStr, { ...state, isActive: false, cronSuppressed: false });
   return true;
 }
 
@@ -229,10 +256,9 @@ async function getWishes(groupJid, eventId) {
 
 async function setWishMessageId(groupJid, messageId) {
   const group = normalizeGroupJid(groupJid);
-  const today = getWIBToday();
-  const state = await repository.getTakeoverState(group, today.dateStr);
+  const { dateStr, state } = await getEffectiveTakeover(group);
   if (!state) return false;
-  await repository.setTakeoverState(group, today.dateStr, { ...state, wishMessageId: String(messageId || "").slice(0, 200) });
+  await repository.setTakeoverState(group, dateStr, { ...state, wishMessageId: String(messageId || "").slice(0, 200) });
   return true;
 }
 
@@ -293,13 +319,12 @@ async function getTakeoverMetadata(groupJid) {
 
 async function updateTakeoverMetadata(groupJid, updater) {
   const group = normalizeGroupJid(groupJid);
-  const today = getWIBToday();
-  const state = await repository.getTakeoverState(group, today.dateStr);
+  const { dateStr, state } = await getEffectiveTakeover(group);
   if (!state) return null;
   const currentMeta = state.metadata || {};
   const nextMeta = typeof updater === "function" ? updater(currentMeta) : { ...currentMeta, ...updater };
   state.metadata = nextMeta;
-  await repository.setTakeoverState(group, today.dateStr, state);
+  await repository.setTakeoverState(group, dateStr, state);
   return nextMeta;
 }
 
@@ -631,6 +656,9 @@ module.exports = {
   bareJid,
   isValidParticipant,
   getWIBToday,
+  getWIBYesterday,
+  getEffectiveTakeover,
+  getState,
   addBirthday,
   updateBirthday,
   removeBirthday,

@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
-**Last updated:** 2026-09-07 WIB (+0700)
-**Current implementation:** Multi-Provider LLM Rotator (Groq + Alibaba Cloud DashScope `qwen3.8-flash` text/vision + ByteDance Volcano Ark Doubao `doubao-seed-1-6-flash-250615` text/vision) with automatic failover, key rotation, and vision support; Birthday Takeover Full Upgrade — 18-Slot Timeline (07:00-02:00 WIB), Truth Questions, Dual DM Outreach, Hot Take Night (18:30), Satu Hal yang Belum Pernah Diucapkan (19:00), Skenario Absurd Kalau Kamu Jadi... (19:15), Wish Jar (20:00), AI Verdict: Siapa Kamu Sebenarnya? (20:30), Grand Recap (21:00), Closing Quest (23:00), Rate The Day (23:30), Midnight Letter (00:00 humanized), Surat Dini Hari (02:00 narrator), Cloudinary Photo Storage, Random Memory Flashback (3-8 weeks at 21:00), and `!kenangan` Album Command Suite
-**Last verified tests:** 371/371 pass across 79 test suites; 100% pass rate
+**Last updated:** 2026-09-08 WIB (+0700)
+**Current implementation:** Multi-Provider LLM Rotator (Qwen DashScope priority 1, Groq priority 2, Doubao Ark priority 3); Birthday Takeover Full Upgrade with Midnight Rollover Resolution (`getEffectiveTakeover` bridging post-midnight events across calendar days), WhatsApp Multi-Device / Linked Device (`@lid`) canonical mapping, Automatic Pending Event Catch-Up on boot, and sanitized closing templates.
+**Last verified tests:** 376/376 pass across 79 test suites; 100% pass rate
 
 ---
 

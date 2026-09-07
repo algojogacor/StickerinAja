@@ -203,15 +203,14 @@ module.exports = {
       const eventName = (args[1] || "song").toLowerCase();
       const birthdayScheduler = require("../scheduler/birthdayScheduler");
       const repository = require("../repositories/birthdayRepository");
-      const today = birthday.getWIBToday();
-      const state = await repository.getTakeoverState(remoteJid, today.dateStr);
+      const { dateStr, state } = await birthday.getEffectiveTakeover(remoteJid);
       if (state?.sentEvents?.includes(eventName)) {
         state.sentEvents = state.sentEvents.filter((e) => e !== eventName);
-        await repository.setTakeoverState(remoteJid, today.dateStr, state);
+        await repository.setTakeoverState(remoteJid, dateStr, state);
       }
       const success = await birthdayScheduler.runEventForGroup(eventName, remoteJid);
       if (!success) {
-        await reply(sock, remoteJid, msg, `⚠️ Gagal menjalankan test event '${eventName}'. Pastikan ada yang berulang tahun hari ini.`);
+        await reply(sock, remoteJid, msg, `⚠️ Gagal menjalankan test event '${eventName}'. Pastikan ada takeover yang aktif.`);
       }
       return;
     }

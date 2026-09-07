@@ -71,6 +71,58 @@ async function extractImageBuffer(msg, quotedMsg, quotedStanza, remoteJid, sende
   return null;
 }
 
+const groupMetaCache = new Map();
+
+async function getCachedGroupMetadata(sock, groupJid) {
+  if (!sock?.groupMetadata || !groupJid) return null;
+  const now = Date.now();
+  const cached = groupMetaCache.get(groupJid);
+  if (cached && now - cached.timestamp < 60000) {
+    return cached.data;
+  }
+  try {
+    const data = await sock.groupMetadata(groupJid);
+    if (data) {
+      groupMetaCache.set(groupJid, { data, timestamp: now });
+      return data;
+    }
+  } catch {}
+  return cached?.data || null;
+}
+
+async function isBirthdayPersonMatch(sock, groupJid, candidateJid, persons) {
+  const cJid = birthday.bareJid(candidateJid);
+  if (!cJid || !persons?.length) return false;
+
+  // 1. Direct match (phone JID == phone JID or LID == LID)
+  if (persons.some((p) => birthday.bareJid(p.participantId) === cJid)) {
+    return true;
+  }
+
+  // 2. Linked Device (LID) matching via group metadata
+  if (sock && groupJid) {
+    try {
+      const meta = await getCachedGroupMetadata(sock, groupJid);
+      const participant = (meta?.participants || []).find((part) => {
+        const pid = birthday.bareJid(part?.id);
+        const pjid = birthday.bareJid(part?.jid);
+        const plid = birthday.bareJid(part?.lid);
+        return pid === cJid || pjid === cJid || plid === cJid;
+      });
+      if (participant) {
+        const pid = birthday.bareJid(participant?.id);
+        const pjid = birthday.bareJid(participant?.jid);
+        const plid = birthday.bareJid(participant?.lid);
+        return persons.some((p) => {
+          const target = birthday.bareJid(p.participantId);
+          return target === pid || target === pjid || target === plid;
+        });
+      }
+    } catch {}
+  }
+  return false;
+}
+
 async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanza, quotedMsg, logger, options = {}) {
   const remoteJid = msg.key?.remoteJid;
   if (!remoteJid?.endsWith("@g.us") || msg.key?.fromMe) return false;
@@ -78,7 +130,17 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
   const active = await birthday.isTakeoverActive(remoteJid);
   if (!active) return false;
 
-  const senderJid = birthday.bareJid(msg.key?.participant || remoteJid);
+  let senderJid = birthday.bareJid(msg.key?.participant || remoteJid);
+  if (senderJid.endsWith("@lid") && sock && remoteJid) {
+    try {
+      const meta = await getCachedGroupMetadata(sock, remoteJid);
+      const part = (meta?.participants || []).find((p) => birthday.bareJid(p?.lid) === senderJid);
+      const canonicalPhone = birthday.bareJid(part?.id || part?.jid);
+      if (canonicalPhone && canonicalPhone.endsWith("@s.whatsapp.net")) {
+        senderJid = canonicalPhone;
+      }
+    } catch {}
+  }
   const senderName = msg.pushName || "Warga";
 
   // Always log group messages during active takeover (07:00 - 23:00)
@@ -139,7 +201,7 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // 1. Truth Questions: reply to truth opening message
     if (meta.truthSessionMessageId && quotedStanza === meta.truthSessionMessageId) {
-      const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
+      const isBirthdayPerson = await isBirthdayPersonMatch(sock, remoteJid, senderJid, persons);
       let target = birthdayPerson;
       if (isBirthdayPerson) {
         const context = msg.message?.extendedTextMessage?.contextInfo;
@@ -216,7 +278,7 @@ async function handleInteractiveGroupMessage(sock, msg, messageText, quotedStanz
 
     // 7. Hot Take Night (18:30)
     if (meta.hotTakeMessageId && quotedStanza === meta.hotTakeMessageId) {
-      const isBirthdayPerson = persons.some((p) => birthday.bareJid(p.participantId) === senderJid);
+      const isBirthdayPerson = await isBirthdayPersonMatch(sock, remoteJid, senderJid, persons);
       await birthday.recordHotTake(remoteJid, senderJid, senderName, messageText, isBirthdayPerson);
       const emoji = isBirthdayPerson ? "🛡️" : "🔥";
       await sock.sendMessage(remoteJid, { react: { text: emoji, key: msg.key } }).catch(() => {});

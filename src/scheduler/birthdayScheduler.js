@@ -498,6 +498,30 @@ async function runEvent(eventOrSlot, personsOverride) {
   }
 }
 
+async function catchUpPendingTakeoverEvents() {
+  try {
+    const targetGroups = await getTargetGroups();
+    for (const targetJid of targetGroups) {
+      const { state } = await birthday.getEffectiveTakeover(targetJid);
+      if (!state || !state.isActive) continue;
+
+      const sentEvents = state.sentEvents || [];
+      if (!sentEvents.includes("midnight_letter")) {
+        logger?.info({ targetJid }, "[Birthday Catchup] Delivering pending midnight_letter");
+        await runEventForGroup("midnight_letter", targetJid);
+        await new Promise((resolve) => setTimeout(resolve, 15000));
+      }
+
+      if (!sentEvents.includes("narrator_letter")) {
+        logger?.info({ targetJid }, "[Birthday Catchup] Delivering pending narrator_letter");
+        await runEventForGroup("narrator_letter", targetJid);
+      }
+    }
+  } catch (err) {
+    logger?.error({ err }, "[Birthday Catchup] Error checking/delivering pending letters");
+  }
+}
+
 function start({ logger: log, groupJid: jid } = {}) {
   if (scheduler?.getState().running) return false;
   const config = getConfig();
@@ -520,6 +544,13 @@ function start({ logger: log, groupJid: jid } = {}) {
   });
   scheduler.start();
   logger?.info({ slots: EVENT_SCHEDULES.map((slot) => slot.time) }, "[Birthday] Scheduler started");
+
+  setTimeout(() => {
+    catchUpPendingTakeoverEvents().catch((err) => {
+      logger?.error({ err }, "[Birthday] Catchup error");
+    });
+  }, 5000);
+
   return true;
 }
 
@@ -548,4 +579,5 @@ module.exports = {
   runEventForGroup,
   getTargetGroups,
   sendMultiBubble,
+  catchUpPendingTakeoverEvents,
 };
