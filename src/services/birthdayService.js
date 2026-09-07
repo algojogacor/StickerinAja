@@ -111,6 +111,11 @@ async function getTodayBirthdays(groupJid) {
   return rows.filter((row) => row.birthDay === today.day && row.birthMonth === today.month && row.lastCelebratedYear !== today.year);
 }
 
+async function getTodayBirthdayGroups() {
+  const today = getWIBToday();
+  return repository.getGroupsWithBirthdaysOn(today.day, today.month);
+}
+
 async function getTomorrowBirthdays(groupJid) {
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -260,6 +265,7 @@ module.exports = {
   removeBirthday,
   getBirthdaysList,
   getTodayBirthdays,
+  getTodayBirthdayGroups,
   getTomorrowBirthdays,
   activateTakeover,
   evaluateAndActivate,

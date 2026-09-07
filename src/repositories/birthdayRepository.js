@@ -172,6 +172,29 @@ async function getBirthdays(groupJid) {
     .map(mapBirthday);
 }
 
+async function getGroupsWithBirthdaysOn(day, month) {
+  await ensureInit();
+  const d = Number(day);
+  const m = Number(month);
+  const client = getTursoClient();
+  if (persistent && client) {
+    const result = await client.execute({
+      sql: "SELECT DISTINCT group_jid FROM birthdays WHERE birth_day=? AND birth_month=? AND enabled=1",
+      args: [d, m],
+    });
+    return result.rows.map((r) => r.group_jid ?? r.groupJid);
+  }
+  const groups = new Set();
+  for (const [gJid, map] of birthdayMemory.entries()) {
+    for (const record of map.values()) {
+      if (record.enabled !== false && Number(record.birthDay) === d && Number(record.birthMonth) === m) {
+        groups.add(gJid);
+      }
+    }
+  }
+  return [...groups];
+}
+
 async function markCelebrated(groupJid, participantId, year) {
   await ensureInit();
   const client = getTursoClient();
@@ -269,6 +292,7 @@ module.exports = {
   updateBirthday,
   removeBirthday,
   getBirthdays,
+  getGroupsWithBirthdaysOn,
   markCelebrated,
   getTakeoverState,
   setTakeoverState,

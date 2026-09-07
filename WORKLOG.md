@@ -6,6 +6,30 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 52 — Enable Multi-Group Birthday Takeover Scheduler Dispatch and Catch-Up Delivery
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-07 |
+| **Start time** | 08:44 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `70b6b42` |
+| **Ending HEAD** | In progress |
+| **Status** | In progress |
+
+### Implementation Details
+- Discovered `birthdayScheduler` previously only evaluated `process.env.GROUP_JID` (`120363328759898377@g.us`), which meant events would not reach other groups that registered birthdays (such as `120363253471284606@g.us`).
+- Added `getGroupsWithBirthdaysOn` in `src/repositories/birthdayRepository.js` and `getTodayBirthdayGroups` in `src/services/birthdayService.js` to dynamically find all groups with active birthdays on any day.
+- Updated `src/scheduler/birthdayScheduler.js` to dispatch scheduled events across all active birthday groups + default `GROUP_JID`.
+- Added opening catch-up: if a birthday was registered after 07:00 WIB (e.g. at 08:43 WIB), the upcoming 09:00 WIB `song` slot sends the missed grand `opening` announcement first so the group receives the complete celebration flow.
+- Added unit test in `test/birthday.test.js` validating multi-group query. All 356/356 tests pass across 78 test suites.
+
+---
+
+
 ## Session 51 — Diagnose and Fix Birthday Takeover Support for WhatsApp Groups with LID Addressing Mode
 
 | Field | Value |

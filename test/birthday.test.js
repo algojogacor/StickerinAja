@@ -96,6 +96,19 @@ describe("Birthday repository and service", () => {
     const afterDelete = await birthdayService.getBirthdaysList("120@g.us");
     assert.equal(afterDelete.length, 0);
   });
+
+  it("finds all distinct groups that have birthdays on a specific date", async () => {
+    await birthdayRepository.init();
+    await birthdayService.addBirthday("group-1@g.us", "user1@s.whatsapp.net", "User 1", 7, 9);
+    await birthdayService.addBirthday("group-2@g.us", "user2@s.whatsapp.net", "User 2", 7, 9);
+    await birthdayService.addBirthday("group-3@g.us", "user3@s.whatsapp.net", "User 3", 8, 9);
+
+    const groups = await birthdayRepository.getGroupsWithBirthdaysOn(7, 9);
+    assert.equal(groups.length, 2);
+    assert.ok(groups.includes("group-1@g.us"));
+    assert.ok(groups.includes("group-2@g.us"));
+    assert.ok(!groups.includes("group-3@g.us"));
+  });
 });
 
 describe("Birthday formatting and configuration", () => {
