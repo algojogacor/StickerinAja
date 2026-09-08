@@ -3335,3 +3335,44 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
     - Verified production Turso DB: takeover gracefully closed (`is_active: 0, cron_suppressed: 0`).
 - **Status:** Completed
 
+---
+
+## 2026-09-08 — Session 77 (Asia/Jakarta)
+
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Investigate repeated command execution in private DM chat (user reported `!toimg` repeating at 20:43, 21:05, and 21:55 WIB long after original trigger). Implement fix, run test suite, and push to trigger Koyeb redeployment and verify live health.
+- **Root Cause Analysis:**
+  1. Examined Koyeb runtime logs (`koyeb service logs usual-olwen/stickerinaja --type runtime`):
+     - At `13:43:15 UTC` (20:43 WIB), `toimg` executed normally in DM with Viony (`218493593067617@lid`).
+     - At `14:05:28 UTC` (21:05 WIB), WhatsApp server sent `stream:error (ack)` causing Baileys disconnect (code 500). Reconnection at 14:05:29 UTC delivered 74 offline messages/notifications.
+     - At `14:55:45 UTC` (21:55 WIB), another disconnect (code 500) occurred. Reconnection delivered 57 offline messages/notifications.
+  2. Codebase inspection:
+     - `src/handler.js` processed incoming messages immediately without checking `msg.messageTimestamp`.
+     - `index.js` deduplication cache (`processedMessageIds`) used a 60-second TTL (`60_000` ms). Any offline sync replaying a message >60s old found no entry in the cache.
+     - `src/baileys.js` did not filter `type === 'append'` in `messages.upsert`, which WhatsApp multi-device uses for history sync and unacknowledged message replays.
+     - Each replay re-executed `!toimg`, which sent media and caused further stream ack pressure, triggering subsequent disconnects and infinite loops.
+- **Implementation:**
+  1. `src/handler.js`:
+     - Added robust `isMessageStale(msg, maxAgeSeconds = 120)` supporting protobuf Long objects (`.toNumber()`, `.low`), numeric timestamps, string timestamps, and millisecond detection.
+     - Inserted staleness check at the very top of `handler(msg, ...)`: drops stale messages and logs a warning with sender, age, and ID.
+  2. `index.js`:
+     - Imported `isMessageStale` and added early drop guard in `messageHandler(...)` before command routing, Birthday Takeover, or PDF handling.
+     - Expanded `processedMessageIds` cache TTL from 60 seconds to 1 hour (`3_600_000` ms), capped capacity at 5,000 IDs with FIFO eviction to prevent memory growth (<500 KB).
+  3. `src/baileys.js`:
+     - Added `if (type === 'append') return;` in `messages.upsert` to ignore multi-device history sync replays.
+  4. `test/messageStaleness.test.js`:
+     - Added 11 unit tests covering fresh messages, stale messages, protobuf Longs, millisecond timestamps, missing timestamps (backward compatibility), custom thresholds, and edge cases.
+- **Verification:**
+  - `node --test test/messageStaleness.test.js`: **11 pass, 0 fail**.
+  - `node --test test/**/*.test.js`: **387 pass, 0 fail across 79 suites (100% pass rate)**.
+  - `git push origin main`: Pushed commit `ae87978` (`fix: prevent repeated command execution from offline message replays`).
+  - **Live Koyeb Deployment & Health:**
+    - Triggered deployment `33fb3823` on commit `ae87978`.
+    - Build completed cleanly (Docker apt packages and npm dependencies).
+    - Status transitioned: `PROVISIONING` -> `STARTING` -> `HEALTHY`.
+    - Startup logs confirmed both WhatsApp sessions connected:
+      - `Nomor Bot (Publik)`: Connected (`6289505630895:94@s.whatsapp.net`).
+      - `Nomor Pribadi (Selfbot)`: Connected (`Arya Rizky Ardhi Pratama`).
+      - Handled 88 offline messages without replaying `!toimg` or any other stale command.
+    - Verified `/health` endpoint via curl: returned HTTP 200 OK with `status: ok` and both sessions connected.
+- **Status:** Completed

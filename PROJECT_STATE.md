@@ -186,8 +186,10 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-02 | Automatic Turso Auth State Garbage Collection | Non-blocking startup prune + 6h periodic background cleanup keeping sender keys <= 500 and pre-keys <= 100 |
 | 2026-09-07 | Birthday Takeover Full Upgrade & Cloudinary | Verified 13-slot timeline, truth questions honor system, dual DM outreach, Cloudinary SHA-1 photo upload, and flashback; 361/361 tests pass |
 | 2026-09-07 | Multi-Provider LLM Rotator Live Testing & Integration | Verified DashScope `qwen3.8-27b` (text) and `qwen-vl-plus` (vision) live; verified Doubao Ark `doubao-seed-1-6-flash-250615` live; 364/364 tests pass across 79 suites |
+| 2026-09-08 | Anti-Offline Replay & Message Staleness Guard | Added `isMessageStale` (120s max age), 1-hour deduplication cache (5,000 entries), and `type === 'append'` suppression; 387/387 tests pass across 79 suites |
+| 2026-09-08 | Koyeb live deployment status | Deployment 33fb3823 (commit ae87978) built & HEALTHY; verified `/health` returned 200 OK with both `bot` and `pribadi` sessions connected |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, and Multi-Provider LLM Rotator tests pass 100% (364/364 tests).
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, and Anti-Offline Replay guard tests pass 100% (387/387 tests). Live deployment 33fb3823 is verified healthy on Koyeb.
 
 ---
 
@@ -195,7 +197,7 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 
 | Limitation | Status |
 |---|---|
-| Koyeb deployment health after this migration | Verified healthy (deployment 9d4b0f09 on commit 19dcc55) |
+| Koyeb deployment health after this migration | Verified healthy (deployment 33fb3823 on commit ae87978; `/health` returns status ok with dual sessions connected) |
 | Live WhatsApp scheduled-delivery smoke test | Verified locally: one generated Reddit sticker was sent after the next five-minute tick |
 | Live News + Groq + You.com scheduled run | Not verified |
 | Live FX provider and Turso reconnect retry | Not verified |
