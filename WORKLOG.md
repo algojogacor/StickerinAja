@@ -6,6 +6,54 @@ Append-only development log. Newest session at the top.
 
 # Session Log
 
+## Session 76 — Investigation of Private Chat Sticker Repetition & Offline Message Replay Bug
+
+| Field | Value |
+|---|---|
+| **Date** | 2026-09-08 |
+| **Start time** | 22:00 WIB (+0700) |
+| **Timezone** | Asia/Jakarta (+0700) |
+| **Agent** | Antigravity (Gemini 3.8 Flash) |
+| **Platform** | Windows, PowerShell |
+| **Branch** | `main` |
+| **Starting HEAD** | `ef80335` |
+| **Ending HEAD** | `ef80335` (working tree uncommitted) |
+| **Status** | Completed |
+
+### Problem & Objectives
+- **User request:** "halo, kenapa fitur stiker untuk di chat pribadi error terus dah. terkirim terus. padahal dah lama terakhir triggernya", "Mungkin bisa cek koyeb log nya. lalu coba analisa codebase. ada masalah dimana", "Kerjakan dan terapkan solusinya"
+- **User screenshots:** Three chat screenshots with Viony (`218493593067617@lid`) showing `!toimg` command executed repeatedly at 20:43, 21:05, and 21:55/21:56 WIB even though the user only triggered it once at 20:43.
+- **Koyeb Log Analysis:**
+  1. `[2026-09-08 13:43:15 UTC]` (20:43 WIB): User triggered `!toimg` in private DM (`218493593067617@lid`) with `fromMe: true`. Bot replied with image.
+  2. `[2026-09-08 14:04:46 UTC]` (21:04:46 WIB): WhatsApp server emitted `stream:error (ack)` on the `pribadi` session. Baileys logged `Disconnected: 500 | Reconnect: true`.
+  3. `[2026-09-08 14:04:53 UTC]` (21:04:53 WIB): Baileys reconnected, logging `handled 74 offline messages/notifications`. WhatsApp re-delivered offline messages including the `!toimg` message from 20:43.
+  4. `[2026-09-08 14:05:29 UTC]` (21:05:29 WIB): Bot re-executed `!toimg`, sending `Mengubah stiker ke gambar...` and the image again!
+  5. `[2026-09-08 14:55:38 UTC]` (21:55:38 WIB): Another `stream:error (ack)` occurred, Baileys disconnected (500) and reconnected at 14:55:43 UTC. WhatsApp delivered `handled 57 offline messages/notifications`.
+  6. `[2026-09-08 14:55:46 UTC]` (21:55:46 WIB): Bot re-executed `!toimg` for the 3rd time!
+- **Root Causes in Codebase:**
+  1. **Zero message staleness validation:** Neither `index.js`, `src/handler.js`, nor `src/baileys.js` checked `msg.messageTimestamp`. Replayed messages from 22 to 72 minutes ago were treated as live user commands.
+  2. **Insufficient deduplication TTL:** `processedMessageIds` in `index.js` purged message IDs after only 60 seconds (`now - time > 60_000`). When Baileys reconnected minutes or hours later, the deduplication cache had already forgotten the message ID.
+  3. **Ignoring Baileys upsert event type:** `messages.upsert` receives `{ messages, type }`. `type === 'append'` (history/sync) was not filtered.
+  4. **Cascading disconnect loop:** When Baileys reconnected, re-executing `toimg` sent media messages which ran into stream acks or out-of-sync session ciphers, triggering another stream error.
+- **Implementation & Solutions:**
+  1. `src/handler.js`:
+     - Added `isMessageStale(msg, maxAgeSeconds = 120)` supporting number, protobuf Long `{ low, high }`, `.toNumber()`, and millisecond formats.
+     - Added staleness check in `handler(...)` dropping messages older than 120s with a warning log.
+     - Exported `isMessageStale`.
+  2. `index.js`:
+     - Imported `isMessageStale` and added early drop guard in `messageHandler(...)` before routing commands, interactive sessions, or PDF handling.
+     - Upgraded `processedMessageIds` from 60 seconds to 1-hour TTL (`3_600_000` ms) with bounded capacity (max 5,000 entries with FIFO eviction).
+  3. `src/baileys.js`:
+     - Added `if (type === 'append') return;` in `messages.upsert` to ignore history sync replays.
+  4. `test/messageStaleness.test.js`:
+     - Added 11 unit tests covering freshness, staleness thresholding, protobuf Long compatibility, millisecond handling, and handler stale command dropping.
+- **Verification:**
+  - `node --test test/messageStaleness.test.js`: 11/11 passed (100%).
+  - `node --test`: 387/387 passed across 79 suites (100%).
+  - `node --check index.js src/handler.js src/baileys.js`: Syntax valid.
+
+---
+
 ## Session 75 — Fix Rate The Day (23:30) LID Mismatch & Database State Audit
 
 | Field | Value |

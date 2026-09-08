@@ -208,7 +208,10 @@ function startSession({
 
             sock.ev.on('creds.update', saveCreds);
 
-            sock.ev.on('messages.upsert', async ({ messages }) => {
+            sock.ev.on('messages.upsert', async ({ messages, type }) => {
+                // Ignore history sync or local append events; only process live notify events
+                if (type === 'append') return;
+
                 for (const msg of messages) {
                     if (!shouldProcessMessage(msg, botMode)) continue;
                     try {

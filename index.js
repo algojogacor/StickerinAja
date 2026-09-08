@@ -12,7 +12,7 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const { startBot } = require('./src/baileys');
-const { handler, extractMessageContent, shouldProcessMessage, commands, getSenderJid } = require('./src/handler');
+const { handler, extractMessageContent, shouldProcessMessage, commands, getSenderJid, isMessageStale } = require('./src/handler');
 const { generateQrSvg } = require('./src/utils/qrHelper');
 const pino = require('pino');
 const fs = require('fs');
@@ -59,17 +59,30 @@ process.on('uncaughtException', (err) => {
 const PREFIX = process.env.PREFIX || '!';
 const birthdayTakeover = require('./src/services/birthdayTakeoverService');
 
-// In-memory message deduplication cache across sessions
+// In-memory message deduplication cache across sessions (1-hour retention to prevent reconnect replay)
 const processedMessageIds = new Map();
+const MAX_DEDUP_CACHE_SIZE = 5000;
+const DEDUP_TTL_MS = 60 * 60 * 1000;
 
 function isDuplicateMessage(messageId) {
     if (!messageId) return false;
     const now = Date.now();
-    for (const [id, time] of processedMessageIds.entries()) {
-        if (now - time > 60_000) processedMessageIds.delete(id);
-    }
     if (processedMessageIds.has(messageId)) {
         return true;
+    }
+    // Prune stale entries when cache grows
+    if (processedMessageIds.size >= MAX_DEDUP_CACHE_SIZE) {
+        for (const [id, time] of processedMessageIds.entries()) {
+            if (now - time > DEDUP_TTL_MS) processedMessageIds.delete(id);
+        }
+        // If still full after TTL cleanup, drop oldest 500 entries (FIFO eviction)
+        if (processedMessageIds.size >= MAX_DEDUP_CACHE_SIZE) {
+            let count = 0;
+            for (const id of processedMessageIds.keys()) {
+                processedMessageIds.delete(id);
+                if (++count >= 500) break;
+            }
+        }
     }
     processedMessageIds.set(messageId, now);
     return false;
@@ -97,6 +110,12 @@ async function messageHandler(sock, msg, logger, sessionId) {
     const sessionConfig = sessionId && global.botSessions?.[sessionId];
     const botMode = sessionConfig?.botMode || process.env.BOT_MODE || 'dual';
     if (!shouldProcessMessage(msg, botMode)) return;
+
+    // Guard against stale messages replayed during WhatsApp reconnects or offline sync
+    if (isMessageStale(msg)) {
+        logger?.warn?.({ msgId: msg.key?.id, sessionId, remoteJid: msg.key?.remoteJid }, '[Message] Dropped stale message replayed after reconnect');
+        return;
+    }
 
     const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
 

@@ -36,6 +36,42 @@ function shouldProcessMessage(msg, botMode = process.env.BOT_MODE || 'dual') {
     return true;
 }
 
+/**
+ * Check if a WhatsApp message is too old to be processed as an interactive command.
+ * Prevents re-executing stale commands replayed during WebSocket reconnects or offline syncs.
+ *
+ * @param {object} msg - The Baileys WAMessage object
+ * @param {number} maxAgeSeconds - Maximum allowable message age in seconds (default: 120s / 2m)
+ * @returns {boolean} True if the message is older than maxAgeSeconds
+ */
+function isMessageStale(msg, maxAgeSeconds = 120) {
+    if (!msg || !msg.messageTimestamp) return false;
+
+    let tsSec = msg.messageTimestamp;
+    if (typeof tsSec === 'object' && tsSec !== null) {
+        if (typeof tsSec.toNumber === 'function') {
+            tsSec = tsSec.toNumber();
+        } else if (tsSec.low !== undefined) {
+            tsSec = tsSec.low;
+        } else {
+            tsSec = Number(tsSec);
+        }
+    } else {
+        tsSec = Number(tsSec);
+    }
+
+    if (!Number.isFinite(tsSec) || tsSec <= 0) return false;
+
+    // Normalize millisecond timestamps if encountered
+    if (tsSec > 1e11) tsSec = Math.floor(tsSec / 1000);
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ageSeconds = nowSec - tsSec;
+
+    // Drop messages older than maxAgeSeconds
+    return ageSeconds > maxAgeSeconds;
+}
+
 function getSenderJid(msg, sock) {
     let jid;
     if (msg?.key?.fromMe) {
@@ -146,6 +182,12 @@ async function handler(sock, msg, logger, sessionId = null, botMode = null) {
     // Per-user session tracking (in groups, participant is user's direct JID; for fromMe, use bot user JID)
     const senderJid = getSenderJid(msg, sock);
 
+    // Guard against stale messages replayed during WhatsApp reconnects/offline sync
+    if (isMessageStale(msg)) {
+        logger?.warn?.({ msgId: msg.key?.id, chat: remoteJid, sender: senderJid }, '[Handler] Dropped stale message replayed after reconnect');
+        return;
+    }
+
     const { text: messageText, quotedMsg, quotedStanza } = extractMessageContent(msg);
 
     // 1. Check if user has an active stateful session (e.g. PDF multi-page creation)
@@ -193,6 +235,7 @@ module.exports = {
     getSession,
     getSenderJid,
     shouldProcessMessage,
+    isMessageStale,
     extractMessageContent,
     enqueueChatTask
 };

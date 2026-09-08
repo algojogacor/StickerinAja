@@ -1,8 +1,8 @@
 # Project State — StickerinAja
 
 **Last updated:** 2026-09-08 WIB (+0700)
-**Current implementation:** Multi-Provider LLM Rotator (Qwen DashScope priority 1, Groq priority 2, Doubao Ark priority 3); Birthday Takeover Full Upgrade with Midnight Rollover Resolution (`getEffectiveTakeover` bridging post-midnight events across calendar days), WhatsApp Multi-Device / Linked Device (`@lid`) canonical mapping, Automatic Pending Event Catch-Up on boot, and sanitized closing templates.
-**Last verified tests:** 376/376 pass across 79 test suites; 100% pass rate
+**Current implementation:** Anti-Offline Replay & Message Staleness Guard (`isMessageStale` with 120s max age threshold; 1-hour bounded 5,000-entry deduplication cache; and `messages.upsert` history-sync `type === 'append'` suppression); Multi-Provider LLM Rotator (Qwen DashScope priority 1, Groq priority 2, Doubao Ark priority 3); Birthday Takeover Full Upgrade with Midnight Rollover Resolution (`getEffectiveTakeover` bridging post-midnight events across calendar days), WhatsApp Multi-Device / Linked Device (`@lid`) canonical mapping, Automatic Pending Event Catch-Up on boot, and sanitized closing templates.
+**Last verified tests:** 387/387 pass across 79 test suites; 100% pass rate
 
 ---
 
@@ -33,6 +33,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 
 | Feature | Status | Files |
 |---|---|---|
+| Anti-Offline Replay & Staleness Guard | Active; drops messages older than 120s replayed upon reconnects, 1-hour deduplication cache (capped at 5,000 IDs), filters `type === 'append'` in `messages.upsert` | `src/handler.js`, `index.js`, `src/baileys.js`, `test/messageStaleness.test.js` |
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
 | Multi-Provider LLM Rotator | Active; resilient AI failover across Groq, Alibaba DashScope (`qwen3.8-flash` multimodal text/vision), and Doubao Ark (`doubao-seed-1-6-flash-250615` multimodal text/vision) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
