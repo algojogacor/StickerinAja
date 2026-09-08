@@ -3376,3 +3376,30 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
       - Handled 88 offline messages without replaying `!toimg` or any other stale command.
     - Verified `/health` endpoint via curl: returned HTTP 200 OK with `status: ok` and both sessions connected.
 - **Status:** Completed
+
+---
+
+## 2026-09-08 — Session 78 (Asia/Jakarta)
+
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Investigate why bot did not respond to `!s` command quoting a photo in private chat (~ ~Lann +62 838-4183-7649), with user suspecting photo age (~6 minutes old).
+- **Root Cause Analysis:**
+  1. Quoted photo age was NOT the cause: `isMessageStale` strictly checks the command message (`msg.messageTimestamp`), never the quoted photo.
+  2. The real cause was `if (type === 'append') return;` in `src/baileys.js` line 213 (added in Session 77):
+     - In WhatsApp Multi-Device, when a user sends a message from their primary mobile phone (`fromMe: true`), WhatsApp syncs that outgoing message to companion linked devices (`pribadi` selfbot) as `messages.upsert` with `type: 'append'`.
+     - The early return `if (type === 'append') return;` discarded ALL messages sent by the user from their phone, completely disabling selfbot command processing.
+  3. Furthermore, `unwrapMsg` in `src/commands/sticker.js` only unwrapped a single layer of message wrappers, which risked missing media if disappearing messages wrapped view-once photos (`ephemeralMessage` -> `viewOnceMessage` -> `imageMessage`).
+- **Implementation:**
+  1. `src/baileys.js`:
+     - Changed `messages.upsert` guard from blanket `if (type === 'append') return;` to `if (type === 'append' && !msg.key?.fromMe) continue;`.
+     - This drops incoming history sync / unacknowledged replays from other users, while allowing selfbot commands typed from the primary phone (`fromMe: true`).
+     - Freshness and replay safety remain 100% protected by `isMessageStale` (120s max age) and `processedMessageIds` (1-hour deduplication cache).
+  2. `src/commands/sticker.js`:
+     - Refactored `unwrapMsg` into a top-level looping helper that unwraps arbitrary nested wrapper layers (`ephemeralMessage`, `viewOnceMessage`, `viewOnceMessageV2`, `viewOnceMessageV2Extension`, `documentWithCaptionMessage`).
+     - Removed redundant local `unwrapMsg` declarations in `hasMedia` and `download`.
+  3. `test/messageStaleness.test.js`:
+     - Added test for `append` filter logic (`fromMe` allowed vs `!fromMe` dropped).
+     - Added test for multi-level nested ephemeral + viewOnce unwrapping.
+- **Verification:**
+  - `node --test test/**/*.test.js`: **389 pass, 0 fail across 79 suites (100% pass rate)**.
+- **Status:** Completed

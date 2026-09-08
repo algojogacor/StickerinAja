@@ -32,6 +32,25 @@ const TEMP_DIR = path.join(__dirname, '../../temp');
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760');
 const ANIMATED_STICKER_TARGET_BYTES = parseInt(process.env.ANIMATED_STICKER_TARGET_BYTES || '950000');
 
+function unwrapMsg(m) {
+    if (!m) return m;
+    let current = m;
+    while (
+        current?.ephemeralMessage?.message ||
+        current?.viewOnceMessage?.message ||
+        current?.viewOnceMessageV2?.message ||
+        current?.viewOnceMessageV2Extension?.message ||
+        current?.documentWithCaptionMessage?.message
+    ) {
+        current = current.ephemeralMessage?.message ||
+            current.viewOnceMessage?.message ||
+            current.viewOnceMessageV2?.message ||
+            current.viewOnceMessageV2Extension?.message ||
+            current.documentWithCaptionMessage?.message;
+    }
+    return current;
+}
+
 module.exports = {
     names: [
         's', 'sticker', 'stiker', 'sgif', 'stickergif', 'stikergif',
@@ -131,13 +150,6 @@ module.exports = {
         }
 
         // ─── Default Media Sticker ───
-        const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
-            m?.viewOnceMessage?.message ||
-            m?.viewOnceMessageV2?.message ||
-            m?.viewOnceMessageV2Extension?.message ||
-            m?.documentWithCaptionMessage?.message ||
-            m;
-
         const directM = unwrapMsg(msg.message);
         const quotedM = unwrapMsg(quotedMsg);
 
@@ -158,13 +170,6 @@ module.exports = {
 
     async download(sock, msg, quotedMsg, quotedStanza) {
         try {
-            const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
-                m?.viewOnceMessage?.message ||
-                m?.viewOnceMessageV2?.message ||
-                m?.viewOnceMessageV2Extension?.message ||
-                m?.documentWithCaptionMessage?.message ||
-                m;
-
             if (quotedMsg) {
                 const contextInfo =
                     msg.message?.extendedTextMessage?.contextInfo ||
@@ -208,12 +213,6 @@ module.exports = {
     },
 
     hasMedia(msg, quotedMsg) {
-        const unwrapMsg = (m) => m?.ephemeralMessage?.message ||
-            m?.viewOnceMessage?.message ||
-            m?.viewOnceMessageV2?.message ||
-            m?.viewOnceMessageV2Extension?.message ||
-            m?.documentWithCaptionMessage?.message ||
-            m;
         const directM = unwrapMsg(msg?.message);
         const quotedM = unwrapMsg(quotedMsg);
         return !!(directM?.imageMessage || directM?.videoMessage || directM?.stickerMessage ||

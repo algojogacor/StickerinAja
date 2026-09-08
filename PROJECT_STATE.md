@@ -33,7 +33,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 
 | Feature | Status | Files |
 |---|---|---|
-| Anti-Offline Replay & Staleness Guard | Active; drops messages older than 120s replayed upon reconnects, 1-hour deduplication cache (capped at 5,000 IDs), filters `type === 'append'` in `messages.upsert` | `src/handler.js`, `index.js`, `src/baileys.js`, `test/messageStaleness.test.js` |
+| Anti-Offline Replay & Staleness Guard | Active; drops messages older than 120s replayed upon reconnects, 1-hour deduplication cache (capped at 5,000 IDs), drops non-self append events while preserving primary phone selfbot commands, and recursive multi-layer unwrapping for ephemeral/viewOnce media | `src/handler.js`, `index.js`, `src/baileys.js`, `src/commands/sticker.js`, `test/messageStaleness.test.js` |
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
 | Multi-Provider LLM Rotator | Active; resilient AI failover across Groq, Alibaba DashScope (`qwen3.8-flash` multimodal text/vision), and Doubao Ark (`doubao-seed-1-6-flash-250615` multimodal text/vision) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
@@ -188,8 +188,9 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-07 | Multi-Provider LLM Rotator Live Testing & Integration | Verified DashScope `qwen3.8-27b` (text) and `qwen-vl-plus` (vision) live; verified Doubao Ark `doubao-seed-1-6-flash-250615` live; 364/364 tests pass across 79 suites |
 | 2026-09-08 | Anti-Offline Replay & Message Staleness Guard | Added `isMessageStale` (120s max age), 1-hour deduplication cache (5,000 entries), and `type === 'append'` suppression; 387/387 tests pass across 79 suites |
 | 2026-09-08 | Koyeb live deployment status | Deployment 33fb3823 (commit ae87978) built & HEALTHY; verified `/health` returned 200 OK with both `bot` and `pribadi` sessions connected |
+| 2026-09-08 | Selfbot append-filter fix & nested media unwrapper | Preserved `type === 'append'` for user selfbot commands (`fromMe: true`) while discarding non-self history sync; recursive multi-layer unwrap for ephemeral/viewOnce; 389/389 tests pass across 79 suites |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, and Anti-Offline Replay guard tests pass 100% (387/387 tests). Live deployment 33fb3823 is verified healthy on Koyeb.
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, and Anti-Offline Replay guard tests pass 100% (389/389 tests).
 
 ---
 

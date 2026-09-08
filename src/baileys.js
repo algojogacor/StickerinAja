@@ -209,10 +209,11 @@ function startSession({
             sock.ev.on('creds.update', saveCreds);
 
             sock.ev.on('messages.upsert', async ({ messages, type }) => {
-                // Ignore history sync or local append events; only process live notify events
-                if (type === 'append') return;
-
                 for (const msg of messages) {
+                    // Ignore history sync or unacknowledged incoming append events from other users
+                    // Live user commands sent from self primary phone arrive with type 'append' and fromMe: true
+                    if (type === 'append' && !msg.key?.fromMe) continue;
+
                     if (!shouldProcessMessage(msg, botMode)) continue;
                     try {
                         await onMessage(sock, msg, sessionId);

@@ -158,4 +158,45 @@ test('Handler Staleness Integration', async (t) => {
         // Cleanup
         commands.delete('test_fresh_cmd');
     });
+
+    await t.test('allows selfbot commands with type append while dropping incoming history sync appends', () => {
+        const filterAppend = (type, msg) => {
+            if (type === 'append' && !msg.key?.fromMe) return false;
+            return true;
+        };
+
+        // User typed a command from their own phone (fromMe: true) synced as 'append'
+        const selfCmd = { key: { fromMe: true, id: 'SELF_CMD_1' } };
+        assert.equal(filterAppend('append', selfCmd), true, 'Selfbot command sent from primary phone should be allowed');
+
+        // History sync or unacknowledged incoming message from someone else
+        const incomingHistory = { key: { fromMe: false, id: 'HIST_1' } };
+        assert.equal(filterAppend('append', incomingHistory), false, 'Incoming history sync should be dropped');
+
+        // Normal live notification
+        assert.equal(filterAppend('notify', incomingHistory), true, 'Live notification should be allowed');
+    });
+
+    await t.test('unwraps multi-level nested ephemeral and viewOnce wrappers', () => {
+        const stickerModule = require('../src/commands/sticker');
+        assert.equal(typeof stickerModule.hasMedia, 'function');
+
+        const nestedMsg = {
+            ephemeralMessage: {
+                message: {
+                    viewOnceMessageV2: {
+                        message: {
+                            imageMessage: {
+                                url: 'https://example.com/test.jpg',
+                                mimetype: 'image/jpeg'
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        const result = stickerModule.hasMedia(null, nestedMsg);
+        assert.equal(result, true, 'Nested ephemeral viewOnce image should be recognized as media');
+    });
 });
