@@ -35,7 +35,7 @@ module.exports = {
 │ ${p}menu pdf       - gambar ke PDF & scan dokumen
 │ ${p}cuaca <kota>   - cek cuaca realtime
 │ ${p}menu template  - label/warning/bubble/poster
-│ ${p}menu convert   - toimg/togif/tomp4/sinfo
+│ ${p}menu convert   - toimg/togif/tomp4/sinfo/reveal
 │ ${p}menu pack      - pack/author preset
 │ ${p}menu all       - tampilkan semua menu
 │
@@ -183,8 +183,11 @@ module.exports = {
 │   Stiker animasi → video MP4.
 │ ${p}sinfo
 │   Info media/stiker: ukuran, format, dimensi, frame.
+│ ${p}reveal
+│   Buka foto/video Sekali Lihat (View Once) dengan resolusi asli.
 │
 │ Alias info: ${p}stickerinfo
+│ Alias reveal: ${p}rvo, ${p}viewonce, ${p}bukaonce
 ╰──────────────────`,
 
             preset: `╭──「 *PRESET EFEK CEPAT* 」──

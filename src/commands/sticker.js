@@ -22,7 +22,8 @@ const {
     stickerInfo,
     toImage,
     toGif,
-    toMp4
+    toMp4,
+    revealViewOnce
 } = require('../services/sticker/converterService');
 
 const { textStickerCache, imageQueue } = require('../utils/cache');
@@ -60,11 +61,12 @@ module.exports = {
         'quote', 'squote', 'emoji', 'semoji',
         'label', 'warning', 'bubble', 'poster',
         'sinfo', 'stickerinfo',
-        'toimg', 'togif', 'tomp4'
+        'toimg', 'togif', 'tomp4',
+        'reveal', 'rvo', 'viewonce', 'bukaonce'
     ],
 
     async execute({ sock, msg, args, cmdName, remoteJid, quotedMsg, quotedStanza, session, logger, PREFIX }) {
-        // ─── Format Converters ───
+        // ─── Format Converters & View-Once Revealer ───
         if (cmdName === 'toimg') {
             return toImage({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn: this.download, TEMP_DIR });
         }
@@ -76,6 +78,9 @@ module.exports = {
         }
         if (['sinfo', 'stickerinfo'].includes(cmdName)) {
             return stickerInfo({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn: this.download, TEMP_DIR });
+        }
+        if (['reveal', 'rvo', 'viewonce', 'bukaonce'].includes(cmdName)) {
+            return revealViewOnce({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn: this.download.bind(this) });
         }
 
         // ─── Meme, Quote, Emoji, and Template Cards ───

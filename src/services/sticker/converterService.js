@@ -13,6 +13,7 @@ function unwrapMessage(m) {
     if (m.ephemeralMessage?.message) return unwrapMessage(m.ephemeralMessage.message);
     if (m.viewOnceMessage?.message) return unwrapMessage(m.viewOnceMessage.message);
     if (m.viewOnceMessageV2?.message) return unwrapMessage(m.viewOnceMessageV2.message);
+    if (m.viewOnceMessageV2Extension?.message) return unwrapMessage(m.viewOnceMessageV2Extension.message);
     if (m.documentWithCaptionMessage?.message) return unwrapMessage(m.documentWithCaptionMessage.message);
     return m;
 }
@@ -219,12 +220,89 @@ async function toMp4({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, do
     });
 }
 
+/**
+ * Reveals and extracts View Once media (photos/videos/audio) in its original resolution and format (not WebP).
+ */
+async function revealViewOnce({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn }) {
+    const hasDirectMedia = Boolean(
+        msg?.message?.imageMessage ||
+        msg?.message?.videoMessage ||
+        msg?.message?.audioMessage ||
+        msg?.message?.viewOnceMessage ||
+        msg?.message?.viewOnceMessageV2 ||
+        msg?.message?.viewOnceMessageV2Extension ||
+        msg?.message?.ephemeralMessage
+    );
+
+    if (!quotedMsg && !hasDirectMedia) {
+        return sock.sendMessage(remoteJid, {
+            text: '👁️ *REVEAL VIEW ONCE*\n\nBalas/reply pesan foto atau video *Sekali Lihat (View Once)* dengan perintah *!reveal* untuk menyimpan dan membuka isinya dalam resolusi/kualitas asli (bukan WebP).'
+        }, { quoted: msg });
+    }
+
+    const rawTarget = quotedMsg || msg?.message;
+    const unwrapped = unwrapMessage(rawTarget);
+    const isImage = Boolean(unwrapped?.imageMessage);
+    const isVideo = Boolean(unwrapped?.videoMessage);
+    const isAudio = Boolean(unwrapped?.audioMessage);
+
+    if (!isImage && !isVideo && !isAudio) {
+        return sock.sendMessage(remoteJid, {
+            text: '⚠️ Pesan yang dibalas bukan foto, video, atau audio Sekali Lihat (View Once).'
+        }, { quoted: msg });
+    }
+
+    await sock.sendMessage(remoteJid, { text: '⏳ Membuka media View Once...' }, { quoted: msg });
+
+    try {
+        const buffer = await downloadFn(sock, msg, quotedMsg, quotedStanza);
+        if (!buffer || !buffer.length) {
+            return sock.sendMessage(remoteJid, {
+                text: '❌ Gagal mengunduh media View Once. Kemungkinan media sudah kedaluwarsa di server WhatsApp atau belum terunduh.'
+            }, { quoted: msg });
+        }
+
+        const mediaObj = unwrapped.imageMessage || unwrapped.videoMessage || unwrapped.audioMessage;
+        const rawCaption = mediaObj?.caption ? String(mediaObj.caption).trim() : '';
+        const caption = rawCaption ? `🔓 *[View Once]*\n\n${rawCaption}` : '🔓 *View Once Revealed*';
+
+        if (isImage) {
+            await sock.sendMessage(remoteJid, {
+                image: buffer,
+                caption,
+                mimetype: mediaObj?.mimetype || 'image/jpeg'
+            }, { quoted: msg });
+        } else if (isVideo) {
+            await sock.sendMessage(remoteJid, {
+                video: buffer,
+                caption,
+                mimetype: mediaObj?.mimetype || 'video/mp4'
+            }, { quoted: msg });
+        } else if (isAudio) {
+            await sock.sendMessage(remoteJid, {
+                audio: buffer,
+                mimetype: mediaObj?.mimetype || 'audio/ogg; codecs=opus',
+                ptt: Boolean(mediaObj?.ptt)
+            }, { quoted: msg });
+        }
+
+        logger?.info?.({ remoteJid, isImage, isVideo, isAudio, bytes: buffer.length }, 'View Once media revealed successfully');
+    } catch (err) {
+        logger?.error?.({ err }, 'Error in revealViewOnce');
+        await sock.sendMessage(remoteJid, {
+            text: `❌ Gagal membuka View Once: ${err.message || 'Terjadi kesalahan sistem'}`
+        }, { quoted: msg });
+    }
+}
+
 module.exports = {
+    unwrapMessage,
     getMediaKind,
     formatBytes,
     ffprobeFile,
     stickerInfo,
     toImage,
     toGif,
-    toMp4
+    toMp4,
+    revealViewOnce
 };

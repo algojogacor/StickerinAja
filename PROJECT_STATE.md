@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-08 WIB (+0700)
 **Current implementation:** Anti-Offline Replay & Message Staleness Guard (`isMessageStale` with 120s max age threshold; 1-hour bounded 5,000-entry deduplication cache; and `messages.upsert` history-sync `type === 'append'` suppression); Multi-Provider LLM Rotator (Qwen DashScope priority 1, Groq priority 2, Doubao Ark priority 3); Birthday Takeover Full Upgrade with Midnight Rollover Resolution (`getEffectiveTakeover` bridging post-midnight events across calendar days), WhatsApp Multi-Device / Linked Device (`@lid`) canonical mapping, Automatic Pending Event Catch-Up on boot, and sanitized closing templates.
-**Last verified tests:** 387/387 pass across 79 test suites; 100% pass rate
+**Last verified tests:** 396/396 pass across 80 test suites; 100% pass rate
 
 ---
 
@@ -34,6 +34,7 @@ The scheduler uses one recursive `setTimeout` per active job. After each callbac
 | Feature | Status | Files |
 |---|---|---|
 | Anti-Offline Replay & Staleness Guard | Active; drops messages older than 120s replayed upon reconnects, 1-hour deduplication cache (capped at 5,000 IDs), drops non-self append events while preserving primary phone selfbot commands, and recursive multi-layer unwrapping for ephemeral/viewOnce media | `src/handler.js`, `index.js`, `src/baileys.js`, `src/commands/sticker.js`, `test/messageStaleness.test.js` |
+| View Once Revealer | Active; extracts View-Once photos, videos, and audio in exact original resolution/format (not WebP) via `!reveal`, `!rvo`, `!viewonce`, `!bukaonce` | `src/services/sticker/converterService.js`, `src/commands/sticker.js`, `test/revealViewOnce.test.js` |
 | Sticker creation | Active; modularized into specialized services, pure Sharp + SVG compositing, zero `canvas` native dependency | `src/commands/sticker.js`, `src/services/sticker/*.js`, `src/utils/textRenderer.js` |
 | Telegram Sticker Importer | Active; imports absurd/meme sticker packs from Telegram via `!tg <link/pack>` with automatic 512x512 Sharp WebP scaling and EXIF injection | `src/services/telegramStickerService.js`, `src/commands/telegram.js`, `test/telegramSticker.test.js` |
 | Multi-Provider LLM Rotator | Active; resilient AI failover across Groq, Alibaba DashScope (`qwen3.8-flash` multimodal text/vision), and Doubao Ark (`doubao-seed-1-6-flash-250615` multimodal text/vision) with per-provider multi-key rotation | `src/services/llmRotator.js`, `src/services/aiVisionService.js`, `src/services/birthdayAiService.js`, `test/llmRotator.test.js` |
@@ -189,8 +190,9 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-08 | Anti-Offline Replay & Message Staleness Guard | Added `isMessageStale` (120s max age), 1-hour deduplication cache (5,000 entries), and `type === 'append'` suppression; 387/387 tests pass across 79 suites |
 | 2026-09-08 | Koyeb live deployment status | Deployment 7beaf08e (commit 0d81fcb) built & HEALTHY; verified `/health` returned 200 OK with both `bot` and `pribadi` sessions connected |
 | 2026-09-08 | Selfbot append-filter fix & nested media unwrapper | Preserved `type === 'append'` for user selfbot commands (`fromMe: true`) while discarding non-self history sync; recursive multi-layer unwrap for ephemeral/viewOnce; 389/389 tests pass across 79 suites |
+| 2026-09-08 | View Once Revealer (!reveal) | Verified raw decrypted media extraction for images/videos/audio in original quality without WebP re-encoding; 396/396 tests pass across 80 suites |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, and Anti-Offline Replay guard tests pass 100% (389/389 tests). Live deployment 7beaf08e is verified healthy on Koyeb.
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, Anti-Offline Replay guard, and View Once Revealer tests pass 100% (396/396 tests). Live deployment 7beaf08e is verified healthy on Koyeb.
 
 ---
 

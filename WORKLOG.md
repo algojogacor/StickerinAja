@@ -3403,3 +3403,29 @@ Pushed to `origin/main`. The `feat/reddit-sticker-clean` and `feat/reddit-sticke
 - **Verification:**
   - `node --test test/**/*.test.js`: **389 pass, 0 fail across 79 suites (100% pass rate)**.
 - **Status:** Completed
+
+---
+
+## 2026-09-08 — Session 79 (Asia/Jakarta)
+
+- **Agent/model/platform:** Antigravity / Gemini / Windows PowerShell
+- **Request:** Add `!reveal` command to extract and output View-Once photos (and videos/audio) in their exact original resolution and format (not converted to WebP).
+- **Implementation:**
+  1. `src/services/sticker/converterService.js`:
+     - Added `revealViewOnce({ sock, msg, remoteJid, quotedMsg, quotedStanza, logger, downloadFn })`.
+     - Supports images (`imageMessage`), videos (`videoMessage`), and voice notes/audio (`audioMessage`).
+     - Extracts the raw decrypted buffer from WhatsApp media servers via Baileys `downloadMediaMessage` without re-encoding to WebP or downscaling.
+     - Preserves original caption if present (`🔓 *[View Once]*\n\n<caption >`).
+     - Added `viewOnceMessageV2Extension` to `unwrapMessage`.
+  2. `src/commands/sticker.js`:
+     - Registered command names: `reveal`, `rvo`, `viewonce`, `bukaonce`.
+     - Wired execution to `revealViewOnce`.
+  3. `src/commands/menu.js`:
+     - Documented `!reveal` in the `convert` submenu and command overview.
+  4. `test/revealViewOnce.test.js` & `test/stickerModuleLoad.test.js`:
+     - Added 7 unit tests covering usage prompt, non-media rejection, original image extraction (raw bytes verification), video extraction, nested wrapper unwrapping, and download failure handling.
+- **Verification:**
+  - `node --test test/revealViewOnce.test.js`: **7 pass, 0 fail**.
+  - `node --test test/**/*.test.js`: **396 pass, 0 fail across 80 suites (100% pass rate)**.
+  - `node --check` passed on all modified files.
+- **Status:** Completed
