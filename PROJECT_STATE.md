@@ -188,11 +188,11 @@ Manual command behavior is unchanged. The scheduler migration only affects backg
 | 2026-09-07 | Birthday Takeover Full Upgrade & Cloudinary | Verified 13-slot timeline, truth questions honor system, dual DM outreach, Cloudinary SHA-1 photo upload, and flashback; 361/361 tests pass |
 | 2026-09-07 | Multi-Provider LLM Rotator Live Testing & Integration | Verified DashScope `qwen3.8-27b` (text) and `qwen-vl-plus` (vision) live; verified Doubao Ark `doubao-seed-1-6-flash-250615` live; 364/364 tests pass across 79 suites |
 | 2026-09-08 | Anti-Offline Replay & Message Staleness Guard | Added `isMessageStale` (120s max age), 1-hour deduplication cache (5,000 entries), and `type === 'append'` suppression; 387/387 tests pass across 79 suites |
-| 2026-09-08 | Koyeb live deployment status | Deployment 7beaf08e (commit 0d81fcb) built & HEALTHY; verified `/health` returned 200 OK with both `bot` and `pribadi` sessions connected |
+| 2026-09-08 | Koyeb live deployment status | Deployment b86912f6 (commit 0129773) built & HEALTHY; verified `/health` returned 200 OK with both `bot` and `pribadi` sessions connected |
 | 2026-09-08 | Selfbot append-filter fix & nested media unwrapper | Preserved `type === 'append'` for user selfbot commands (`fromMe: true`) while discarding non-self history sync; recursive multi-layer unwrap for ephemeral/viewOnce; 389/389 tests pass across 79 suites |
 | 2026-09-08 | View Once Revealer (!reveal) | Verified raw decrypted media extraction for images/videos/audio in original quality without WebP re-encoding; 396/396 tests pass across 80 suites |
 
-The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, Anti-Offline Replay guard, and View Once Revealer tests pass 100% (396/396 tests). Live deployment 7beaf08e is verified healthy on Koyeb.
+The local runtime, Turso initialization, one fixed-process scheduled Reddit sticker delivery, and one isolated direct Reddit generation/send were verified. Multi-session watchdog, self-quoted media decryption, Turso GC, Birthday Takeover, Multi-Provider LLM Rotator, Anti-Offline Replay guard, and View Once Revealer tests pass 100% (396/396 tests). Live deployment b86912f6 is verified healthy on Koyeb.
 
 ---
 
@@ -200,7 +200,7 @@ The local runtime, Turso initialization, one fixed-process scheduled Reddit stic
 
 | Limitation | Status |
 |---|---|
-| Koyeb deployment health after this migration | Verified healthy (deployment 7beaf08e on commit 0d81fcb; `/health` returns status ok with dual sessions connected) |
+| Koyeb deployment health after this migration | Verified healthy (deployment b86912f6 on commit 0129773; `/health` returns status ok with dual sessions connected) |
 | Live WhatsApp scheduled-delivery smoke test | Verified locally: one generated Reddit sticker was sent after the next five-minute tick |
 | Live News + Groq + You.com scheduled run | Not verified |
 | Live FX provider and Turso reconnect retry | Not verified |
